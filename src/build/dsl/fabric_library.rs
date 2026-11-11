@@ -48,14 +48,7 @@ impl FabricName {
                     on(OmniTop).prism(Pct(200.0)),
                     on(OmniBot).open(),
                 ])
-                .omit([
-                    ("C2", "B3"),
-                    ("C2", "A1"),
-                    ("A2", "B1"),
-                    ("A2", "C3"),
-                    ("A3", "B2"),
-                    ("B2", "C1"),
-                ])
+                .omit([ABC(2) << ABC(3), ABC(2) >> ABC(1)])
                 .prepare_vulcanize(0.5, VulcanizeMode::Linear)
                 .space(
                     Sec(2.8),
@@ -72,11 +65,7 @@ impl FabricName {
                 .amplitude(Pct(3.0))
                 .stiffness(Pct(1.0))
                 .sine()
-                .actuators([
-                    phase(Pct(0.0)).between("CX2Z4", "BX4Z5"),
-                    phase(Pct(0.0)).between("AX2Z4", "CX4Z5"),
-                    phase(Pct(0.0)).between("BX2Z4", "AX4Z5"),
-                ]),
+                .actuators([phase(Pct(0.0)).between(ABC(15) >> ABC(28))]),
             HaloByCrane => self
                 .build(
                     FabricDimensions::default()
@@ -338,46 +327,29 @@ pub fn headless_hug_plan(shape: HeadlessHugShape) -> FabricPlan {
         )
         .vulcanize(Sec(2.1))
         .omit([
-            ("Z2", "R2"),
-            ("Z2", "L2"),
-            ("L2", "L3"),
-            ("R2", "R3"),
-            ("R1", "R4"),
-            ("L1", "L4"),
-            ("Z3", "R1"),
-            ("Z3", "L1"),
-            ("L21", "L26"),
-            ("R21", "R26"),
-            ("L8", "L23"),
-            ("R8", "R23"),
+            Z(2) - LR(2),
+            LR(2) - LR(3),
+            LR(1) - LR(4),
+            Z(3) - LR(1),
+            LR(21) - LR(26),
+            LR(8) - LR(23),
         ])
         .hinge([
-            ("L13", "R13"),
-            ("L9", "R9"),
-            ("L10", "L39"),
-            ("R10", "R39"),
-            ("L6", "L22"),
-            ("R6", "R22"),
-            ("L8", "L18"),
-            ("R8", "R18"),
+            LR(13) | LR(13),
+            LR(9) | LR(9),
+            LR(10) - LR(39),
+            LR(6) - LR(22),
+            LR(8) - LR(18),
         ])
         .bridle([
-            ("R5", "Z4", "Z2"),
-            ("L5", "Z4", "Z2"),
-            ("L55", "L52", "L38"),
-            ("R55", "R52", "R38"),
-            ("L37", "L23", "L21"),
-            ("R37", "R23", "R21"),
-            ("R20", "R2", "R10"),
-            ("L20", "L2", "L10"),
-            ("R7", "R2", "R1"),
-            ("L7", "L2", "L1"),
-            ("R11", "R1", "R2"),
-            ("L11", "L1", "L2"),
-            ("R15", "Z3", "Z1"),
-            ("L15", "Z3", "Z1"),
-            ("L33", "L12", "Z1"),
-            ("R33", "R12", "Z1"),
+            LR(5).bridle(Z(4), Z(2)),
+            LR(55).bridle(LR(52), LR(38)),
+            LR(37).bridle(LR(23), LR(21)),
+            LR(20).bridle(LR(2), LR(10)),
+            LR(7).bridle(LR(2), LR(1)),
+            LR(11).bridle(LR(1), LR(2)),
+            LR(15).bridle(Z(3), Z(1)),
+            LR(33).bridle(LR(12), Z(1)),
         ])
         .down(Sec(1.0), [Foot(Side::Left), Foot(Side::Right)])
         .pretense(Sec(0.3), Pct(0.5))
@@ -390,20 +362,16 @@ pub fn headless_hug_plan(shape: HeadlessHugShape) -> FabricPlan {
             // Lengths that stand it upright: its centre of gravity over its
             // feet, both pairs lightly taut.
             // Tuned with `search_headless_hug_guy_lines`.
-            guy_line("L14", (M(0.0), M(5.2)), Pct(90.75)),
-            guy_line("R14", (M(0.0), M(5.2)), Pct(90.75)),
-            guy_line("L14", (M(0.0), M(-5.2)), Pct(108.75)),
-            guy_line("R14", (M(0.0), M(-5.2)), Pct(108.75)),
+            guy_line(LR(14), (M(0.0), M(5.2)), Pct(90.55)),
+            guy_line(LR(14), (M(0.0), M(-5.2)), Pct(108.95)),
         ])
         .animate()
         .actuator_frequency(Hz(0.24))
         .amplitude(Pct(0.75))
         .sine()
         .actuators([
-            phase(Pct(0.0)).interval("L14", "L63"),
-            phase(Pct(0.0)).interval("R14", "R63"),
-            phase(Pct(50.0)).interval("L14", "L64"),
-            phase(Pct(50.0)).interval("R14", "R64"),
+            phase(Pct(0.0)).interval(LR(14) - LR(63)),
+            phase(Pct(50.0)).interval(LR(14) - LR(64)),
         ])
 }
 

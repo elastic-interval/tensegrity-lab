@@ -90,6 +90,12 @@ impl Keyboard {
         );
         self.time_scale("T", "t");
         self.key_lab_event(
+            KeyCode::KeyW,
+            "Wind",
+            Crucible(CycleWind),
+            Box::new(|state| matches!(state, Viewing { .. } | Animating)),
+        );
+        self.key_lab_event(
             KeyCode::KeyX,
             "Physics testing",
             Crucible(ToPhysicsTesting),

@@ -72,6 +72,7 @@ pub mod material;
 pub mod physics;
 pub mod symmetrize;
 pub mod vulcanize;
+pub mod wind;
 
 pub mod physics_tester;
 
@@ -269,6 +270,8 @@ pub struct Fabric {
     /// The bridle links that are hangers, short fork rods, not cables: their node plate
     /// hangs close to the strut end.
     pub bridle_hangers: HashSet<IntervalKey>,
+    /// Blowing on the fabric when set; `None` in every build.
+    pub wind: Option<wind::Wind>,
 
     cached_bounding_radius: f32,
     approaching_count: usize,
@@ -301,6 +304,7 @@ impl Fabric {
             hinge_strut: HashMap::new(),
             bridle_nodes: HashMap::new(),
             bridle_hangers: HashSet::new(),
+            wind: None,
             limb_names: HashMap::new(),
             approaching_count: 0,
             quiet_since: None,
@@ -603,6 +607,7 @@ impl Fabric {
                 joint.force += Vec3::new(0.0, -mass * g, 0.0);
             }
         }
+        self.apply_wind();
 
         // 4. Second half-kick: v += 0.5 * a * dt (using new forces)
         //    Also apply damping and surface interaction after the velocity update
@@ -645,7 +650,7 @@ impl Fabric {
         // imperfectly cancelled interval forces); see commit notes.
         const QUIET_MAX_SPEED_SQ: f32 = 2.5e-3; // (5e-2 m/s)² = (50 mm/s)²
         const QUIET_FREEZE_DURATION_SECS: f32 = 10.0;
-        if self.approaching_count > 0 || max_speed_squared > QUIET_MAX_SPEED_SQ {
+        if self.approaching_count > 0 || max_speed_squared > QUIET_MAX_SPEED_SQ || self.wind.is_some() {
             self.quiet_since = None;
         } else {
             match self.quiet_since {

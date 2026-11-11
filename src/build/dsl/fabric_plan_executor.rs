@@ -406,8 +406,8 @@ impl FabricPlanExecutor {
             self.plan_step_failed(failure);
         }
 
-        for (keep, merge) in self.plan.pretense_phase.hinge_pairs.clone() {
-            match (self.fabric.joint_key_by_label(&keep), self.fabric.joint_key_by_label(&merge)) {
+        for (keep, merge) in self.expand_links(|phase| &phase.hinge_pairs) {
+            match (self.fabric.joint_key(keep), self.fabric.joint_key(merge)) {
                 (Some(k), Some(m)) => self.fabric.hinge(k, m),
                 _ => self.plan_step_failed(format!("no joints for hinge ({keep}, {merge})")),
             }
@@ -418,9 +418,9 @@ impl FabricPlanExecutor {
         number_axial_by_build_order(&mut self.fabric);
 
         // Omit triangle intervals after faces are converted
-        for (alpha_label, omega_label) in self.plan.pretense_phase.omit_pairs.clone() {
-            let alpha_key = self.fabric.joint_key_by_label(&alpha_label);
-            let omega_key = self.fabric.joint_key_by_label(&omega_label);
+        for (alpha_label, omega_label) in self.expand_links(|phase| &phase.omit_pairs) {
+            let alpha_key = self.fabric.joint_key(alpha_label);
+            let omega_key = self.fabric.joint_key(omega_label);
             match (alpha_key, omega_key) {
                 (Some(a), Some(o)) => match self.fabric.joining((a, o)) {
                     Some(key) => {
@@ -432,9 +432,16 @@ impl FabricPlanExecutor {
             }
         }
 
-        for (joint, a, b) in self.plan.pretense_phase.bridles.clone() {
-            let key = |label: &str| self.fabric.joint_key_by_label(label);
-            let bridled = match (key(&joint), key(&a), key(&b)) {
+        let mut bridles = Vec::new();
+        for bridle in self.plan.pretense_phase.bridles.clone() {
+            match bridle.triples(self.fabric.label_symmetry.as_ref()) {
+                Ok(triples) => bridles.extend(triples),
+                Err(failure) => self.plan_step_failed(failure),
+            }
+        }
+        for (joint, a, b) in bridles {
+            let key = |label| self.fabric.joint_key(label);
+            let bridled = match (key(joint), key(a), key(b)) {
                 (Some(j), Some(a), Some(b)) => self.fabric.bridle(j, a, b),
                 _ => None,
             };
@@ -560,17 +567,25 @@ impl FabricPlanExecutor {
         // Anchors of twin joints' guy lines are twins too, one number for
         // the same line on each side.
         let mut anchor_numbers: Vec<((u16, u32, u32), u16)> = Vec::new();
+        let mut lines = Vec::new();
         for guy_line in guy_lines {
-            let Some(joint) = self.fabric.joint_key_by_label(&guy_line.joint) else {
-                self.plan_step_failed(format!("no joint for guy line ({})", guy_line.joint));
+            match guy_line.joint.labels(self.fabric.label_symmetry.as_ref()) {
+                Ok(labels) => lines.extend(labels.into_iter().map(|label| (label, guy_line.clone()))),
+                Err(failure) => self.plan_step_failed(failure),
+            }
+        }
+        for (label, guy_line) in lines {
+            let Some(joint) = self.fabric.joint_key(label) else {
+                self.plan_step_failed(format!("no joint for guy line ({label})"));
                 continue;
             };
             if hinge_struts(&self.fabric, joint).is_some() {
-                self.plan_step_failed(format!("guy line at hinge {}: no cable may end on a hinge", guy_line.joint));
+                self.plan_step_failed(format!("guy line at hinge {label}: no cable may end on a hinge"));
                 continue;
             }
             let landed = self.fabric.location(joint);
-            let (dx, dz) = guy_line.ground_offset;
+            let (outward, dz) = guy_line.ground_offset;
+            let dx = outward * landed.x.signum();
             let ground = self
                 .fabric
                 .create_joint(glam::Vec3::new(landed.x + dx.f32(), 0.0, landed.z + dz.f32()));
@@ -597,6 +612,22 @@ impl FabricPlanExecutor {
         self.fabric.hang_bridles();
         self.settle_phase_start_age = Some(self.fabric.age);
         self.stage = ExecutorStage::Settling;
+    }
+
+    /// A pretense step's links as joint pairs, with their images, in the
+    /// order written; a link the fabric's symmetry can't place fails.
+    fn expand_links(
+        &mut self,
+        links: impl Fn(&crate::build::dsl::pretense_phase::PretensePhase) -> &Vec<crate::build::dsl::joint_names::Link>,
+    ) -> Vec<(JointLabel, JointLabel)> {
+        let mut pairs = Vec::new();
+        for link in links(&self.plan.pretense_phase).clone() {
+            match link.pairs(self.fabric.label_symmetry.as_ref()) {
+                Ok(expanded) => pairs.extend(expanded),
+                Err(failure) => self.plan_step_failed(failure),
+            }
+        }
+        pairs
     }
 
     fn complete(&mut self) {

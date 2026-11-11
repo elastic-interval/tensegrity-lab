@@ -134,4 +134,28 @@ mod tests {
             eprintln!("edge {}-{}: {:.0}mm", i, j, d);
         }
     }
+
+    /// Open Claw's two omit entries stand for the six cables its plan
+    /// listed one by one before the plan named joints by twin set: `>>`
+    /// turns A→B→C in Open Claw's own symmetry.
+    #[test]
+    fn test_open_claw_omits_expand_to_their_triples() {
+        use crate::build::dsl::fabric_plan_executor::ExecutorStage;
+        let plan = fabric_library::get_fabric_plan(FabricName::OpenClaw);
+        let links = plan.pretense_phase.omit_pairs.clone();
+        let mut executor = FabricPlanExecutor::new(plan);
+        while *executor.stage() == ExecutorStage::Building {
+            let _ = executor.iterate();
+        }
+        let symmetry = executor.fabric.label_symmetry.clone();
+        let mut omitted: Vec<String> = links
+            .iter()
+            .flat_map(|link| link.pairs(symmetry.as_ref()).expect("Open Claw is threefold"))
+            .map(|(a, b)| format!("{a}-{b}"))
+            .collect();
+        omitted.sort();
+        assert_eq!(omitted, ["A2-B1", "A2-C3", "B2-A3", "B2-C1", "C2-A1", "C2-B3"]);
+        assert!(executor.plan_failures().is_empty(), "{:?}", executor.plan_failures());
+    }
 }
+

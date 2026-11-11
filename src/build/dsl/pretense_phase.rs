@@ -1,3 +1,4 @@
+use crate::build::dsl::joint_names::{Bridle, Link};
 use crate::fabric::physics::presets::VIEWING;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::units::{Percent, Seconds};
@@ -7,15 +8,15 @@ pub struct PretensePhase {
     pub surface: Option<SurfaceCharacter>,
     pub seconds: Option<Seconds>,
     pub rigidity: Option<Percent>,
-    /// Joint label pairs (e.g. `("B00.2", "C00.3")`) whose connecting
-    /// interval should be removed at pretense time.
-    pub omit_pairs: Vec<(String, String)>,
-    /// Joint label pairs whose struts are joined where they cross, just
-    /// before slackening.
-    pub hinge_pairs: Vec<(String, String)>,
-    /// Joint label triples `(joint, a, b)` whose cables joint–a and joint–b
-    /// are taken off through a bridle node, after hinging.
-    pub bridles: Vec<(String, String, String)>,
+    /// Links whose intervals are removed at pretense time, each with its
+    /// images (see `joint_names`).
+    pub omit_pairs: Vec<Link>,
+    /// Links whose struts are joined where they cross, just before
+    /// slackening: the first end's joint keeps its name.
+    pub hinge_pairs: Vec<Link>,
+    /// Joints whose cables to two others are taken off through a bridle
+    /// node, after hinging.
+    pub bridles: Vec<Bridle>,
     /// Percentage by which each push interval's rest length grows during the
     /// pretensing phase. The same factor is applied to every push; pulls
     /// absorb the displacement and gain tension.

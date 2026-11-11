@@ -20,6 +20,7 @@
 #[cfg(test)]
 mod tests {
     use crate::build::dsl::fabric_dsl::Pct;
+    use crate::build::dsl::joint_names::{Bridle, Link};
     use crate::build::dsl::fabric_library::{self, headless_hug_plan, FabricName, HeadlessHugShape};
     use crate::connector::parts::{placements, Part};
     use crate::connector::system::is_hanger;
@@ -32,7 +33,8 @@ mod tests {
     use glam::Vec3;
     use std::collections::HashSet;
 
-    type Candidate = (Vec<(String, String)>, String, f32, f32);
+    /// A cable to omit, with its images: `(link, length, widest apex angle)`.
+    type Candidate = (Link, f32, f32);
 
     struct Outcome {
         intervals: usize,
@@ -52,16 +54,14 @@ mod tests {
         }
     }
 
-    type Bridle = (String, String, String);
-
-    fn run(name: FabricName, omit: &[(String, String)]) -> (Fabric, Outcome) {
+    fn run(name: FabricName, omit: &[Link]) -> (Fabric, Outcome) {
         run_plan(name, omit, &[])
     }
 
-    fn run_plan(name: FabricName, omit: &[(String, String)], bridles: &[Bridle]) -> (Fabric, Outcome) {
+    fn run_plan(name: FabricName, omit: &[Link], bridles: &[Bridle]) -> (Fabric, Outcome) {
         let mut plan = fabric_library::get_fabric_plan(name);
-        plan.pretense_phase.omit_pairs.extend(omit.iter().cloned());
-        plan.pretense_phase.bridles.extend(bridles.iter().cloned());
+        plan.pretense_phase.omit_pairs.extend(omit.iter().copied());
+        plan.pretense_phase.bridles.extend(bridles.iter().copied());
         let mut executor = FabricPlanExecutor::new(plan);
         while !executor.is_complete() {
             let _ = executor.iterate();
@@ -91,12 +91,12 @@ mod tests {
     fn mirror_of(fabric: &Fabric, joint: JointKey) -> Option<JointKey> {
         let symmetry = fabric.label_symmetry.as_ref()?;
         let label = fabric.joints[joint].label?;
-        fabric.joint_key_by_label(&symmetry.map_label(label).to_string())
+        fabric.joint_key(symmetry.map_label(label))
     }
 
     /// Every cable that is an edge of a triangle whose three edges are all
-    /// cables, one per mirror pair: `(labels to omit, label of the edge,
-    /// length, widest apex angle in degrees)`.
+    /// cables, one per set of images, with its length and the widest apex
+    /// angle it faces, in degrees.
     fn triangle_edges(fabric: &Fabric) -> Vec<Candidate> {
         let cables: HashSet<(JointKey, JointKey)> = fabric
             .intervals
@@ -121,23 +121,16 @@ mod tests {
             if seen.contains(&(a, b)) {
                 continue;
             }
-            let label = |k: JointKey| fabric.joint_label(k);
-            let mut omit = vec![(label(a), label(b))];
-            seen.insert((a, b));
-            seen.insert((b, a));
-            if let (Some(ma), Some(mb)) = (mirror_of(fabric, a), mirror_of(fabric, b)) {
-                if !seen.contains(&(ma, mb)) && cables.contains(&(ma, mb)) {
-                    omit.push((label(ma), label(mb)));
-                    seen.insert((ma, mb));
-                    seen.insert((mb, ma));
+            let symmetry = fabric.label_symmetry.as_ref().expect("a symmetric fabric");
+            let (Some(alpha), Some(omega)) = (fabric.joints[a].label, fabric.joints[b].label) else { continue };
+            let Some(link) = Link::between(alpha, omega, symmetry) else { continue };
+            for (x, y) in link.pairs(Some(symmetry)).unwrap_or_default() {
+                if let (Some(x), Some(y)) = (fabric.joint_key(x), fabric.joint_key(y)) {
+                    seen.insert((x, y));
+                    seen.insert((y, x));
                 }
             }
-            let name = omit
-                .iter()
-                .map(|(x, y)| format!("{x}–{y}"))
-                .collect::<Vec<_>>()
-                .join(" + ");
-            edges.push((omit, name, interval.length(&fabric.joints).f32(), apex));
+            edges.push((link, interval.length(&fabric.joints).f32(), apex));
         }
         edges
     }
@@ -160,11 +153,11 @@ mod tests {
     /// candidate's cables omitted on top of `base`.
     fn evaluate(
         name: FabricName,
-        base: &[(String, String)],
+        base: &[Link],
         candidates: &[Candidate],
     ) -> Vec<Outcome> {
-        parallel(candidates, |(omit, ..)| {
-            let all: Vec<_> = base.iter().chain(omit).cloned().collect();
+        parallel(candidates, |(link, ..)| {
+            let all: Vec<Link> = base.iter().copied().chain([*link]).collect();
             run(name, &all).1
         })
     }
@@ -190,7 +183,10 @@ mod tests {
         let mut results: Vec<(String, f32, f32, usize, Outcome)> = candidates
             .into_iter()
             .zip(outcomes)
-            .map(|((omit, label, length, apex), outcome)| (label, length, apex, omit.len(), outcome))
+            .map(|((link, length, apex), outcome)| {
+                let omitted = link.pairs(baseline_fabric.label_symmetry.as_ref()).map_or(0, |pairs| pairs.len());
+                (link.to_string(), length, apex, omitted, outcome)
+            })
             .collect();
         results.sort_by(|a, b| b.2.total_cmp(&a.2));
 
@@ -226,7 +222,7 @@ mod tests {
         const FLAT_APEX: f32 = 120.0;
         const HEIGHT_TOLERANCE: f32 = 0.05;
         let name = FabricName::HeadlessHug;
-        let mut chosen: Vec<(String, String)> = Vec::new();
+        let mut chosen: Vec<Link> = Vec::new();
         loop {
             let (fabric, current) = run(name, &chosen);
             eprintln!(
@@ -247,14 +243,14 @@ mod tests {
                         && (o.height - current.height).abs() < HEIGHT_TOLERANCE
                 })
                 .min_by_key(|(_, o)| o.culprits);
-            let Some(((omit, label, length, apex), _)) = best else {
+            let Some(((link, length, apex), _)) = best else {
                 break;
             };
-            eprintln!("  omit {label} ({length:.3} m, apex {apex:.0}°)");
-            chosen.extend(omit.iter().cloned());
+            eprintln!("  omit {link} ({length:.3} m, apex {apex:.0}°)");
+            chosen.push(*link);
         }
-        for (a, b) in &chosen {
-            eprintln!("(\"{a}\", \"{b}\"),");
+        for link in &chosen {
+            eprintln!("{link},");
         }
     }
 
@@ -262,10 +258,10 @@ mod tests {
     /// each too-short cable together with each other cable at either of its
     /// ends, so the short one is replaced by cables to a node plate set out
     /// at a buildable length. A cable may run between two nodes. Only symmetric candidates
-    /// count: each comes with its mirror image (by label symmetry), and on
-    /// the mirror plane a candidate must be its own image. Pairs involving a
-    /// bridle's link are left out.
-    fn bridle_candidates(fabric: &Fabric) -> Vec<Vec<Bridle>> {
+    /// count: each stands for itself and its mirror image, and on the mirror
+    /// plane a candidate must be its own image. Pairs involving a bridle's
+    /// link are left out.
+    fn bridle_candidates(fabric: &Fabric) -> Vec<Bridle> {
         let connector = fabric.connector.as_ref().expect("fabric has connectors");
         let links: HashSet<_> = fabric.bridle_nodes.values().copied().collect();
         let mut pairs: Vec<(IntervalKey, IntervalKey, JointKey)> = connector
@@ -310,36 +306,15 @@ mod tests {
                 }
             }
         }
-        let key = |j, a: JointKey, b: JointKey| if a < b { (j, a, b) } else { (j, b, a) };
-        let mut seen: HashSet<(JointKey, JointKey, JointKey)> = HashSet::new();
-        let mut candidates = Vec::new();
+        let symmetry = fabric.label_symmetry.as_ref().expect("a symmetric fabric");
+        let mut candidates: Vec<Bridle> = Vec::new();
         for (joint, a, b) in triples {
-            let (Some(mj), Some(ma), Some(mb)) =
-                (mirror_of(fabric, joint), mirror_of(fabric, a), mirror_of(fabric, b))
-            else {
-                continue;
-            };
-            let (original, image) = (key(joint, a, b), key(mj, ma, mb));
-            if seen.contains(&original) {
-                continue;
+            let label = |key: JointKey| fabric.joints[key].label;
+            let (Some(joint), Some(a), Some(b)) = (label(joint), label(a), label(b)) else { continue };
+            let Some(bridle) = Bridle::between(joint, a, b, symmetry) else { continue };
+            if !candidates.iter().any(|known| known.to_string() == bridle.to_string()) {
+                candidates.push(bridle);
             }
-            let label = |k: JointKey| fabric.joint_label(k);
-            if original == image {
-                seen.insert(original);
-                candidates.push(vec![(label(joint), label(a), label(b))]);
-                continue;
-            }
-            // An image sharing a cable with the original can't be built
-            // alongside it, so the pair can't be bridled symmetrically.
-            if mj == joint && [ma, mb].iter().any(|m| *m == a || *m == b) {
-                continue;
-            }
-            seen.insert(original);
-            seen.insert(image);
-            candidates.push(vec![
-                (label(joint), label(a), label(b)),
-                (label(mj), label(ma), label(mb)),
-            ]);
         }
         candidates
     }
@@ -367,8 +342,8 @@ mod tests {
                 chosen.len()
             );
             let candidates = bridle_candidates(&fabric);
-            let outcomes = parallel(&candidates, |bridles| {
-                let all: Vec<Bridle> = chosen.iter().chain(bridles).cloned().collect();
+            let outcomes = parallel(&candidates, |bridle| {
+                let all: Vec<Bridle> = chosen.iter().copied().chain([*bridle]).collect();
                 run_plan(name, &[], &all).1
             });
             let best = candidates
@@ -380,16 +355,14 @@ mod tests {
                         && (o.height - current.height).abs() < HEIGHT_TOLERANCE
                 })
                 .min_by_key(|(_, o)| o.problems());
-            let Some((bridles, _)) = best else {
+            let Some((bridle, _)) = best else {
                 break;
             };
-            for (j, a, b) in bridles {
-                eprintln!("  bridle {j}: {a}, {b}");
-            }
-            chosen.extend(bridles.iter().cloned());
+            eprintln!("  bridle {bridle}");
+            chosen.push(*bridle);
         }
-        for (j, a, b) in &chosen {
-            eprintln!("(\"{j}\", \"{a}\", \"{b}\"),");
+        for bridle in &chosen {
+            eprintln!("{bridle},");
         }
     }
 
@@ -408,8 +381,8 @@ mod tests {
         );
     }
 
-    /// A Headless Hug design: its shape, and which of its plan's mirror
-    /// pairs of omissions (entries 2k, 2k + 1) are kept.
+    /// A Headless Hug design: its shape, and which of its plan's omissions
+    /// (each with its mirror image) are kept.
     #[derive(Clone)]
     struct Design {
         shape: HeadlessHugShape,
@@ -460,7 +433,7 @@ mod tests {
         plan.pretense_phase.bridles.clear();
         let omits = std::mem::take(&mut plan.pretense_phase.omit_pairs);
         plan.pretense_phase.omit_pairs =
-            omits.into_iter().enumerate().filter(|(i, _)| design.omits[i / 2]).map(|(_, pair)| pair).collect();
+            omits.into_iter().enumerate().filter(|(i, _)| design.omits[*i]).map(|(_, link)| link).collect();
         let mut executor = FabricPlanExecutor::new(plan);
         while !executor.is_complete() {
             let _ = executor.iterate();
@@ -528,7 +501,7 @@ mod tests {
     #[ignore]
     fn search_headless_hug_shape() {
         const ROUNDS: usize = 30;
-        let pairs = headless_hug_plan(HeadlessHugShape::default()).pretense_phase.omit_pairs.len() / 2;
+        let pairs = headless_hug_plan(HeadlessHugShape::default()).pretense_phase.omit_pairs.len();
         let mut best = Design { shape: HeadlessHugShape::default(), omits: vec![true; pairs] };
         let (paths, height) = reference(&best);
         let mut verdict = judge(&best, &paths, height);
@@ -664,7 +637,7 @@ mod tests {
             let forces: Vec<String> = guy_forces(&executor.fabric).iter().map(|f| format!("{f:.2}")).collect();
             let moved = still_moving(&mut executor, Seconds(10.0));
             eprintln!(
-                "front {front}% rear {rear}%: lean {:+.0} mm, guys {} kN, moves {:.1} mm more",
+                "front {front:.2}% rear {rear:.2}%: lean {:+.0} mm, guys {} kN, moves {:.1} mm more",
                 lean.to_mm(),
                 forces.join(" "),
                 moved.to_mm()

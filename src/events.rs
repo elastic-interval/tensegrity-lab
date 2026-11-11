@@ -27,6 +27,8 @@ pub enum CrucibleAction {
     /// Load a pre-built algorithmic fabric directly (e.g., tensegrity ball)
     LoadAlgoFabric(fabric::Fabric),
     CentralizeFabric(Option<Meters>),
+    /// Step the wind: from the front, the side, behind, then off.
+    CycleWind,
     ClearSelection,
     AdjustAnimationFrequency(f32),
     ToViewing,

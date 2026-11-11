@@ -1,7 +1,8 @@
 use crate::build::dsl::animate_phase::{Actuator, ActuatorAttachment, AnimatePhase, Waveform};
-use crate::crucible_context::CrucibleContext;
+use crate::build::dsl::joint_names::Link;
+use crate::fabric::physics::Physics;
 use crate::fabric::interval::{Role, Span};
-use crate::fabric::{IntervalKey, JointKey};
+use crate::fabric::{Fabric, IntervalKey, JointKey};
 use crate::units::{Meters, Percent, Seconds};
 use crate::Age;
 use glam::Vec3;
@@ -71,12 +72,12 @@ pub struct Animator {
 }
 
 impl Animator {
-    pub fn new(animate_phase: AnimatePhase, context: &mut CrucibleContext) -> Self {
+    pub fn new(animate_phase: AnimatePhase, fabric: &mut Fabric) -> Self {
         let contraction_factor = 1.0 - animate_phase.amplitude.as_factor();
         let period = animate_phase.period;
         let stiffness = animate_phase.stiffness;
         let actuators = Self::create_actuators(
-            context,
+            fabric,
             &animate_phase.actuators,
             contraction_factor,
             stiffness,
@@ -99,58 +100,57 @@ impl Animator {
         self.oscillator.set_period(self.period);
     }
 
+    /// The joints at each end of each of a link's images.
+    fn link_joints(fabric: &Fabric, link: &Link) -> Vec<(JointKey, JointKey)> {
+        let pairs = link.pairs(fabric.label_symmetry.as_ref()).unwrap_or_else(|failure| panic!("actuator {failure}"));
+        let joint = |label| fabric.joint_key(label).unwrap_or_else(|| panic!("actuator joint not found: {label}"));
+        pairs.into_iter().map(|(alpha, omega)| (joint(alpha), joint(omega))).collect()
+    }
+
     fn create_actuators(
-        context: &mut CrucibleContext,
+        fabric: &mut Fabric,
         actuators: &[Actuator],
         contraction_factor: f32,
         stiffness: Percent,
     ) -> Vec<ActuatorInterval> {
-        let fabric = &mut context.fabric;
         let mut result = Vec::new();
 
         for actuator in actuators {
             let phase_offset = actuator.phase_offset.as_factor();
             match &actuator.attachment {
-                ActuatorAttachment::Between { joint_a, joint_b } => {
-                    let alpha_key = fabric
-                        .joint_key_by_path(joint_a)
-                        .unwrap_or_else(|| panic!("actuator joint not found: {joint_a}"));
-                    let omega_key = fabric
-                        .joint_key_by_path(joint_b)
-                        .unwrap_or_else(|| panic!("actuator joint not found: {joint_b}"));
-                    let rest_length = fabric.distance(alpha_key, omega_key);
-                    let id = fabric.create_slack_interval(alpha_key, omega_key, Role::Pulling);
-                    if let Some(interval) = fabric.intervals.get_mut(id) {
-                        interval.stiffness = stiffness;
+                ActuatorAttachment::Between { link } => {
+                    for (alpha_key, omega_key) in Self::link_joints(fabric, link) {
+                        let rest_length = fabric.distance(alpha_key, omega_key);
+                        let id = fabric.create_slack_interval(alpha_key, omega_key, Role::Pulling);
+                        if let Some(interval) = fabric.intervals.get_mut(id) {
+                            interval.stiffness = stiffness;
+                        }
+                        result.push(ActuatorInterval {
+                            id,
+                            rest_length,
+                            contracted_length: rest_length * contraction_factor,
+                            phase_offset,
+                            anchor_joint: None,
+                            original_span: None,
+                        });
                     }
-                    result.push(ActuatorInterval {
-                        id,
-                        rest_length,
-                        contracted_length: rest_length * contraction_factor,
-                        phase_offset,
-                        anchor_joint: None,
-                        original_span: None,
-                    });
                 }
-                ActuatorAttachment::Existing { alpha, omega } => {
-                    let joint = |label: &str| {
-                        fabric
-                            .joint_key_by_label(label)
-                            .unwrap_or_else(|| panic!("actuator joint not found: {label}"))
-                    };
-                    let id = fabric
-                        .joining((joint(alpha), joint(omega)))
-                        .unwrap_or_else(|| panic!("no interval between {alpha} and {omega}"));
-                    let interval = &fabric.intervals[id];
-                    let rest_length = interval.ideal();
-                    result.push(ActuatorInterval {
-                        id,
-                        rest_length,
-                        contracted_length: rest_length * contraction_factor,
-                        phase_offset,
-                        anchor_joint: None,
-                        original_span: Some(interval.span),
-                    });
+                ActuatorAttachment::Existing { link } => {
+                    for (alpha_key, omega_key) in Self::link_joints(fabric, link) {
+                        let id = fabric
+                            .joining((alpha_key, omega_key))
+                            .unwrap_or_else(|| panic!("no interval along {link}"));
+                        let interval = &fabric.intervals[id];
+                        let rest_length = interval.ideal();
+                        result.push(ActuatorInterval {
+                            id,
+                            rest_length,
+                            contracted_length: rest_length * contraction_factor,
+                            phase_offset,
+                            anchor_joint: None,
+                            original_span: Some(interval.span),
+                        });
+                    }
                 }
                 ActuatorAttachment::ToSurface { joint, point } => {
                     let joint_key = fabric
@@ -178,25 +178,25 @@ impl Animator {
         result
     }
 
-    pub fn remove_actuators(&self, context: &mut CrucibleContext) {
+    pub fn remove_actuators(&self, fabric: &mut Fabric) {
         // First restore or remove intervals, then anchor joints
         for actuator in &self.actuators {
             match actuator.original_span {
-                Some(span) => context.fabric.intervals[actuator.id].span = span,
+                Some(span) => fabric.intervals[actuator.id].span = span,
                 None => {
-                    context.fabric.remove_interval(actuator.id);
+                    fabric.remove_interval(actuator.id);
                 }
             }
         }
         // Remove anchor joints (with SlotMap, order doesn't matter)
         for anchor_key in self.actuators.iter().filter_map(|a| a.anchor_joint) {
-            context.fabric.remove_joint(anchor_key);
+            fabric.remove_joint(anchor_key);
         }
     }
 
-    fn update_actuator_lengths(&self, context: &mut CrucibleContext) {
+    fn update_actuator_lengths(&self, fabric: &mut Fabric) {
         for actuator in &self.actuators {
-            if let Some(interval) = context.fabric.intervals.get_mut(actuator.id) {
+            if let Some(interval) = fabric.intervals.get_mut(actuator.id) {
                 // Apply phase offset to get actuator-specific phase
                 let phase_with_offset = (self.oscillator.phase + actuator.phase_offset) % 1.0;
                 let contraction = self
@@ -209,11 +209,48 @@ impl Animator {
         }
     }
 
-    pub fn iterate(&mut self, context: &mut CrucibleContext, iterations_per_frame: usize) {
-        for _ in 0..iterations_per_frame {
+    pub fn iterate(&mut self, fabric: &mut Fabric, physics: &Physics, iterations: usize) {
+        for _ in 0..iterations {
             self.oscillator.tick();
-            self.update_actuator_lengths(context);
-            context.fabric.iterate(context.physics);
+            self.update_actuator_lengths(fabric);
+            fabric.iterate(physics);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::build::dsl::fabric_library::{self, FabricName};
+    use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
+
+    /// Each plan's animation runs headless: its actuators name joints its
+    /// fabric has, one for each image of each link (Headless Hug's four guy
+    /// lines, Open Claw's three legs). Through one period the figure moves
+    /// and stays finite, and taking the actuators off leaves its intervals
+    /// as they were.
+    #[test]
+    fn animations_run_headless() {
+        use crate::fabric::physics::presets::ANIMATING;
+        for (name, count) in [(FabricName::HeadlessHug, 4), (FabricName::OpenClaw, 3)] {
+            let plan = fabric_library::get_fabric_plan(name);
+            let animate = plan.animate_phase.clone().expect("the plan animates");
+            let mut executor = FabricPlanExecutor::new(plan);
+            while !executor.is_complete() {
+                let _ = executor.iterate();
+            }
+            let physics = Physics { surface: executor.physics.surface, ..ANIMATING };
+            let fabric = &mut executor.fabric;
+            let (intervals, before) = (fabric.intervals.len(), fabric.joints.values().map(|j| j.location).collect::<Vec<_>>());
+            let period = animate.period;
+            let mut animator = Animator::new(animate, fabric);
+            assert_eq!(animator.actuators.len(), count, "{name}");
+            animator.iterate(fabric, &physics, (period / Age::iteration_duration()) as usize);
+            let moved = before.iter().zip(fabric.joints.values()).map(|(a, j)| a.distance(j.location)).fold(0.0, f32::max);
+            assert!(fabric.joints.values().all(|j| j.location.is_finite()), "{name} diverged");
+            assert!(moved > 0.001, "{name} didn't move");
+            animator.remove_actuators(fabric);
+            assert_eq!(fabric.intervals.len(), intervals, "{name}");
         }
     }
 }

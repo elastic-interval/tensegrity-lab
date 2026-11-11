@@ -133,6 +133,37 @@ Headless Hug and Open Claw are named this way. Fabrics without a symmetry
    (forward, from `L14` / `R14`) and `L64` / `R64` (backward). An anchor from
    a `Z` joint takes the next free `Z`.
 
+### In a plan
+
+A plan names joints by twin set, the way they're engraved, and every entry
+stands for itself and all its images under the fabric's symmetry, so a plan
+can't be asymmetric (`src/build/dsl/joint_names.rs`):
+
+| Written | Means |
+|---|---|
+| `LR(12)` | Headless Hug's twins L12 and R12 |
+| `ABC(12)` | Open Claw's twins A12, B12 and C12 |
+| `Z(4)` | Z4, which the symmetry maps onto itself |
+| `LR(48).b()` | the bridle nodes L48b and R48b |
+| `LR(2) - LR(3)` | each with its own member: L2–L3 and R2–R3 |
+| `LR(5) \| LR(2)` | across the mirror: L5–R2 and R5–L2 |
+| `LR(13) \| LR(13)` | its own image: the one link L13–R13 |
+| `Z(4) - LR(5)` | Z4–L5 and Z4–R5 |
+| `ABC(2) >> ABC(1)` | one sector on, A → B: A2–B1, B2–C1, C2–A1 |
+| `ABC(2) << ABC(3)` | one sector back: A2–C3, B2–A3, C2–B3 |
+| `LR(5).bridle(Z(4), Z(2))` | R5's and L5's cables to Z4 and Z2 through bridle nodes |
+
+The types keep the notation honest: `|` exists only between mirror names
+and `>>`, `<<` only between threefold ones, so a plan can't cross a mirror
+it doesn't have; and mirror names in a threefold fabric fail when the plan
+runs. Actuators take links too: `phase(Pct(0.0)).interval(LR(14) - LR(63))`
+drives both twins' guy lines, and Open Claw's `between(ABC(15) >> ABC(28))`
+adds one actuator per leg. A guy line's ground offset is (outward from the mirror plane,
+forward), so it means the same for both twins. The executor applies each
+entry's images in the symmetry's order, entries in the order written:
+that order shifts the settled stance, so reordering a plan's entries is a
+change to the fabric.
+
 Node plates (`<host>b`) and cable ends (`<joint>.<slot>`) follow
 their joint. Everything downstream reads names through
 `Fabric::joint_label`, and the connector code finds mirror images through

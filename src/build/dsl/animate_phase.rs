@@ -1,3 +1,4 @@
+use crate::build::dsl::joint_names::Link;
 use crate::fabric::joint_path::JointPath;
 use crate::units::{Percent, Seconds};
 
@@ -22,27 +23,17 @@ pub struct PhaseBuilder {
 }
 
 impl PhaseBuilder {
-    /// Create an actuator between two joints (accepts &str or JointPath)
-    pub fn between(self, joint_a: impl Into<JointPath>, joint_b: impl Into<JointPath>) -> Actuator {
-        Actuator {
-            phase_offset: self.phase_offset,
-            attachment: ActuatorAttachment::Between {
-                joint_a: joint_a.into(),
-                joint_b: joint_b.into(),
-            },
-        }
+    /// New actuators along a link, one for each of its images, all at this
+    /// phase.
+    pub fn between(self, link: Link) -> Actuator {
+        Actuator { phase_offset: self.phase_offset, attachment: ActuatorAttachment::Between { link } }
     }
 
-    /// Drive the interval already joining two labelled joints (e.g. a guy line);
-    /// it is restored when the animation stops.
-    pub fn interval(self, alpha: &str, omega: &str) -> Actuator {
-        Actuator {
-            phase_offset: self.phase_offset,
-            attachment: ActuatorAttachment::Existing {
-                alpha: alpha.to_string(),
-                omega: omega.to_string(),
-            },
-        }
+    /// Drive the intervals already along a link (e.g. guy lines), one for
+    /// each of its images, all at this phase; they are restored when the
+    /// animation stops.
+    pub fn interval(self, link: Link) -> Actuator {
+        Actuator { phase_offset: self.phase_offset, attachment: ActuatorAttachment::Existing { link } }
     }
 
     /// Create an actuator from a joint to a surface point (accepts &str or JointPath)
@@ -71,12 +62,10 @@ pub enum ActuatorAttachment {
         point: (f32, f32),
     },
     Between {
-        joint_a: JointPath,
-        joint_b: JointPath,
+        link: Link,
     },
     Existing {
-        alpha: String,
-        omega: String,
+        link: Link,
     },
 }
 

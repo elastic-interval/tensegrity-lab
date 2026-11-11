@@ -3,6 +3,7 @@ use crate::build::dsl::build_phase::{BuildNode, BuildPhase};
 use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::fall_phase::FallPhase;
+use crate::build::dsl::joint_names::{Bridle, Joints, Link, Symmetry};
 use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::settle_phase::GuyLine;
 use crate::build::dsl::shape_phase::{AddSpec, ShapeAction, ShapeStep, SpacerSpec};
@@ -15,6 +16,7 @@ pub use crate::build::dsl::brick_dsl::{
     BrickName, BrickOrientation, BrickRole, FaceLabel, FaceName,
 };
 pub use crate::build::dsl::build_phase::BuildNode as Node;
+pub use crate::build::dsl::joint_names::{ABC, LR, Z};
 pub use crate::fabric::vulcanize::VulcanizeMode;
 pub use crate::fabric::FabricDimensions;
 pub use crate::units::Percent as Pct;
@@ -39,9 +41,9 @@ pub struct FabricBuilder {
     dimensions: FabricDimensions,
     build: Option<BuildNode>,
     shape: Vec<ShapeStep>,
-    omit_pairs: Vec<(String, String)>,
-    hinge_pairs: Vec<(String, String)>,
-    bridles: Vec<(String, String, String)>,
+    omit_pairs: Vec<Link>,
+    hinge_pairs: Vec<Link>,
+    bridles: Vec<Bridle>,
 }
 
 impl FabricBuilder {
@@ -147,9 +149,9 @@ impl FabricBuilder {
         self
     }
 
-    pub fn omit<const N: usize>(mut self, pairs: [(&str, &str); N]) -> Self {
-        self.omit_pairs
-            .extend(pairs.iter().map(|(a, b)| (a.to_string(), b.to_string())));
+    /// Remove each link's intervals, with its images, at pretense time.
+    pub fn omit<const N: usize>(mut self, links: [Link; N]) -> Self {
+        self.omit_pairs.extend(links);
         self
     }
 
@@ -175,21 +177,17 @@ impl FabricBuilder {
         self
     }
 
-    /// Join the struts ending at each joint pair where they cross, just before slackening.
-    pub fn hinge<const N: usize>(mut self, pairs: [(&str, &str); N]) -> Self {
-        self.hinge_pairs
-            .extend(pairs.iter().map(|(a, b)| (a.to_string(), b.to_string())));
+    /// Join the struts ending at each link's joints where they cross, just
+    /// before slackening.
+    pub fn hinge<const N: usize>(mut self, links: [Link; N]) -> Self {
+        self.hinge_pairs.extend(links);
         self
     }
 
-    /// Take each `(joint, a, b)`'s cables joint–a and joint–b off through a
-    /// bridle node (see `Fabric::bridle`), after hinging.
-    pub fn bridle<const N: usize>(mut self, triples: [(&str, &str, &str); N]) -> Self {
-        self.bridles.extend(
-            triples
-                .iter()
-                .map(|(j, a, b)| (j.to_string(), a.to_string(), b.to_string())),
-        );
+    /// Take each bridle's cables off through a bridle node (see
+    /// `Fabric::bridle`), after hinging.
+    pub fn bridle<const N: usize>(mut self, bridles: [Bridle; N]) -> Self {
+        self.bridles.extend(bridles);
         self
     }
 
@@ -528,8 +526,8 @@ impl SeedChain {
         self.finalize_build().centralize_at(seconds, altitude)
     }
 
-    pub fn omit<const N: usize>(self, pairs: [(&str, &str); N]) -> FabricBuilder {
-        self.finalize_build().omit(pairs)
+    pub fn omit<const N: usize>(self, links: [Link; N]) -> FabricBuilder {
+        self.finalize_build().omit(links)
     }
 
     pub fn add<const N: usize>(
@@ -569,11 +567,11 @@ pub fn spacer<const N: usize>(labels: [FaceLabel; N], distance: Percent) -> Spac
     SpacerSpec { labels: labels.to_vec(), distance }
 }
 
-/// Build one guy line for use inside `guy_lines(...)`: from the labelled joint
-/// to the ground at a horizontal (x, z) offset from where the joint lands.
-pub fn guy_line(joint: &str, ground_offset: (Meters, Meters), length: Percent) -> GuyLine {
+/// Build guy lines for use inside `guy_lines(...)`: from the named joints to
+/// the ground, (outward, forward) from where each lands.
+pub fn guy_line<S: Symmetry>(joint: Joints<S>, ground_offset: (Meters, Meters), length: Percent) -> GuyLine {
     GuyLine {
-        joint: joint.to_string(),
+        joint: joint.erased(),
         ground_offset,
         length,
     }

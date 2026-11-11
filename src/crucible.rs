@@ -9,7 +9,9 @@ use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::{ANIMATING, VIEWING};
 use crate::fabric::physics::Physics;
 use crate::fabric::physics_tester::PhysicsTester;
+use crate::fabric::wind::Wind;
 use crate::fabric::Fabric;
+use glam::Vec3;
 use crate::units::Unit;
 use crate::{ControlState, CrucibleAction, LabEvent, Radio, StateChange};
 use StateChange::*;
@@ -200,16 +202,8 @@ impl Crucible {
                 }
             }
             Animating(animator) => {
-                // Create a context for animator
-                let mut context =
-                    CrucibleContext::new(&mut self.fabric, &mut self.physics, &self.radio);
-                animator.iterate(&mut context, iterations_per_frame);
-                context.fabric.refresh_bridle_nodes();
-
-                // Apply any stage transition
-                if let Some(new_stage) = context.apply_changes() {
-                    self.stage = new_stage;
-                }
+                animator.iterate(&mut self.fabric, &self.physics, iterations_per_frame);
+                self.fabric.refresh_bridle_nodes();
             }
             PhysicsTesting(tester) => {
                 // Create a context for tester
@@ -350,6 +344,24 @@ impl Crucible {
                 // Already handled above
                 unreachable!()
             }
+            CycleWind => {
+                let fabric = &mut *context.fabric;
+                let next = match fabric.wind.as_ref().map(|wind| wind.toward) {
+                    None => Some(("front", Vec3::new(0.0, 0.0, -1.0))),
+                    Some(toward) if toward.z < -0.5 => Some(("the side", Vec3::new(1.0, 0.0, 0.0))),
+                    Some(toward) if toward.x > 0.5 => Some(("behind", Vec3::new(0.0, 0.0, 1.0))),
+                    Some(_) => None,
+                };
+                fabric.wind = next.map(|(_, toward)| Wind::gusting(toward, fabric.age));
+                fabric.unfreeze();
+                let label = match (&next, &fabric.wind) {
+                    (Some((from, _)), Some(wind)) => {
+                        format!("Wind from {from}, {:.0} m/s gusting to {:.0}", wind.speed, wind.gust_speed)
+                    }
+                    _ => "No wind".to_string(),
+                };
+                context.send_event(LabEvent::UpdateState(SetStageLabel(label)));
+            }
             CentralizeFabric(altitude) => {
                 // Altitude is in meters, coordinates are in meters
                 let altitude_f32 = altitude.map(|m| m.f32());
@@ -392,7 +404,7 @@ impl Crucible {
                     )));
                 }
                 Animating(animator) => {
-                    animator.remove_actuators(&mut context);
+                    animator.remove_actuators(context.fabric);
                     self.stage = Viewing;
 
                     context.send_event(LabEvent::UpdateState(SetControlState(
@@ -426,7 +438,7 @@ impl Crucible {
                         // so actuator-driven motion can start.
                         context.fabric.unfreeze();
                         // Create animator and transition to Animating stage
-                        let animator = Animator::new(animate_phase, &mut context);
+                        let animator = Animator::new(animate_phase, context.fabric);
                         self.stage = Animating(animator);
 
                         context.send_event(LabEvent::UpdateState(SetControlState(

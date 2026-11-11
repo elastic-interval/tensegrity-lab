@@ -157,7 +157,8 @@ build, and not again afterwards: animation and the C key keep them.
 `src/crucible.rs`. `Stage` enum:
 - `RunningPlan(FabricPlanExecutor)` — runs the whole build/shape/pretense pipeline.
 - `Viewing` — settled, idle.
-- `Animating(Animator)` — runs DSL-defined actuators.
+- `Animating(Animator)` — runs DSL-defined actuators. `Animator` needs only
+  a `Fabric` and `Physics`, so animations also run headless, in tests.
 - `PhysicsTesting(PhysicsTester)` — real-time gravity test.
 - `BakingBrick(Oven)`, `Evolving(...)`, `Articulating(...)` — brick baking
   and the evolution runners.
@@ -178,7 +179,10 @@ DSL in `src/build/dsl/`:
 - `plan_runner.rs` — drives Initialize → Build → Shape inside the executor.
 - When pretensing starts the executor names the joints
   (`number_twins_by_build_order`, `number_axial_by_build_order`), then runs
-  the plan's hinges, omits and bridles by those names. A step naming a
+  the plan's hinges, omits and bridles by those names. Plans name joints
+  by twin set, typed, each entry standing for all its images:
+  `LR(2) - LR(3)`, `LR(5) | LR(2)` across the mirror, `ABC(2) >> ABC(1)`
+  a sector on (`joint_names.rs`, `docs/joint-naming.md`). A step naming a
   joint or cable the fabric doesn't have is a `PlanStepFailed` event
   (`FabricPlanExecutor::plan_failures`); `test_all_fabrics_build` requires
   every plan to apply cleanly.
@@ -283,6 +287,7 @@ src/
 │   ├── physics.rs      # Physics struct, presets
 │   ├── physics_tester.rs
 │   ├── vulcanize.rs
+│   ├── wind.rs         # Gusting wind: drag on every member (W key, wind tests)
 │   └── fabric_sampler.rs
 │
 ├── build/
@@ -325,6 +330,12 @@ Important integration tests:
   `test_open_claw_cable_triples`.
 - `src/open_claw_test.rs` — `test_open_claw_base_triangle`,
   `test_open_claw_foot_positions`.
+- `src/build/animator.rs` — `animations_run_headless`: each plan's
+  animation finds its joints, moves and stays finite through one period.
+- `src/fabric/wind.rs` — `headless_hug_leans_in_the_wind`; the ignored
+  `measure_headless_hug_in_wind` reports apex sway, peak forces and slack
+  cables with the wind from five directions. `Fabric::wind` is `None` in
+  every build, so the wind never changes one.
 - `src/physics_gpu/parity_test.rs` — CPU vs GPU numeric parity.
 - `src/connector/dimensions.rs` (inline `pivot_geometry_tests`) — derived dimension formulas.
 

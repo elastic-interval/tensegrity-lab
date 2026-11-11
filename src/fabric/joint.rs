@@ -265,6 +265,11 @@ impl Fabric {
             .map(|(key, _)| key)
     }
 
+    /// Find a joint by its label.
+    pub fn joint_key(&self, label: JointLabel) -> Option<JointKey> {
+        self.joints.iter().find(|(_, joint)| joint.label == Some(label)).map(|(key, _)| key)
+    }
+
     /// Find a joint by its engraver label (e.g. `"C03.10"`, `"Z6"`).
     pub fn joint_key_by_label(&self, label: &str) -> Option<JointKey> {
         self.joints
