@@ -70,7 +70,7 @@ mod tests {
                 .intervals
                 .values()
                 .filter(|iv| iv.has_role(Role::Pushing))
-                .map(|iv| iv.length(&fabric.joints) * MM_PER_METER)
+                .map(|iv| iv.length(&fabric.joints).to_mm())
                 .fold(0.0_f32, f32::max);
             eprintln!(
                 "{fabric_name} round {round}: scale={:.4}, edges={:.0},{:.0},{:.0}mm, avg={avg_edge_mm:.0}mm ({edge_diff_pct:.1}% from 6m), height={height_mm:.0}mm, max strut={max_push_mm:.0}mm",
@@ -116,7 +116,7 @@ mod tests {
             let ba = (b.z - centroid.z).atan2(b.x - centroid.x);
             aa.partial_cmp(&ba).unwrap()
         });
-        // Print in CSV space (Z-up): sim (x, y, z) → csv (x, -z, y)
+        // Print Z-up: sim (x, y, z) → (x, -z, y)
         // Positions in meters for Blender
         eprintln!("\n=== OpenClaw foot positions (Blender Z-up, meters) ===");
         eprintln!("TOWER_POSITIONS = [");

@@ -10,6 +10,7 @@ pub mod node_plate;
 pub mod parts;
 pub mod strut;
 pub mod system;
+pub mod welding;
 
 pub use dimensions::{pivot_angle, ConnectorDimensions};
 pub use system::ConnectorSystem;

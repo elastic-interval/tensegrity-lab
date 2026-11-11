@@ -74,7 +74,7 @@ seed, and twins differ only in their letter. Numbers can skip: a hinge
 merges two joints and its set's number goes with it.
 
 The full name is also what gets engraved: one name for a part
-everywhere, on the steel, in the CSV and in the app.
+everywhere, on the steel, in the exports and in the app.
 
 ### 5. Joints the symmetry fixes are Z, numbered in build order
 
@@ -137,10 +137,7 @@ Node plates (`<host>b`) and cable ends (`<joint>.<slot>`) follow
 their joint. Everything downstream reads names through
 `Fabric::joint_label`, and the connector code finds mirror images through
 `LabelSymmetry`. Code that parses names by shape: `rotate_label_once` in
-`src/open_claw_symmetry.rs` cycles the sector letter, as does
-`scripts/build_cable_order.py`. `scripts/build_assembly.py` used the brick
-digit to sort struts into hub, column and leg-end prism; short names no
-longer carry it, so that step needs another source.
+`src/open_claw_symmetry.rs` cycles the sector letter.
 
 ## Decisions
 

@@ -1,7 +1,7 @@
 use crate::fabric::interval::Role;
 use crate::fabric::material::Material::{Pull, Push, Spring};
 use crate::fabric::physics::Physics;
-use crate::units::{Grams, GramsPerMeter, Meters, NewtonsPerMeter, Unit};
+use crate::units::{Grams, GramsPerMeter, Meters, Unit};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Material {
@@ -32,25 +32,26 @@ impl Material {
         self.linear_density(physics) * length
     }
 
-    pub fn spring_constant_at_1m(&self) -> NewtonsPerMeter {
+    /// The simulation's stiffness at 1 m, in millinewtons per metre: its
+    /// masses are grams, so its forces are g·m/s².
+    pub fn spring_constant_at_1m(&self) -> f32 {
         // Values are halved from their historical k_at_1m so that the
         // per-interval force is applied in full (F on each end per Newton's
         // 3rd law) instead of the old `force_vector / 2` convention.
         // Simulation behavior is preserved: halved k + full force = original.
-        NewtonsPerMeter(match self {
+        match self {
             Push => 1e10,
             Pull => 3.35e9, // ratio ~3:1 to match aluminum/dyneema
             Spring => 4.5e4,
-        })
+        }
     }
 
 
-    /// Spring constant for a given length (in meters)
+    /// Spring constant for a given length, in millinewtons per metre
     /// k(L) = k(1m) / L
-    pub fn spring_constant(&self, length: Meters, physics: &Physics) -> NewtonsPerMeter {
+    pub fn spring_constant(&self, length: Meters, physics: &Physics) -> f32 {
         let k_at_1m = self.spring_constant_at_1m();
-        let k = (k_at_1m.f32() / length.f32().max(0.001)) * physics.rigidity_multiplier();
-        NewtonsPerMeter(k)
+        (k_at_1m / length.f32().max(0.001)) * physics.rigidity_multiplier()
     }
 
     pub fn default_role(&self) -> Role {

@@ -103,8 +103,8 @@ fn run_single_sphere_on_gpu(
     let batch = GpuBatch::parallelize(device, queue, &[&fabric], &physics);
 
     let dt = Age::iteration_duration();
-    let approach_iters = (approach_duration.0 / dt) as u32;
-    let settle_iters = (settle_duration.0 / dt) as u32;
+    let approach_iters = (approach_duration / dt) as u32;
+    let settle_iters = (settle_duration / dt) as u32;
 
     // Drive the approach in chunks so Span::Approaching interpolates forward
     // on every `update_ideals` call. rounds_per_phase chunks across approach.

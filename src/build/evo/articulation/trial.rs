@@ -52,7 +52,7 @@ impl ArticulationConfig {
     }
 
     fn iters(secs: f32) -> usize {
-        (secs / Age::iteration_duration()) as usize
+        (secs / Age::iteration_duration().f32()) as usize
     }
 }
 

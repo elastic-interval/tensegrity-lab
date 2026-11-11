@@ -14,7 +14,6 @@ use crate::build::dsl::brick_dsl::{BrickName, BrickParams, BrickRole, JointName}
 use crate::build::dsl::brick_library;
 use crate::fabric::interval::Role;
 use crate::fabric::physics::presets::BAKING;
-use crate::units::Unit;
 
 /// Role under which Omni and Single declare their 3-fold cyclic symmetry.
 const THREEFOLD_ROLE: BrickRole = BrickRole::Seed(1);
@@ -242,7 +241,7 @@ fn axis_vec(axis: Axis) -> Vec3 {
 
 /// Spring constant: `k_at_1m / max(L₀, 0.001)` — same formula as Fabric.
 fn spring_k(role: Role, rest_length: f32) -> f32 {
-    let k_at_1m = role.material().spring_constant_at_1m().f32();
+    let k_at_1m = role.material().spring_constant_at_1m();
     k_at_1m / rest_length.max(0.001) * BAKING.rigidity_multiplier()
 }
 

@@ -347,7 +347,7 @@ this table is informational and can drift between code edits and doc updates.
 
 ## Slot Positioning Along the Strut Axis
 
-Slots are numbered starting from 0 (code-internal) or 1 (display/CSV). The position of each slot's ring center along the strut axis, measured from the strut endpoint, is calculated by `ConnectorDimensions::ring_center_offset()`:
+Slots are numbered starting from 0 (code-internal) or 1 (display and export). The position of each slot's ring center along the strut axis, measured from the strut endpoint, is calculated by `ConnectorDimensions::ring_center_offset()`:
 
 ```
 offset = cap_thickness + washer + ring_thickness/2 + slot * (ring_thickness + washer)
@@ -396,7 +396,7 @@ and a guy line at a hinge is refused; both are reported as failed plan steps.
 
 ## How Cables Get Assigned to Slots
 
-When the fabric is built and settled, each push interval determines which cables connect to it and at which slot (`ConnectorSystem::update_all_connections`). This is the moment the hardware is **committed**: it runs on entering Viewing and for CSV export, and the slots, part shapes and fork rods it decides then stay put while the fabric animates or the C key is pressed (which only re-checks collisions). The optimiser (`find_optimal_assignment`, `src/connector/attachment.rs`) works per push end:
+When the fabric is built and settled, each push interval determines which cables connect to it and at which slot (`ConnectorSystem::update_all_connections`). This is the moment the hardware is **committed**: it runs on entering Viewing and for export, and the slots, part shapes and fork rods it decides then stay put while the fabric animates or the C key is pressed (which only re-checks collisions). The optimiser (`find_optimal_assignment`, `src/connector/attachment.rs`) works per push end:
 
 - **No ordering rules**: every permutation of the cables over the slots is tried, and any cable may take any slot. (An earlier hard rule kept outward-pulling cables off the topmost slot, so the retaining nut would not carry their full axial load; it was dropped to clear collisions, so that nut load needs checking.)
 - **Objective**: fewest pairs of forks whose capsule models collide — the same test that marks culprits.
@@ -462,17 +462,12 @@ the one clicked on large beside them.
 
 The fork/tube dimensions and a capsule model of each assembled cable end live in `src/connector/fork.rs`. `ConnectorSystem::mark_culprits` (run when the hardware is committed and again when the C key shows it, never per frame) does a pairwise capsule scan and records every cable end whose assembly would physically intersect another in `ConnectorSystem::culprits`. The renderer paints all parts of a culprit assembly red — these are real construction issues to resolve, not rendering artifacts.
 
-## CSV Export
+## Export
 
-Open Claw's CSV export (`src/open_claw_symmetry.rs`) includes connector data; Headless Hug's geometry-only CSV (`src/engineering_csv.rs`) does not (see `docs/csv-handoff.md`):
-
-- **Pull intervals**: exported with slot number (1-indexed) and free pivot elevation angle at each end; endpoints are pivot pin positions
-- **Link intervals**: axial and radial links exported as separate rows for structural analysis
-- **FEA intervals**: simplified push/pull elements where all connections at a joint converge at the highest ring center
-
-The header comments report the connector parameters, a pivot-elevation summary (min/mean/max), and arm clearance statistics.
-
-Format: `Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaJoint,AlphaSlot,AlphaAngle,OmegaX,...`
+Headless Hug goes to the engineer as JSON (`docs/fabric-json.md`): every cable
+end's slot, ring centre on the strut axis and pivot pin, every strut's stack
+ends and tubes, plates, hinges and feet. Open Claw's CSV, with its axial,
+radial and FEA link rows, is archived on an old branch.
 
 ## UI Display
 
@@ -493,5 +488,5 @@ free pivot elevation angle at each end on a `Pivot:` line.
 | `src/fabric/bridle.rs` | `Fabric::bridle`, `tighten_bridles`, `hang_bridles` |
 | `src/fabric/symmetrize.rs` | `Fabric::symmetrize_mirror` |
 | `src/wgpu/connector_renderer.rs`, `part_meshes.rs`, `parts_view.rs` | Drawing the parts and the parts view |
-| `src/open_claw_symmetry.rs` | OpenClaw threefold-symmetry enforcement + CSV export |
+| `src/open_claw_symmetry.rs` | OpenClaw threefold-symmetry enforcement |
 | `src/camera.rs` | Picking logic for slot and angle display |

@@ -8,12 +8,13 @@ use crate::connector::fork::{
     BOSS_ARM_RADIUS, BOSS_SHORT_OF_PIVOT, PLATE_CORNER_RADIUS, PLATE_HOLE_DIAMETER, PLATE_SIDE, PLATE_THICKNESS,
     RING_BORE_DIAMETER,
 };
-use crate::connector::parts::Part;
-use crate::units::Unit;
+use crate::connector::parts::{parts_list, placements, Part};
+use crate::fabric::Fabric;
+use crate::units::{Unit, MM_PER_METER};
 use std::f32::consts::TAU;
 use std::fmt::Write;
 
-const MM: f32 = 1000.0;
+const MM: f32 = MM_PER_METER;
 
 #[derive(Clone, Copy, Debug)]
 enum Entity {
@@ -151,12 +152,22 @@ impl Drawing {
     }
 }
 
+/// Every drawing with its quantity, one per distinct laser-cut part.
+pub fn drawings(fabric: &Fabric) -> Vec<(Drawing, usize)> {
+    let connector = fabric.connector.as_ref().expect("fabric has connectors");
+    let radius = fabric.dimensions.push_radius.f32();
+    parts_list(&placements(fabric))
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, (part, quantity))| Some((drawing(part, index, &connector.dimensions, radius)?, quantity)))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::build::dsl::fabric_library::{self, FabricName};
     use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
-    use crate::connector::parts::{parts_list, placements};
     use crate::fabric::Fabric;
 
     fn built_headless_hug() -> Fabric {
@@ -167,17 +178,6 @@ mod tests {
         let mut fabric = executor.fabric;
         fabric.update_all_attachment_connections();
         fabric
-    }
-
-    /// Every drawing with its quantity, one per distinct laser-cut part.
-    fn drawings(fabric: &Fabric) -> Vec<(Drawing, usize)> {
-        let connector = fabric.connector.as_ref().expect("fabric has connectors");
-        let radius = fabric.dimensions.push_radius.f32();
-        parts_list(&placements(fabric))
-            .into_iter()
-            .enumerate()
-            .filter_map(|(index, (part, quantity))| Some((drawing(part, index, &connector.dimensions, radius)?, quantity)))
-            .collect()
     }
 
     /// A cutter needs one closed outline: every end of every line and arc

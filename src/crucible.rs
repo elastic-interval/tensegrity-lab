@@ -10,7 +10,7 @@ use crate::fabric::physics::presets::{ANIMATING, VIEWING};
 use crate::fabric::physics::Physics;
 use crate::fabric::physics_tester::PhysicsTester;
 use crate::fabric::Fabric;
-use crate::units::{Seconds, Unit};
+use crate::units::Unit;
 use crate::{ControlState, CrucibleAction, LabEvent, Radio, StateChange};
 use StateChange::*;
 
@@ -370,18 +370,18 @@ impl Crucible {
             AdjustAnimationFrequency(factor) => {
                 if let Animating(animator) = &mut self.stage {
                     animator.adjust_period(1.0 / factor);
-                    let period = animator.period_secs();
-                    let frequency = 1.0 / period;
-                    println!("actuator_frequency(Hz({:.4}))", frequency);
+                    let period = animator.period();
+                    let frequency = period.to_hertz();
+                    println!("actuator_frequency(Hz({:.4}))", frequency.0);
                     // Also update the fabric_plan so the period persists across animation toggles
                     if let Some(ref mut plan) = self.fabric_plan {
                         if let Some(ref mut animate_phase) = plan.animate_phase {
-                            animate_phase.period = Seconds(period);
+                            animate_phase.period = period;
                         }
                     }
                     context.send_event(LabEvent::UpdateState(SetStageLabel(format!(
                         "Frequency: {:.2} Hz",
-                        frequency
+                        frequency.0
                     ))));
                 }
             }

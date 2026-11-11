@@ -92,7 +92,12 @@ pub fn inner_holes(length: Meters) -> Vec<Meters> {
 
 impl TubeSet {
 
-    /// How far, in millimetres, the inner tube sticks out of the outer at `setting`.
+    /// How far the inner tube sticks out of the outer at `setting`.
+    pub fn extension(&self, setting: PinSetting) -> Meters {
+        Meters(self.protrusion(setting) as f32 / 1000.0)
+    }
+
+    /// `extension` in millimetres, for the hole arithmetic.
     fn protrusion(&self, setting: PinSetting) -> i32 {
         INNER_FIRST_HOLE + INNER_PITCH * setting.inner as i32 - OUTER_FIRST_HOLE - OUTER_PITCH * setting.outer as i32
     }

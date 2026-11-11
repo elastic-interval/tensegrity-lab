@@ -515,8 +515,8 @@ fn hole_patch(mesh: &mut Mesh, centre: f32, theta: f32, outer: f32, bore: f32) {
 fn cross_tube(mesh: &mut Mesh, at: f32, reach: f32) {
     let toward = Vec3::new(at.cos(), 0.0, at.sin());
     let along = Vec3::new(-at.sin(), 0.0, at.cos());
-    let half = TUBE_LENGTH / 2.0;
-    mesh.hollow(toward * reach, along, -half, half, TUBE_RADIUS, TUBE_BORE_RADIUS);
+    let half = TUBE_LENGTH.f32() / 2.0;
+    mesh.hollow(toward * reach, along, -half, half, TUBE_RADIUS.f32(), TUBE_BORE_RADIUS.f32());
 }
 
 /// A flat disc with a boss at each of `bosses`: (angle from +x in the x/z

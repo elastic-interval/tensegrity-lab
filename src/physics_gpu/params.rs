@@ -34,7 +34,7 @@ impl GpuPhysicsConfig {
             }
         };
         Self {
-            dt: crate::Age::iteration_duration(),
+            dt: crate::Age::iteration_duration().f32(),
             gravity: if physics.surface.is_some() {
                 crate::units::EARTH_GRAVITY.f32()
             } else {

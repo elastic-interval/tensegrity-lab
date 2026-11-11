@@ -27,6 +27,7 @@ mod tests {
     use crate::fabric::joint::JointLabel;
     use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
     use crate::fabric::{Fabric, IntervalKey, JointKey};
+    use crate::units::Unit;
     use std::collections::HashSet;
 
     type Candidate = (Vec<(String, String)>, String, f32, f32);
@@ -134,7 +135,7 @@ mod tests {
                 .map(|(x, y)| format!("{x}–{y}"))
                 .collect::<Vec<_>>()
                 .join(" + ");
-            edges.push((omit, name, interval.length(&fabric.joints), apex));
+            edges.push((omit, name, interval.length(&fabric.joints).f32(), apex));
         }
         edges
     }

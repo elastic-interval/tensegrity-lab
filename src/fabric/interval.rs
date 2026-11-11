@@ -12,7 +12,7 @@ use crate::fabric::physics::Physics;
 use crate::fabric::vulcanize::VulcanizeMode;
 use crate::fabric::FabricDimensions;
 use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointKey, Joints};
-use crate::units::{Meters, NewtonsPerMeter, Percent, Seconds, Unit};
+use crate::units::{Meters, Percent, Seconds, Unit};
 use crate::Age;
 use crate::Appearance;
 use glam::Vec3;
@@ -463,14 +463,14 @@ impl Interval {
         length
     }
 
-    pub fn length(&self, joints: &Joints) -> f32 {
+    pub fn length(&self, joints: &Joints) -> Meters {
         let (alpha_location, omega_location) = self.locations(joints);
         let tween = omega_location - alpha_location;
         let magnitude_squared = tween.length_squared();
         if magnitude_squared < 0.00001 {
-            return 0.00001;
+            return Meters(0.00001);
         }
-        magnitude_squared.sqrt()
+        Meters(magnitude_squared.sqrt())
     }
 
     pub fn ideal(&self) -> Meters {
@@ -533,10 +533,11 @@ impl Interval {
         // Spring constant scales with 1/L for proper physics
         // Stiffness percentage allows softer intervals (e.g., actuators at 10%)
         let k = dimensions.spring_constant(self.material, ideal, physics);
-        let k_adjusted = NewtonsPerMeter(k.f32() * self.stiffness.as_factor());
+        let k_adjusted = k * self.stiffness.as_factor();
         let extension = Meters(self.strain * ideal.f32());
-        let force = k_adjusted * extension;
-        let force_vector: Vec3 = self.unit * force.f32();
+        // In millinewtons, the simulation's force.
+        let force = k_adjusted * extension.f32();
+        let force_vector: Vec3 = self.unit * force;
 
         // Apply equal and opposite forces to both ends (Newton's 3rd law).
         let alpha_key = self.end_key(IntervalEnd::Alpha);

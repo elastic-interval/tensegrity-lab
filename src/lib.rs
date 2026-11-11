@@ -12,7 +12,8 @@ pub mod connector;
 pub mod control;
 pub mod crucible;
 pub mod crucible_context;
-pub mod engineering_csv;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod fabric_json;
 pub mod events;
 pub mod fabric;
 pub mod keyboard;
@@ -25,6 +26,8 @@ pub mod wgpu;
 
 #[cfg(test)]
 mod fabric_smoke_test;
+#[cfg(test)]
+mod headless_hug_package;
 #[cfg(test)]
 mod open_claw_symmetry;
 mod open_claw_test;
@@ -64,19 +67,20 @@ impl Default for Age {
     }
 }
 
-/// Duration of each physics iteration tick (50 microseconds)
-const TICK_DURATION: Duration = Duration::from_micros(50);
-const TICK_SECS: f32 = 50.0 / 1_000_000.0;
+/// Each physics iteration tick, as a `Duration` for ages and in seconds for the physics.
+const TICK_MICROSECONDS: u64 = 50;
+const TICK_DURATION: Duration = Duration::from_micros(TICK_MICROSECONDS);
+const TICK_SECONDS: units::Seconds = units::Seconds(TICK_MICROSECONDS as f32 / 1_000_000.0);
 
 impl Age {
-    /// Duration of a single physics iteration in seconds
-    pub fn iteration_duration() -> f32 {
-        TICK_SECS
+    /// Duration of a single physics iteration
+    pub fn iteration_duration() -> units::Seconds {
+        TICK_SECONDS
     }
 
     /// Number of iterations per second (inverse of iteration_duration)
     pub fn iterations_per_second() -> f32 {
-        1.0 / TICK_SECS
+        1.0 / TICK_SECONDS.0
     }
 
     pub fn tick(&mut self) -> Duration {

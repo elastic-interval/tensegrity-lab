@@ -48,8 +48,8 @@ connector hardware. The second table adds what it doesn't track yet.
 | 128 | Strut cap: tapped disc welded to a short tube, as on Open Claw | Custom, welded; see below |
 | 128 | M12 bolt (DIN 933), turned into the cap from inside | Five lengths, see below |
 | 112 | M12 lock nut (DIN 985) and DIN 9021 washer | The other 16 strut ends are closed by the hinge fitting |
-| 244 | Cable, 6 mm, cut to length | Lengths come from the CSV |
-| 24 | M8 threaded rod, cut to length, with 4 nuts | Cut lengths come from the CSV's header; see below |
+| 244 | Cable, 6 mm, cut to length | Lengths come from the JSON |
+| 24 | M8 threaded rod, cut to length, with 4 nuts | Cut lengths come from the JSON; see below |
 | 2 | Foot: INA GIKR12-PW rod end | Bought, see below; what it pins to on the ground isn't designed |
 | 4 | Guy line and ground anchor | Ground fixing not designed |
 
@@ -122,7 +122,7 @@ named "Pom ring - 36 x 36 x 2", so Ø36 × 2 mm. Ask Snijlab for Ø40.
 
 Every tension connection is a cable or a fork rod: threaded rod cut to length
 between two rod forks. The rod is stock like cable, so only the fork is on the
-parts list. The rod is drawn as a cable, and the CSV lists the lengths to cut.
+parts list. The rod is drawn as a cable, and the JSON gives the lengths to cut.
 
 16 fork rods are hangers, 82 mm pin to pin, each hanging a node plate from a
 strut end's cross-tube. The other 12 stand in for plate cables too short to make.
@@ -164,9 +164,8 @@ splitting its cable (L10b, R10b, Z6b, Z5b); with the catalogue hinge those
 stacks sit closer to their plates, too close for a cable.
 
 Those lengths are from the settled shape, as the app's connector view commits
-them. The CSV is written at the slack moment and differs: 12 of the longer rods
-rather than 8, measured before the catalogue hinge. Which one rods are cut from is the
-same open question as for the cables (below).
+them; the JSON is written at the same moment, and gives each rod's cut length
+from its rest length, unloaded.
 
 **A rigid rod replaces what was a swivel.** The swivel was there because the two
 pins swing as the figure moves. With the animation at its resonance (see "Motion"
@@ -299,8 +298,8 @@ meet inside the outer. So Open Claw's tubes, outer 1471 and inner 780 mm, make
 1561–2561 mm, and the proposed short set, outer 900 and inner 600 mm drilled the
 same way, makes about 1200–1630 mm. Every strut lands within 5 mm of a setting.
 
-Each strut's tube length (stack to stack) and pin settings are in the header of
-Headless Hug's CSV, as `<inner hole>:<outer holes>` at each end, holes counted
+Each strut's rest length (stack to stack, unloaded) and pin settings are in
+Headless Hug's JSON (`rest_length`, `tube_set`), as `<inner hole>:<outer holes>` at each end, holes counted
 from 1 at that end of each tube. Source: Open Claw's Rhino model of the tubes
 (`Buizen Open Claw.stp`) and ENS's description of the joint. Holes are Ø10.5
 in the model, Ø11 in ENS's notes.
@@ -349,19 +348,33 @@ The simulation uses the real parts' stiffness (`Hardware::OPEN_CLAW`): 6 mm 7×1
 cable at EA about 1.4 MN (an estimate until a datasheet gives it) and the
 telescoping 40×3 / 33×3 tube at about 21 MN, without the locking pins' play. It is
 pretensioned by lengthening every strut 0.5%. At scale 0.75 that keeps all
-connectors clear and, settled under gravity, gives struts a median of 2.9 kN (max
-5.4) and cables at most 4.5 kN, with 2 slack. Less collides (0.2–0.4%); more
-raises the forces by half (0.6%) and tips the stance.
+connectors clear and, settled under gravity, gives struts a median of 3.4 kN (max
+6.5) and cables at most 5.3 kN, none slack (2026-11-11, as in the JSON's
+`force`). Less collides (0.2–0.4%); more raises the forces by half (0.6%) and
+tips the stance.
 
-Through the animation at its resonance no cable passes 6.3 kN, a quarter of a 6 mm
-cable's 25.5 kN breaking load. The most loaded at their peak:
+The most loaded, settled:
 
-| Cable | Settled | Peak |
-|---|---:|---:|
-| L45–L30, R45–R30 | 4.5, 4.1 kN | 6.2, 6.3 kN |
-| L43–L32, R43–R32 | 3.6, 3.8 kN | 5.9, 5.9 kN |
-| L5–L5b, R5–R5b (hangers, M8 rod) | 4.0, 3.9 kN | 5.7, 5.6 kN |
-| L32–L44, R32–R44 | 3.1, 3.1 kN | 5.1, 5.1 kN |
+| Cable | Settled |
+|---|---:|
+| L45–L30, R45–R30 | 5.3, 5.2 kN |
+| L5–L5b, R5–R5b (hangers, M8 rod) | 5.0, 5.0 kN |
+| L5b–Z4, R5b–Z4 | 4.5, 4.8 kN |
+| L43–L32 | 4.5 kN |
+| Z5b–Z1 | 4.4 kN |
+| R15–R15b (hanger) | 4.4 kN |
+
+These move by up to 1 kN with the stance, which isn't pinned down: a change in
+floating-point rounding alone (the order of a multiplication in the physics)
+leans the settled figure by about 1° (14 cm at its 8.4 m apex), changing the
+forces with it. The real stance is set
+by the guy lines; see the next section. The settle also ends before the figure
+is fully at rest: it moves another 40 mm or so at the apex over the next 15 s.
+
+Through the animation at its resonance, measured on 2026-11-04 when these were
+about 1 kN lower settled, no cable passed 6.3 kN, a quarter of a 6 mm cable's
+25.5 kN breaking load; the most loaded rose by about 2 kN at their peak. Nothing
+measures the peaks automatically, so they need measuring again.
 
 Wind isn't modelled; Open Claw's engineer had cables reaching 4.7 kN under wind
 alone. 8 mm cable for any of these is the engineer's call with real load cases.
@@ -371,7 +384,7 @@ alone. 8 mm cable for any of these is the engineer's call with real load cases.
 The guy lines are set so the centre of gravity stands over the feet: anchors 5.2 m
 in front of and behind the pelvis, the front pair at 90.5% and the rear at 109% of
 their distance on landing puts it 13 mm in front of them, with both pairs lightly
-taut (about 0.5 kN each). It is very sensitive: 1% on either pair moves it 10–40
+taut (0.4–0.5 kN each). It is very sensitive: 1% on either pair moves it 10–40
 cm, so real guy lines need fine adjustment. Tightening both pairs doesn't stand it
 up; they pull the pelvis down instead.
 
@@ -403,9 +416,11 @@ those bolts and stacks need to turn freely under load.
 - **Boss flat.** With the pin axis at 30 mm and a 17.2 × 3.2 mm tube, the bore
   starts 24.6 mm from the bolt axis. The flat is at 22.4 mm, a 1 mm seat
   that stays clear of the bore. Have the welder confirm that seat.
-- **Slack versus settled lengths.** Hardware lengths in the CSV are for the
-  slack shape and differ from the settled figure (see
-  [csv-handoff.md](csv-handoff.md)). Decide which one cuts are made from.
+- **Made to rest lengths.** The JSON is the standing figure, and gives every
+  member's rest length beside its standing one: cables, rods and tubes are
+  made to the rest lengths (see [fabric-json.md](fabric-json.md)). Pin
+  settings worked out on the slack shape, as the CSV had them, were 7 to 12 mm
+  short, the struts' 0.5 % pretension, and wrong on 53 of 64 struts.
 
 ## Off-the-shelf sourcing
 

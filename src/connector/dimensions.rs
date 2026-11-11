@@ -1,5 +1,5 @@
 //! Connector dimensions and the pure geometry helpers shared by attachment
-//! assignment, rendering, and CSV export.
+//! assignment, rendering, and export.
 //!
 //! The connector (see `docs/connectors.md`) is a flat steel ring that turns on
 //! an axial bolt at the strut end, carrying a radial boss that ends in a
@@ -123,9 +123,10 @@ pub(crate) fn radial_unit_from_axis(push_axis: Vec3, direction: Vec3) -> Vec3 {
 #[cfg(test)]
 mod pivot_geometry_tests {
     use super::*;
+    use crate::units::MM_PER_METER;
     use glam::Vec3;
 
-    const MM: f32 = 1000.0;
+    const MM: f32 = MM_PER_METER;
     const TOL: f32 = 0.001; // 1 micron tolerance
 
     fn assert_mm(label: &str, actual_m: f32, expected_mm: f32) {
@@ -139,7 +140,6 @@ mod pivot_geometry_tests {
     }
 
     /// Test that ConnectorDimensions formulas produce the correct derived values.
-    /// These are the numbers shown in the CSV header as "Afgeleide waarden".
     #[test]
     fn connector_dimension_formulas() {
         let h = ConnectorDimensions::default();

@@ -2,7 +2,7 @@ use crate::build::dsl::animate_phase::{Actuator, ActuatorAttachment, AnimatePhas
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::interval::{Role, Span};
 use crate::fabric::{IntervalKey, JointKey};
-use crate::units::{Meters, Percent};
+use crate::units::{Meters, Percent, Seconds};
 use crate::Age;
 use glam::Vec3;
 use std::f32::consts::PI;
@@ -14,16 +14,16 @@ struct Oscillator {
 }
 
 impl Oscillator {
-    fn new(period_secs: f32) -> Self {
-        let ticks_per_cycle = period_secs / Age::iteration_duration();
+    fn new(period: Seconds) -> Self {
+        let ticks_per_cycle = period / Age::iteration_duration();
         Self {
             phase: 0.0,
             phase_per_tick: 1.0 / ticks_per_cycle,
         }
     }
 
-    fn set_period(&mut self, period_secs: f32) {
-        let ticks_per_cycle = period_secs / Age::iteration_duration();
+    fn set_period(&mut self, period: Seconds) {
+        let ticks_per_cycle = period / Age::iteration_duration();
         self.phase_per_tick = 1.0 / ticks_per_cycle;
     }
 
@@ -65,7 +65,7 @@ struct ActuatorInterval {
 
 pub struct Animator {
     oscillator: Oscillator,
-    period_secs: f32,
+    period: Seconds,
     waveform: Waveform,
     actuators: Vec<ActuatorInterval>,
 }
@@ -73,7 +73,7 @@ pub struct Animator {
 impl Animator {
     pub fn new(animate_phase: AnimatePhase, context: &mut CrucibleContext) -> Self {
         let contraction_factor = 1.0 - animate_phase.amplitude.as_factor();
-        let period_secs = animate_phase.period.0;
+        let period = animate_phase.period;
         let stiffness = animate_phase.stiffness;
         let actuators = Self::create_actuators(
             context,
@@ -83,20 +83,20 @@ impl Animator {
         );
 
         Self {
-            oscillator: Oscillator::new(period_secs),
-            period_secs,
+            oscillator: Oscillator::new(period),
+            period,
             waveform: animate_phase.waveform,
             actuators,
         }
     }
 
-    pub fn period_secs(&self) -> f32 {
-        self.period_secs
+    pub fn period(&self) -> Seconds {
+        self.period
     }
 
     pub fn adjust_period(&mut self, factor: f32) {
-        self.period_secs *= factor;
-        self.oscillator.set_period(self.period_secs);
+        self.period = self.period * factor;
+        self.oscillator.set_period(self.period);
     }
 
     fn create_actuators(

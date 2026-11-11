@@ -16,7 +16,7 @@ use crate::connector::strut::{tube_set, INNER_BORE_RADIUS, INNER_RADIUS, OUTER_B
 use crate::connector::system::{foot_pin_axis, foot_strut, hinge_pin_axis, hinge_struts, is_hanger};
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, IntervalEnd, IntervalKey};
-use crate::units::{Grams, Meters, Unit};
+use crate::units::{Grams, GramsPerCubicMeter, Meters, Unit};
 use glam::Vec3;
 use std::cell::Cell;
 use std::f32::consts::PI;
@@ -111,10 +111,9 @@ impl DiscShape {
     }
 }
 
-// Densities in grams per cubic metre.
-const STEEL_DENSITY: f32 = 7.85e6;
-const POM_DENSITY: f32 = 1.41e6;
-const ALUMINIUM_DENSITY: f32 = 2.7e6;
+pub const STEEL_DENSITY: GramsPerCubicMeter = GramsPerCubicMeter(7.85e6);
+const POM_DENSITY: GramsPerCubicMeter = GramsPerCubicMeter(1.41e6);
+pub const ALUMINIUM_DENSITY: GramsPerCubicMeter = GramsPerCubicMeter(2.7e6);
 // A ring's boss is this much of its radius wide (as drawn, `part_meshes`).
 const BOSS_WIDTH_OF_RADIUS: f32 = 0.6;
 
@@ -175,10 +174,10 @@ impl Part {
     /// supplier's or estimated figure where it's bought. Rings and discs are
     /// `ring_radius` in radius.
     pub fn mass(self, ring_radius: f32, dimensions: &ConnectorDimensions) -> Grams {
-        let steel = |volume: f32| Grams(volume * STEEL_DENSITY);
+        let steel = |volume: f32| STEEL_DENSITY.mass(volume);
         let bore = PI * (RING_BORE_DIAMETER.f32() / 2.0).powi(2);
         let disc = PI * ring_radius.powi(2) - bore;
-        let tube = steel(PI * (TUBE_RADIUS.powi(2) - TUBE_BORE_RADIUS.powi(2)) * TUBE_LENGTH);
+        let tube = steel(PI * (TUBE_RADIUS.f32().powi(2) - TUBE_BORE_RADIUS.f32().powi(2)) * TUBE_LENGTH.f32());
         // A boss runs from the disc's rim to just short of its pivot.
         let boss = |reach: f32| {
             let width = BOSS_WIDTH_OF_RADIUS * ring_radius;
@@ -192,7 +191,7 @@ impl Part {
                 let bosses: f32 = shape.bosses().iter().map(|&(_, reach)| boss(reach as f32 / 1000.0)).sum();
                 steel((disc + bosses) * thickness) + tube * shape.bosses().len() as f32
             }
-            Part::Washer => Grams(disc * dimensions.washer_thickness.f32() * POM_DENSITY),
+            Part::Washer => POM_DENSITY.mass(disc * dimensions.washer_thickness.f32()),
             // Louis Ruys 37260006, per the Open Claw vault.
             Part::Clevis => Grams(160.0),
             Part::RodFork => {
@@ -243,7 +242,7 @@ impl Part {
 
 fn aluminium_tube(radius: Meters, bore: Meters, mm: u16) -> Grams {
     let area = PI * (radius.f32().powi(2) - bore.f32().powi(2));
-    Grams(area * mm as f32 / 1000.0 * ALUMINIUM_DENSITY)
+    ALUMINIUM_DENSITY.mass(area * mm as f32 / 1000.0)
 }
 
 fn millimetres(length: Meters) -> u16 {

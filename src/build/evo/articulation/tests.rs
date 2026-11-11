@@ -122,7 +122,7 @@ mod tests {
             for name in [BrickName::SingleTwistLeft, BrickName::OmniSymmetrical] {
                 let structure = BrickStructure::from_baked(name);
                 let mut fabric = structure.express("settle".to_string()).fabric;
-                let per_half_sec = (0.5 / Age::iteration_duration()) as usize;
+                let per_half_sec = (crate::units::Seconds(0.5) / Age::iteration_duration()) as usize;
                 println!("=== {label} {name:?} settle KE ===");
                 for half in 0..8 {
                     for _ in 0..per_half_sec {

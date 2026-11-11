@@ -10,7 +10,7 @@
 //!
 //! Convention: run with
 //!     cargo test --release --lib test_propeller_blender_export -- --nocapture
-//! mirroring the engineering-CSV pattern in `open_claw_symmetry.rs`.
+//! like the other on-demand exports.
 
 // Self-contained Blender-export dev tool. Its entry point is the
 // `test_propeller_blender_export` test below (run via `cargo test`), so in a

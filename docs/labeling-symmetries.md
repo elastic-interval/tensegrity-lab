@@ -101,6 +101,5 @@ hardcoded threefold assumptions. Its generic successor consumes
 ## Migration note
 
 `rotate_label_once` in `open_claw_symmetry.rs` could delegate to
-`LabelSymmetry::map_label`, but it works, is test-covered, and the CSV
-byte-identity guard makes churn there expensive — migrate only when that
-file is next touched for other reasons.
+`LabelSymmetry::map_label`, but it works and is test-covered — migrate
+only when that file is next touched for other reasons.

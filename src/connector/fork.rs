@@ -12,9 +12,9 @@ use crate::units::{Meters, Unit};
 use glam::Vec3;
 
 // Cross-tube of the connector part (see docs/connectors.md).
-pub const TUBE_RADIUS: f32 = 0.0086; // D_tube / 2, metres — 17.2x3.2 tube (DN10, EN 10220)
-pub const TUBE_BORE_RADIUS: f32 = 0.0054; // 10.8 mm bore: the terminal's 9.7 mm pin, clear after galvanizing
-pub const TUBE_LENGTH: f32 = 0.0135; // L_tube, metres — wider than the 6 mm cables from every angle
+pub const TUBE_RADIUS: Meters = Meters(0.0086); // D_tube / 2 — 17.2x3.2 tube (DN10, EN 10220)
+pub const TUBE_BORE_RADIUS: Meters = Meters(0.0054); // 10.8 mm bore: the terminal's 9.7 mm pin, clear after galvanizing
+pub const TUBE_LENGTH: Meters = Meters(0.0135); // L_tube — wider than the 6 mm cables from every angle
 
 /// A jaw terminal in its own frame: pin centre at the origin, the barrel
 /// running out along the cable, the pin across the jaw gap. Lengths along
@@ -267,8 +267,8 @@ pub fn rod_termination(pivot: Vec3, other_end: Vec3) -> Vec3 {
 }
 
 /// The threaded rod to cut for a fork rod `pin_to_pin` long.
-pub fn threaded_rod_length(pin_to_pin: f32) -> f32 {
-    pin_to_pin - 2.0 * FORK_ROD_TIP.f32()
+pub fn threaded_rod_length(pin_to_pin: Meters) -> Meters {
+    Meters(pin_to_pin.f32() - 2.0 * FORK_ROD_TIP.f32())
 }
 
 /// Capsule approximation of one assembled connector end for collision

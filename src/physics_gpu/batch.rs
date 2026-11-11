@@ -64,7 +64,7 @@ impl FabricSnapshot {
             let alpha = joint_key_map[&interval.alpha_key];
             let omega = joint_key_map[&interval.omega_key];
             let ideal = resolve_span(&interval.span, fabric.age);
-            let k = interval.material.spring_constant(ideal, physics).f32()
+            let k = interval.material.spring_constant(ideal, physics)
                 * interval.stiffness.as_factor();
             let linear_density = fabric
                 .dimensions
@@ -507,7 +507,7 @@ impl GpuBatch {
             let po = slot * self.max_push as usize;
             for interval in fabric.intervals.values() {
                 let ideal = resolve_span(&interval.span, fabric.age);
-                let k = interval.material.spring_constant(ideal, physics).f32()
+                let k = interval.material.spring_constant(ideal, physics)
                     * interval.stiffness.as_factor();
                 match interval.role {
                     Role::Pushing => {
@@ -741,7 +741,7 @@ pub fn run_generation(
     physics: &Physics,
     duration: crate::units::Seconds,
 ) -> Vec<SlotFacts> {
-    let iterations = (duration.f32() / crate::Age::iteration_duration()) as u32;
+    let iterations = (duration / crate::Age::iteration_duration()) as u32;
     let batch = GpuBatch::parallelize(device, queue, fabrics, physics);
     batch.step(device, queue, iterations);
     batch.read_facts(device, queue)

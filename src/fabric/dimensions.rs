@@ -5,7 +5,7 @@ use crate::connector::ConnectorDimensions;
 use crate::fabric::physics::Physics;
 use crate::fabric::interval::Role;
 use crate::fabric::material::Material;
-use crate::units::{Grams, GramsPerMeter, Meters, NewtonsPerMeter, Unit};
+use crate::units::{Grams, GramsPerMeter, Meters, Newtons, Unit};
 
 /// Masses counted from a fabric's real parts, in place of a flat mass per
 /// joint. A strut's tubes are spread over its length and each end carries its
@@ -23,14 +23,12 @@ pub struct Hardware {
     pub plate: Grams,
     /// A hinge's clevis, pin and eye.
     pub hinge: Grams,
-    /// A strut's axial stiffness, EA, in newtons.
-    pub strut_stiffness: f32,
-    /// A cable's axial stiffness, EA, in newtons.
-    pub cable_stiffness: f32,
+    /// A strut's axial stiffness, EA.
+    pub strut_stiffness: Newtons,
+    /// A cable's axial stiffness, EA.
+    pub cable_stiffness: Newtons,
 }
 
-// The simulation's forces are in grams × m/s².
-const SIMULATION_PER_NEWTON: f32 = 1000.0;
 
 impl Hardware {
     /// Open Claw's struts and hardware (FluxeArt vault, 247TailorSteel order
@@ -56,10 +54,10 @@ impl Hardware {
         hinge: Grams(268.0),
         // E 69 GPa: outer tube 349 mm² (24 MN), inner 283 mm² (20 MN), about
         // half the length each. The locking pins' play isn't included.
-        strut_stiffness: 2.1e7,
+        strut_stiffness: Newtons(2.1e7),
         // 6 mm 7×19 galvanized (Louis Ruys 36001106): about 14 mm² of steel at a
         // rope modulus near 100 GPa. ESTIMATE until a datasheet gives it.
-        cable_stiffness: 1.4e6,
+        cable_stiffness: Newtons(1.4e6),
     };
 }
 
@@ -186,18 +184,17 @@ impl FabricDimensions {
         }
     }
 
-    /// The spring constant of an interval of `material`, `length` long: the
-    /// real parts' stiffness when the fabric counts its hardware.
-    pub fn spring_constant(&self, material: Material, length: Meters, physics: &Physics) -> NewtonsPerMeter {
+    /// The spring constant of an interval of `material`, `length` long, in the
+    /// simulation's millinewtons per metre: the real parts' stiffness when the
+    /// fabric counts its hardware.
+    pub fn spring_constant(&self, material: Material, length: Meters, physics: &Physics) -> f32 {
         let real = self.hardware.and_then(|hardware| match material {
             Material::Push => Some(hardware.strut_stiffness),
             Material::Pull => Some(hardware.cable_stiffness),
             Material::Spring => None,
         });
         match real {
-            Some(stiffness) => NewtonsPerMeter(
-                stiffness * SIMULATION_PER_NEWTON / length.f32().max(0.001) * physics.rigidity_multiplier(),
-            ),
+            Some(stiffness) => stiffness.to_millinewtons() / length.f32().max(0.001) * physics.rigidity_multiplier(),
             None => material.spring_constant(length, physics),
         }
     }

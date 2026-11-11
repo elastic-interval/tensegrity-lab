@@ -46,4 +46,4 @@ threefold symmetry, (c) Headless Hug's connectors have no collisions or short ca
 - `test_open_claw_threefold_symmetry` re-asserts that every rotational triple of cables
   is symmetric in length/slot/bend after threefold symmetry is enforced. A failure here
   usually means the brick library or threefold-pasting logic shifted.
-- Read-only — does not regenerate any artifacts. Use `/regen-openclaw` for that.
+- Read-only — does not regenerate any artifacts.

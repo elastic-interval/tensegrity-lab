@@ -8,7 +8,7 @@
 //! This module provides type-safe wrappers for physical quantities,
 //! making the physics more intuitive and preventing unit errors.
 
-use std::ops::{Add, AddAssign, Div, Mul};
+use std::ops::{Add, AddAssign, Div, Mul, Sub};
 
 /// Trait for unit types that wrap f32 values
 pub trait Unit {
@@ -47,7 +47,9 @@ unit!(Hertz);
 unit!(Percent, Default);
 unit!(Degrees, Default);
 unit!(GramsPerMeter);
-unit!(NewtonsPerMeter);
+unit!(Pascals);
+unit!(SquareMeters);
+unit!(GramsPerCubicMeter);
 
 pub const IMMEDIATE: Seconds = Seconds(0.0);
 pub const MOMENT: Seconds = Seconds(0.1);
@@ -76,6 +78,36 @@ impl Grams {
 impl Meters {
     pub fn to_mm(self) -> f32 {
         self.0 * MM_PER_METER
+    }
+}
+
+impl GramsPerCubicMeter {
+    /// The mass of `cubic_meters` of this material.
+    pub fn mass(self, cubic_meters: f32) -> Grams {
+        Grams(self.0 * cubic_meters)
+    }
+
+    pub fn to_kg_per_cubic_meter(self) -> f32 {
+        self.0 / GRAMS_PER_KG
+    }
+}
+
+pub const MILLINEWTONS_PER_NEWTON: f32 = 1000.0;
+pub const NEWTONS_PER_KILONEWTON: f32 = 1000.0;
+
+/// The simulation's masses are grams, so its forces and stiffnesses are in
+/// g·m/s², millinewtons: convert to it and from it at its boundary.
+impl Newtons {
+    pub fn to_millinewtons(self) -> f32 {
+        self.0 * MILLINEWTONS_PER_NEWTON
+    }
+
+    pub fn from_millinewtons(millinewtons: f32) -> Newtons {
+        Newtons(millinewtons / MILLINEWTONS_PER_NEWTON)
+    }
+
+    pub fn to_kilonewtons(self) -> f32 {
+        self.0 / NEWTONS_PER_KILONEWTON
     }
 }
 
@@ -143,6 +175,23 @@ impl Div<f32> for Grams {
     }
 }
 
+impl Mul<f32> for Seconds {
+    type Output = Seconds;
+
+    fn mul(self, scalar: f32) -> Seconds {
+        Seconds(self.0 * scalar)
+    }
+}
+
+/// How many of one duration fit in another, such as ticks in a period.
+impl Div for Seconds {
+    type Output = f32;
+
+    fn div(self, other: Seconds) -> f32 {
+        self.0 / other.0
+    }
+}
+
 impl Div<f32> for Newtons {
     type Output = Newtons;
 
@@ -156,6 +205,31 @@ impl Add for Grams {
 
     fn add(self, other: Grams) -> Grams {
         Grams(self.f32() + other.f32())
+    }
+}
+
+impl Sub for Grams {
+    type Output = Grams;
+
+    fn sub(self, other: Grams) -> Grams {
+        Grams(self.f32() - other.f32())
+    }
+}
+
+impl Mul<f32> for Newtons {
+    type Output = Newtons;
+
+    fn mul(self, scalar: f32) -> Newtons {
+        Newtons(self.f32() * scalar)
+    }
+}
+
+/// A section's area from its axial stiffness and modulus: A = EA / E.
+impl Div<Pascals> for Newtons {
+    type Output = SquareMeters;
+
+    fn div(self, modulus: Pascals) -> SquareMeters {
+        SquareMeters(self.f32() / modulus.f32())
     }
 }
 
@@ -206,15 +280,6 @@ impl Div<Meters> for Meters {
     }
 }
 
-// NewtonsPerMeter * Meters = Newtons (F = k * x)
-impl Mul<Meters> for NewtonsPerMeter {
-    type Output = Newtons;
-
-    fn mul(self, extension: Meters) -> Newtons {
-        Newtons(self.f32() * extension.f32())
-    }
-}
-
 // GramsPerMeter * Meters = Grams (mass = density * length)
 impl Mul<Meters> for GramsPerMeter {
     type Output = Grams;
@@ -241,12 +306,6 @@ impl std::fmt::Display for Meters {
 impl std::fmt::Display for Newtons {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:.3}N", self.0)
-    }
-}
-
-impl std::fmt::Display for NewtonsPerMeter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:.2e}N/m", self.0)
     }
 }
 
@@ -305,14 +364,6 @@ mod tests {
         let dt = Seconds::from_microseconds(250.0);
         assert!((dt.f32() - 0.00025).abs() < 1e-9);
         assert!((dt.to_microseconds() - 250.0).abs() < 1e-3);
-    }
-
-    #[test]
-    fn test_spring_force() {
-        let spring_constant = NewtonsPerMeter(100.0);
-        let extension = Meters(0.1);
-        let force = spring_constant * extension;
-        assert_eq!(force.f32(), 10.0);
     }
 
     #[test]

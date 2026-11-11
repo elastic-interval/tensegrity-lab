@@ -30,7 +30,7 @@ use crate::physics_gpu::GpuBatch;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::units::Seconds;
 
-/// State that only exists in the native build: animation export, CSV export
+/// State that only exists in the native build: animation export, its
 /// recording, and the on-demand GPU compute batch. Grouped here so the
 /// `Application` struct doesn't sprout three separate `#[cfg]` fields.
 #[cfg(not(target_arch = "wasm32"))]
@@ -422,8 +422,8 @@ impl ApplicationHandler<LabEvent> for Application {
                             &build_physics,
                         );
                         let dt = Age::iteration_duration();
-                        let approach_iters = (approach_duration.0 / dt) as u32;
-                        let settle_iters = (settle_duration.0 / dt) as u32;
+                        let approach_iters = (approach_duration / dt) as u32;
+                        let settle_iters = (settle_duration / dt) as u32;
                         let rounds = 40u32;
                         let chunk = (approach_iters / rounds).max(1);
                         for _ in 0..rounds {

@@ -108,7 +108,7 @@ pub fn generate_klein(width: usize, height: usize, shift: usize) -> Fabric {
     // Settle with construction physics while intervals approach their targets.
     // Approach duration is 2s = 40_000 iterations at 50µs each.
     let physics = CONSTRUCTION;
-    let settle_iterations = (APPROACH_SECONDS.0 / crate::Age::iteration_duration()) as usize + 5000;
+    let settle_iterations = (APPROACH_SECONDS / crate::Age::iteration_duration()) as usize + 5000;
     for _ in 0..settle_iterations {
         kf.fabric.iterate(&physics);
     }

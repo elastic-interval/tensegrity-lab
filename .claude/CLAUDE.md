@@ -141,7 +141,7 @@ becomes `Fabric::connector` at construction. Those meant to be built for real
 the hardware showing, as if C were pressed. `None` (the default) means
 connectors play no role anywhere: no slot assignment, no rendering, and the
 C-key toggle is inert. Slot assignments and part shapes are committed when
-the fabric enters Viewing (and for CSV export) — not incrementally during
+the fabric enters Viewing (and for export) — not incrementally during
 build, and not again afterwards: animation and the C key keep them.
 
 ### Time
@@ -191,14 +191,12 @@ Symmetric fabrics name joints `<member><number>`: `L12`/`R12` (mirror),
 reshaping a fabric doesn't rename its joints. Full scheme and the code
 path: `docs/joint-naming.md`.
 
-Engineering CSV: the slack-moment CSV is produced exclusively by
-`test_open_claw_threefold_symmetry` in `src/open_claw_symmetry.rs` — that
-test builds OpenClaw to the end of Building, enforces threefold symmetry,
-writes the CSV, and asserts the result is symmetric. There is no CLI flag
-or runtime hook for it; see `docs/csv-handoff.md`. Headless Hug has a
-geometry CSV (no connector columns, but bridle hardware as built) from
-`src/engineering_csv.rs`, written by the ignored test
-`export_headless_hug_csv`.
+Engineering export: there is no CSV any more (Open Claw's is archived on
+an old branch). `src/fabric_json.rs` writes a fabric standing, settled under gravity, with
+every member's rest length and force (physical facts only, no FEA package's
+terms), and
+`scripts/rfem/build_rfem.py` turns that into an RFEM model, holding every
+modelling choice; see `docs/fabric-json.md`.
 
 ### Physics presets
 
@@ -271,6 +269,7 @@ src/
 │   ├── node_plate.rs   # NodePlate: the equilateral bridle plate
 │   ├── parts.rs        # Parts list: Part, placements, parts_list
 │   ├── strut.rs        # Telescoping tube sets each strut is made from
+│   ├── welding.rs      # Welding document: seams, effort, cost estimate
 │   └── system.rs       # ConnectorSystem (slots, plates, links, culprits)
 │
 ├── fabric/
@@ -294,10 +293,11 @@ src/
 │   ├── evo/            # Evolution
 │   └── dsl/            # Tenscript DSL builders + executors
 │
-├── engineering_csv.rs  # Geometry-only CSV (Headless Hug)
+├── fabric_json.rs      # A fabric as built, as JSON (Headless Hug)
+├── headless_hug_package.rs # The handoff zip (test-only)
 ├── omission_scan.rs    # Buildability test + bridle/omission search tools
 ├── fabric_smoke_test.rs # Every fabric builds and its plan applies cleanly
-├── open_claw_symmetry.rs # OpenClaw threefold-symmetry enforcement + CSV export
+├── open_claw_symmetry.rs # OpenClaw threefold-symmetry enforcement
 ├── open_claw_test.rs   # OpenClaw build/geometry tests (base triangle, feet)
 ├── wgpu/               # Rendering (see Rendering section)
 └── physics_gpu/        # GPU compute (native; see docs/gpu-compute-backend.md)
@@ -317,9 +317,9 @@ Important integration tests:
 - `src/omission_scan.rs` — `headless_hug_is_buildable`: Headless Hug's
   connectors have no collisions and no cable too short to make. The
   ignored `greedy_headless_hug_bridles` searches for bridles that help.
-- `src/open_claw_symmetry.rs` — `test_open_claw_threefold_symmetry` (writes
-  the engineering CSV and asserts every rotational triple is symmetric in
-  length and slot) and `test_open_claw_cable_triples`.
+- `src/open_claw_symmetry.rs` — `test_open_claw_threefold_symmetry` (asserts
+  every rotational triple is symmetric in length and slot) and
+  `test_open_claw_cable_triples`.
 - `src/open_claw_test.rs` — `test_open_claw_base_triangle`,
   `test_open_claw_foot_positions`.
 - `src/physics_gpu/parity_test.rs` — CPU vs GPU numeric parity.
@@ -331,14 +331,15 @@ Important integration tests:
 # Native:
 cargo run --release -- --fabric "Halo by Crane"
 
-# Engineering CSV for Open Claw (writes OpenClaw-<date>.csv, headless):
-cargo test --release --lib test_open_claw_threefold_symmetry
-
-# Geometry-only CSV for Headless Hug (writes HeadlessHug-<date>.csv):
-cargo test --release --lib export_headless_hug_csv -- --ignored
+# Headless Hug as built, as JSON (writes HeadlessHug-<date>.json):
+cargo test --release --lib export_headless_hug_json -- --ignored
 
 # Laser-cutting DXFs for Headless Hug (writes HeadlessHug-parts-<date>/):
 cargo test --release --lib export_headless_hug_dxf -- --ignored
+
+# Headless Hug handoff zip: JSON, RFEM script, DXFs, welding doc
+# (writes HeadlessHug-<date>/ and .zip; see docs/fabric-json.md):
+cargo test --release --lib export_headless_hug_package -- --ignored
 
 # Web:
 trunk serve
@@ -351,18 +352,24 @@ trunk serve
 
 2. **Slot assignment is committed, not incremental.** Connector slot
    assignments and part shapes are settled once on entering Viewing
-   (`Crucible::finalize_to_viewing`), and for CSV export. Toggling
+   (`Crucible::finalize_to_viewing`), and for export. Toggling
    attachment points ON only re-marks collisions. Don't trigger rebuilds
    from elsewhere.
 
-3. **Coordinate systems.** Simulation is Y-up. CSV export converts to Z-up via
-   `sim_to_csv()` in `engineering_csv.rs` (Open Claw's CSV has its own copy
-   in `open_claw_symmetry.rs`). The Blender import pipeline
+3. **Coordinate systems.** Simulation is Y-up. The JSON export converts to
+   Z-up via `z_up()` in `fabric_json.rs`. The Blender import pipeline
    expects meters; see `scripts/tensegrity_fast_import.py`.
 
 4. **Units.** Joint locations are stored in meters. The `units` newtypes
    (`Meters`, `Seconds`, `Grams`, …) catch mismatches at compile time — use
    them at boundaries, unwrap with `.f32()` only when interfacing with raw math.
+   One type per quantity, holding its named unit: `Newtons` is the only
+   force type, in real newtons. The simulation's masses are grams, so inside
+   the tick its stiffnesses (`spring_constant`) and forces are raw `f32`
+   millinewtons. Convert only where values cross that boundary, with
+   `Newtons::to_millinewtons()` / `from_millinewtons()`: a conversion inside
+   the tick changes the rounding, and that alone leans Headless Hug's
+   settled stance by about 1° (gotcha 7).
 
 5. **Physics presets.** Different phases need different presets. To tweak at
    runtime, send a `TweakParameter` via the radio; don't mutate presets
