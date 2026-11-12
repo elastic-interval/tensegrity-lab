@@ -1,8 +1,8 @@
 body {
     background-attachment: fixed;
     margin: 0;
-    background-color: black;
-    color: white;
+    background-color: white;
+    color: #333;
 }
 
 #loading-screen {

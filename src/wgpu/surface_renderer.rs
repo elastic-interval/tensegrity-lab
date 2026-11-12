@@ -84,7 +84,10 @@ impl SurfaceRenderer {
                     fragment: Some(wgpu::FragmentState {
                         module: &wgpu.shader,
                         entry_point: Some("surface_fragment"),
-                        compilation_options: Default::default(),
+                        compilation_options: wgpu::PipelineCompilationOptions {
+                            constants: wgpu.gamma_constants(),
+                            ..Default::default()
+                        },
                         targets: &[Some(wgpu::ColorTargetState {
                             format: wgpu.surface_configuration.format,
                             blend: Some(wgpu::BlendState::ALPHA_BLENDING),

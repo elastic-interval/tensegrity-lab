@@ -151,6 +151,18 @@ fn fabric_vertex(in: VertexInput) -> VertexOutput {
     return out;
 }
 
+// Colour leaves the shaders linear, for an sRGB target to correct gamma. A
+// target that isn't sRGB, like a browser's canvas, has it corrected here:
+// `Wgpu::gamma_constants` sets this to 1/2.2.
+override GAMMA: f32 = 1.0;
+
+fn gamma(color: vec3<f32>) -> vec3<f32> {
+    if (GAMMA == 1.0) {
+        return color;
+    }
+    return pow(color, vec3<f32>(GAMMA));
+}
+
 // Fragment shader
 @fragment
 fn fabric_fragment(in: VertexOutput) -> @location(0) vec4<f32> {
@@ -206,8 +218,7 @@ fn fabric_fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let lighting = ambient + diffuse;
     let final_color = base_color * lighting * detail_factor;
 
-    // Linear: the sRGB target corrects gamma.
-    return vec4<f32>(final_color, in.color.a);
+    return vec4<f32>(gamma(final_color), in.color.a);
 }
 
 struct SurfaceVertexOutput {
@@ -257,7 +268,8 @@ fn surface_fragment(in: SurfaceVertexOutput) -> @location(0) vec4<f32> {
     let half_joint = 0.5 * JOINT / HEX_ACROSS;
     let blur = fwidth(inside);
     let on_line = 1.0 - smoothstep(half_joint - blur, half_joint + blur, inside);
-    return mix(ground.fill, ground.line, on_line);
+    let color = mix(ground.fill, ground.line, on_line);
+    return vec4<f32>(gamma(color.rgb), color.a);
 }
 
 // Joint marker shader code

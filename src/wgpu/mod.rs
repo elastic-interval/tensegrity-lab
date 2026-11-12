@@ -362,7 +362,10 @@ impl Wgpu {
                     buffers: &[Self::cylinder_vertex_layout(), instance_buffer_layout],
                 },
                 fragment: Some(wgpu::FragmentState {
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    compilation_options: wgpu::PipelineCompilationOptions {
+                        constants: self.gamma_constants(),
+                        ..Default::default()
+                    },
                     module: &self.shader,
                     entry_point: Some("fabric_fragment"),
                     targets: &[Some(wgpu::ColorTargetState {
@@ -376,6 +379,16 @@ impl Wgpu {
                 multisample: wgpu::MultisampleState::default(),
                 multiview_mask: None,
             })
+    }
+
+    /// The shader's `GAMMA` for this target: corrected in the shader only
+    /// where the target isn't sRGB, as a browser's canvas isn't.
+    pub fn gamma_constants(&self) -> &'static [(&'static str, f64)] {
+        if self.surface_configuration.format.is_srgb() {
+            &[]
+        } else {
+            &[("GAMMA", 1.0 / 2.2)]
+        }
     }
 
     pub fn create_fabric_renderer(&self) -> FabricRenderer {

@@ -67,4 +67,5 @@ Click a joint or interval to select it; drag to orbit, wheel to zoom.
   launching.
 - Wind is rough on purpose: drag on every member from a 10 m/s breeze gusting to 15 every 8 s.
   The design wind loads are the engineer's.
-- Web build instead: `trunk serve`, then open the address it prints.
+- Web build instead: `trunk serve --release`, then open the address it prints. Without
+  `--release` the WebAssembly is unoptimized and the physics runs at half speed.

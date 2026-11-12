@@ -359,8 +359,8 @@ cargo test --release --lib export_headless_hug_package -- --ignored
 # The Bouwboek from that package as a PDF, beside its Markdown (needs weasyprint):
 python3 scripts/bouwboek/pdf.py HeadlessHug-<date>/HeadlessHug-bouwboek-<date>.md
 
-# Web:
-trunk serve
+# Web (--release: unoptimized WebAssembly runs the physics at half speed):
+trunk serve --release
 ```
 
 ## Key Insights and Gotchas

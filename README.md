@@ -63,7 +63,9 @@ The fabrics are `Headless Hug`, `Open Claw`, `Halo by Crane`, `Twisted Infinity`
 
 To run the web version, [install trunk](https://trunkrs.dev/guide/getting-started/installation.html), then:
 
-    trunk serve
+    trunk serve --release
+
+Without `--release` the WebAssembly is unoptimized and runs slowly.
 
 To prepare a distribution for in a subdirectory /lab/:
 
