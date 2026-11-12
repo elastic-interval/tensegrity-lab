@@ -4,21 +4,23 @@ Tensegrity Lab is for efficiently exploring spatial structures based on
 pure pairwise push and pull forces using the [Rust](https://www.rust-lang.org/) stack,
 and for building them for real.
 
+![Open Claw](open-claw.png)
+
+*Open Claw, built in 2026: 46 struts in threefold symmetry, standing on three truss columns. Red marks
+cable ends whose hardware collides, magenta cables too short to make.*
+
 ![Headless Hug](headless-hug.png)
 
-*Headless Hug, standing on its two feet and held by four guy lines: 64 aluminium struts and 240 steel
-cables, about 8 m tall, to be built in 2027. Drawn by the app's own renderer
-(`cargo test --release --lib export_readme_image -- --ignored`).*
+*Headless Hug, next, to be built in 2027: standing on its two feet and held by four guy lines, 64 aluminium
+struts and 240 steel cables, about 8 m tall.*
 
-An older screen recording shows what kind of things can be designed and experimented with: play the [video](https://vimeo.com/806029888)!
-
-This is a continuation of the [PretensT](https://pretenst.com/) Project about building both software and real-world tensegrity structures.
+*Both are drawn by the app's own renderer: `cargo test --release --lib export_readme_images -- --ignored`.*
 
 The goals of this project are:
 
 * have a fast implementation of [Elastic Interval Geometry](docs/EIG.md), both native and web
 * design tensegrity by melting tensegrity modules or "bricks" together, using a [Rust-embedded DSL](docs/DSL.md)
-* facilitate the building of designed structures with [real materials](https://pretenst.com/): the connectors, the parts list, laser-cutting drawings and the structural engineer's model all come from the simulation
+* facilitate the building of designed structures with real materials: the connectors, the parts list, laser-cutting drawings and the structural engineer's model all come from the simulation
 * construct a Darwinian evolution of competing tensegrities with arbitrary fitness function
 
 ### Two Versions

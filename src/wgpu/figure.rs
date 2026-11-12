@@ -35,8 +35,8 @@ pub struct View {
     up: Vec3,
 }
 
-/// The README's picture: three-quarters from the front, a little above.
-const PORTRAIT: View = View { file: "headless-hug.png", toward: Vec3::new(0.5, 0.2, 0.84), up: Vec3::Y };
+/// The README's pictures: three-quarters from the front, a little above.
+const PORTRAIT: View = View { file: "", toward: Vec3::new(0.5, 0.2, 0.84), up: Vec3::Y };
 
 pub const VIEWS: [View; 4] = [
     View { file: "3d.png", toward: Vec3::new(0.55, 0.35, 0.76), up: Vec3::Y },
@@ -99,7 +99,7 @@ pub fn write_figures(fabric: &Fabric, folder: &Path) -> Vec<PartFigure> {
         .collect()
 }
 
-/// The README's picture of `fabric`, framed on its struts, so guy lines run
+/// A README picture of `fabric`, framed on its struts, so guy lines run
 /// out of the picture to their anchors.
 pub fn write_portrait(fabric: &Fabric, path: &Path) {
     let (width, height) = PORTRAIT_SIZE;
@@ -245,19 +245,23 @@ mod tests {
     use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
     use std::path::Path;
 
-    /// Redraws the README's picture, `headless-hug.png`:
+    /// Redraws the README's pictures, `headless-hug.png` and `open-claw.png`:
     ///
     /// ```
-    /// cargo test --release --lib export_readme_image -- --ignored
+    /// cargo test --release --lib export_readme_images -- --ignored
     /// ```
     #[test]
     #[ignore]
-    fn export_readme_image() {
-        let mut executor = FabricPlanExecutor::new(fabric_library::get_fabric_plan(FabricName::HeadlessHug));
-        while !executor.is_complete() {
-            let _ = executor.iterate();
+    fn export_readme_images() {
+        for (name, file) in [(FabricName::HeadlessHug, "headless-hug.png"), (FabricName::OpenClaw, "open-claw.png")] {
+            let mut executor = FabricPlanExecutor::new(fabric_library::get_fabric_plan(name));
+            while !executor.is_complete() {
+                let _ = executor.iterate();
+            }
+            executor.fabric.update_all_attachment_connections();
+            let struts = executor.fabric.intervals.values().filter(|i| i.has_role(crate::fabric::interval::Role::Pushing)).count();
+            println!("{file}: {struts} struts");
+            super::write_portrait(&executor.fabric, Path::new(file));
         }
-        executor.fabric.update_all_attachment_connections();
-        super::write_portrait(&executor.fabric, Path::new("headless-hug.png"));
     }
 }
