@@ -1,13 +1,16 @@
 # Tensegrity Lab
 
 Tensegrity Lab is for efficiently exploring spatial structures based on
-pure pairwise push and pull forces using the [Rust](https://www.rust-lang.org/) stack.
+pure pairwise push and pull forces using the [Rust](https://www.rust-lang.org/) stack,
+and for building them for real.
 
-To get a quick idea of what kind of things can be designed and experimented with, take a moment to view this movie made from a screen recording:
+![Headless Hug](headless-hug.png)
 
-![tommy](tommy.png)
+*Headless Hug, standing on its two feet and held by four guy lines: 64 aluminium struts and 240 steel
+cables, about 8 m tall, to be built in 2027. Drawn by the app's own renderer
+(`cargo test --release --lib export_readme_image -- --ignored`).*
 
-Play the [video](https://vimeo.com/806029888)!
+An older screen recording shows what kind of things can be designed and experimented with: play the [video](https://vimeo.com/806029888)!
 
 This is a continuation of the [PretensT](https://pretenst.com/) Project about building both software and real-world tensegrity structures.
 
@@ -15,19 +18,19 @@ The goals of this project are:
 
 * have a fast implementation of [Elastic Interval Geometry](docs/EIG.md), both native and web
 * design tensegrity by melting tensegrity modules or "bricks" together, using a [Rust-embedded DSL](docs/DSL.md)
-* facilitate the building of designed structures with [real materials](https://pretenst.com/)
+* facilitate the building of designed structures with [real materials](https://pretenst.com/): the connectors, the parts list, laser-cutting drawings and the structural engineer's model all come from the simulation
 * construct a Darwinian evolution of competing tensegrities with arbitrary fitness function
 
 ### Two Versions
 
 There are two different versions which are maintained in parallel, the web version and the native version.
 
-1. The native version is minimal, specifically made for designing tensegrities using the [Rust DSL](docs/DSL.md). Structures are defined programmatically in Rust and compiled directly into the binary. This provides type safety and better tooling than the older script-based approach.
-1. The web version allows for selecting from the existing designs and is intended to facilitate building the physical tensegrity structures. When you click on the structure, you select a joint, and then you can select one of its adjacent intervals. The details about the interval appear above so you can construct a real world tensegrity. Scale can be calibrated easily.
+1. The native version is for designing tensegrities using the [Rust DSL](docs/DSL.md), and for preparing them to be built. Structures are defined programmatically in Rust and compiled directly into the binary. This provides type safety and better tooling than the older script-based approach.
+2. The web version allows for selecting from the existing designs and is intended to facilitate building the physical tensegrity structures. When you click on the structure, you select a joint, and then you can select one of its adjacent intervals. The details about the interval appear above so you can construct a real world tensegrity. Scale can be calibrated easily.
 
 None of this is really documented well enough yet that it is easy for beginners. You kind of have to want to dig in.
 
-If you want to know more, please contact **pretenst@gmail.com**. 
+If you want to know more, please contact **pretenst@gmail.com**.
 
 ### Documentation
 
@@ -36,7 +39,8 @@ If you want to know more, please contact **pretenst@gmail.com**.
 * [Joint naming](docs/joint-naming.md) — how joints and everything attached to them are named
 * [Connectors](docs/connectors.md) — the hardware joining cables to struts, bridles and the parts list
 * [Parts](docs/parts.md) — Headless Hug's bill of materials, part designs, sourcing and ordering
-* [CSV handoff](docs/csv-handoff.md) — the engineering CSV for the structural engineer
+* [Fabric JSON](docs/fabric-json.md) — Headless Hug as built, for the structural engineer, and the handoff package
+* [Bouwboek](docs/bouwboek/headless-hug.md) — the template for the engineer's report (in Dutch)
 * [Open Claw summary](docs/openclaw-software-summary.md), [labeling symmetries](docs/labeling-symmetries.md)
 * [GPU compute backend](docs/gpu-compute-backend.md), [evolution](docs/evolution.md), [articulation evolution](docs/articulation-evolution.md), [robot notes](docs/robot.md)
 
@@ -45,24 +49,31 @@ If you want to know more, please contact **pretenst@gmail.com**.
 First you will need Rust installed, and your copy of the source code.
 
 1. [install rust](https://www.rust-lang.org/tools/install)
-1. clone the [repository](https://github.com/elastic-interval/tensegrity-lab.git)
-1. move into the **tensegrity-lab** directory
-
-To run the web version:
-
-1. [install trunk](https://trunkrs.dev/guide/getting-started/installation.html)
-1. command:
-
-   trunk serve
+2. clone the [repository](https://github.com/elastic-interval/tensegrity-lab.git)
+3. move into the **tensegrity-lab** directory
 
 To run the native version:
 
-1. command:
+    cargo run --release -- --fabric "Headless Hug"
 
-    cargo run -- --fabric "Halo by Crane"
+The fabrics are `Headless Hug`, `Open Claw`, `Halo by Crane`, `Twisted Infinity`, `Propeller` and `Diamond`;
+`--cycle` walks through them all. The window lists the keys that work at each moment.
 
-To prepare a distribution for in a subdirectory /lab/
+To run the web version, [install trunk](https://trunkrs.dev/guide/getting-started/installation.html), then:
 
-1. command:
+    trunk serve
 
-   trunk build --release --public-url /lab
+To prepare a distribution for in a subdirectory /lab/:
+
+    trunk build --release --public-url /lab
+
+### Building Headless Hug
+
+The handoff package — the figure as built in JSON, the engineer's RFEM script, laser-cutting drawings,
+the welding document, figures and the draft Bouwboek — comes from one build:
+
+    cargo test --release --lib export_headless_hug_package -- --ignored
+
+and the Bouwboek as a PDF from that ([WeasyPrint](https://weasyprint.org/) needed):
+
+    python3 scripts/bouwboek/pdf.py HeadlessHug-<date>/HeadlessHug-bouwboek-<date>.md

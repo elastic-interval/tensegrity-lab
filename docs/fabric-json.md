@@ -12,8 +12,11 @@ cargo test --release --lib export_headless_hug_package -- --ignored
 ```
 
 which writes `HeadlessHug-<date>/` and `HeadlessHug-<date>.zip`: the JSON,
-`build_rfem.py`, the DXFs and the welding document, all from one build. The
-JSON alone:
+`build_rfem.py`, the DXFs, the welding document and the draft Bouwboek
+(`docs/bouwboek/headless-hug.md` filled in by `src/bouwboek.rs`), all from one
+build. The Bouwboek's PDF is made from the package afterwards, with
+`python3 scripts/bouwboek/pdf.py <the Bouwboek's .md>` (WeasyPrint), and is
+not in the zip. The JSON alone:
 
 ```bash
 cargo test --release --lib export_headless_hug_json -- --ignored

@@ -300,6 +300,7 @@ src/
 │
 ├── fabric_json.rs      # A fabric as built, as JSON (Headless Hug)
 ├── headless_hug_package.rs # The handoff zip (test-only)
+├── bouwboek.rs         # Draft Bouwboek: fills docs/bouwboek/headless-hug.md (test-only)
 ├── omission_scan.rs    # Buildability test + bridle/omission search tools
 ├── fabric_smoke_test.rs # Every fabric builds and its plan applies cleanly
 ├── open_claw_symmetry.rs # OpenClaw threefold-symmetry enforcement
@@ -351,9 +352,12 @@ cargo test --release --lib export_headless_hug_json -- --ignored
 # Laser-cutting DXFs for Headless Hug (writes HeadlessHug-parts-<date>/):
 cargo test --release --lib export_headless_hug_dxf -- --ignored
 
-# Headless Hug handoff zip: JSON, RFEM script, DXFs, welding doc
+# Headless Hug handoff zip: JSON, RFEM script, DXFs, welding doc, Bouwboek
 # (writes HeadlessHug-<date>/ and .zip; see docs/fabric-json.md):
 cargo test --release --lib export_headless_hug_package -- --ignored
+
+# The Bouwboek from that package as a PDF, beside its Markdown (needs weasyprint):
+python3 scripts/bouwboek/pdf.py HeadlessHug-<date>/HeadlessHug-bouwboek-<date>.md
 
 # Web:
 trunk serve

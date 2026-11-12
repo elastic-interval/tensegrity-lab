@@ -21,10 +21,10 @@ use winit::dpi::PhysicalPosition;
 // The part turns until it is first dragged, in radians per second.
 const TURN_RATE: f32 = 0.4;
 const DRAG_RATE: f32 = 0.006;
-const AZIMUTH: f32 = 0.6;
-const ELEVATION: f32 = 0.45;
+pub(super) const AZIMUTH: f32 = 0.6;
+pub(super) const ELEVATION: f32 = 0.45;
 // How much of its viewport's height a part's bounding sphere fills.
-const FILL: f32 = 0.9;
+pub(super) const FILL: f32 = 0.9;
 // Gap from the window's edge to the strip and the text.
 const MARGIN: f32 = 50.0;
 // Largest square a part gets in the strip, in pixels.
@@ -71,7 +71,7 @@ fn assembled(part: Part) -> Vec<Placement> {
 
 /// Looking at a sphere from `azimuth` and `elevation`, filling `fill` of the
 /// height of a viewport `aspect` wide.
-fn camera_matrix(center: Vec3, radius: f32, azimuth: f32, elevation: f32, aspect: f32, fill: f32) -> Mat4 {
+pub(super) fn camera_matrix(center: Vec3, radius: f32, azimuth: f32, elevation: f32, aspect: f32, fill: f32) -> Mat4 {
     let half_height = radius / fill;
     let half_width = half_height * aspect;
     let distance = radius * 4.0;
@@ -81,7 +81,7 @@ fn camera_matrix(center: Vec3, radius: f32, azimuth: f32, elevation: f32, aspect
 }
 
 /// A uniform buffer for a camera matrix and the bind group reaching it.
-fn create_camera(wgpu: &Wgpu) -> (wgpu::Buffer, wgpu::BindGroup) {
+pub(super) fn create_camera(wgpu: &Wgpu) -> (wgpu::Buffer, wgpu::BindGroup) {
     let camera = wgpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Part View Camera"),
         contents: bytemuck::cast_slice(&Mat4::IDENTITY.to_cols_array()),
@@ -96,19 +96,19 @@ fn create_camera(wgpu: &Wgpu) -> (wgpu::Buffer, wgpu::BindGroup) {
 }
 
 /// One part ready to draw, with the camera of its square in the strip.
-struct ShownPart {
-    part: Part,
-    count: usize,
+pub(super) struct ShownPart {
+    pub(super) part: Part,
+    pub(super) count: usize,
     mass: Grams,
     pieces: Vec<(PartMesh, wgpu::Buffer)>,
-    center: Vec3,
-    radius: f32,
+    pub(super) center: Vec3,
+    pub(super) radius: f32,
     strip_camera: wgpu::Buffer,
     strip_bind_group: wgpu::BindGroup,
 }
 
 impl ShownPart {
-    fn new(wgpu: &Wgpu, part: Part, count: usize, mass: Grams, sizes: PartSizes) -> Self {
+    pub(super) fn new(wgpu: &Wgpu, part: Part, count: usize, mass: Grams, sizes: PartSizes) -> Self {
         let (mut low, mut high) = (Vec3::MAX, Vec3::MIN);
         let mut pieces = Vec::new();
         for placement in assembled(part) {
@@ -130,7 +130,7 @@ impl ShownPart {
         ShownPart { part, count, mass, pieces, center, radius, strip_camera, strip_bind_group }
     }
 
-    fn draw<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>, bind_group: &'a wgpu::BindGroup) {
+    pub(super) fn draw<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>, bind_group: &'a wgpu::BindGroup) {
         pass.set_bind_group(0, bind_group, &[]);
         for (mesh, instance) in &self.pieces {
             pass.set_vertex_buffer(0, mesh.vertices.slice(..));

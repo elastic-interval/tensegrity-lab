@@ -20,6 +20,8 @@ use crate::{LabEvent, Radio};
 
 pub mod part_meshes;
 pub mod parts_view;
+#[cfg(test)]
+pub mod figure;
 pub mod cylinder;
 pub mod cylinder_renderer;
 pub mod fabric_renderer;
@@ -78,7 +80,8 @@ pub fn vertex_layout_f32x8<'a>() -> VertexBufferLayout<'a> {
 }
 
 pub struct Wgpu {
-    surface: wgpu::Surface<'static>,
+    /// The window's, or none when drawing into images (`figure`).
+    surface: Option<wgpu::Surface<'static>>,
     surface_configuration: wgpu::SurfaceConfiguration,
     uniform_buffer: wgpu::Buffer,
     shader: wgpu::ShaderModule,
@@ -118,12 +121,46 @@ impl Wgpu {
             })
             .await
             .expect("Failed to find an appropriate adapter");
-        // Create the logical device and command queue.
+        let (device, queue) = Self::request_device(&adapter).await;
+        let size = window.inner_size();
+        let width = size.width.max(1);
+        let height = size.height.max(1);
+        let surface_configuration = surface.get_default_config(&adapter, width, height).unwrap();
+        surface.configure(&device, &surface_configuration);
+        Self::assemble(Some(surface), surface_configuration, device, queue)
+    }
+
+    /// Drawing into a `width` × `height` texture instead of a window, for
+    /// images (`figure`).
+    #[cfg(test)]
+    pub fn headless(width: u32, height: u32) -> Wgpu {
+        futures::executor::block_on(async {
+            let instance = wgpu::Instance::default();
+            let adapter = instance
+                .request_adapter(&wgpu::RequestAdapterOptions::default())
+                .await
+                .expect("Failed to find an appropriate adapter");
+            let (device, queue) = Self::request_device(&adapter).await;
+            let configuration = wgpu::SurfaceConfiguration {
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                width,
+                height,
+                present_mode: wgpu::PresentMode::Fifo,
+                desired_maximum_frame_latency: 2,
+                alpha_mode: wgpu::CompositeAlphaMode::Opaque,
+                view_formats: vec![],
+            };
+            Self::assemble(None, configuration, device, queue)
+        })
+    }
+
+    async fn request_device(adapter: &wgpu::Adapter) -> (wgpu::Device, wgpu::Queue) {
         // Use adapter's actual limits so the device supports both rendering
         // and GPU compute (physics_gpu module). The adapter reports what
         // the hardware can do; we request all of it.
         let required_limits = adapter.limits();
-        let (device, queue) = adapter
+        adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
                 required_features: wgpu::Features::empty(),
@@ -133,12 +170,15 @@ impl Wgpu {
                 experimental_features: wgpu::ExperimentalFeatures::default(),
             })
             .await
-            .expect("Failed to create device");
-        let size = window.inner_size();
-        let width = size.width.max(1);
-        let height = size.height.max(1);
-        let surface_configuration = surface.get_default_config(&adapter, width, height).unwrap();
-        surface.configure(&device, &surface_configuration);
+            .expect("Failed to create device")
+    }
+
+    fn assemble(
+        surface: Option<wgpu::Surface<'static>>,
+        surface_configuration: wgpu::SurfaceConfiguration,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+    ) -> Wgpu {
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("MVP"),
             contents: cast_slice(&[0.0f32; 16]),
@@ -213,8 +253,9 @@ impl Wgpu {
         let (width, height) = new_size;
         self.surface_configuration.width = width.max(1);
         self.surface_configuration.height = height.max(1);
-        self.surface
-            .configure(&self.device, &self.surface_configuration);
+        if let Some(surface) = &self.surface {
+            surface.configure(&self.device, &self.surface_configuration);
+        }
         self.depth_texture = Self::create_depth_texture(&self.device, &self.surface_configuration);
     }
 
@@ -236,7 +277,7 @@ impl Wgpu {
     }
 
     pub fn get_surface_texture(&self) -> Result<wgpu::SurfaceTexture, wgpu::SurfaceError> {
-        self.surface.get_current_texture()
+        self.surface.as_ref().ok_or(wgpu::SurfaceError::Lost)?.get_current_texture()
     }
 
     pub fn create_encoder(&self) -> wgpu::CommandEncoder {

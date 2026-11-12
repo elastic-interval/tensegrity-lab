@@ -27,6 +27,8 @@ pub mod wgpu;
 #[cfg(test)]
 mod fabric_smoke_test;
 #[cfg(test)]
+mod bouwboek;
+#[cfg(test)]
 mod headless_hug_package;
 #[cfg(test)]
 mod open_claw_symmetry;

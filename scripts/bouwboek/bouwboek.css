@@ -1,0 +1,93 @@
+/* The Bouwboek's pages, for WeasyPrint (pdf.py). */
+
+@page {
+  size: A4;
+  margin: 22mm 20mm 24mm 20mm;
+  @bottom-right {
+    content: counter(page);
+    font: 9pt "Helvetica Neue", Arial, sans-serif;
+    color: #666;
+  }
+  @bottom-left {
+    content: string(title);
+    font: 9pt "Helvetica Neue", Arial, sans-serif;
+    color: #666;
+  }
+}
+
+@page :first {
+  @bottom-left { content: none; }
+  @bottom-right { content: none; }
+}
+
+body {
+  font: 10pt/1.45 "Helvetica Neue", Arial, sans-serif;
+  color: #111;
+}
+
+h1 {
+  string-set: title content();
+  font-size: 26pt;
+  margin: 60mm 0 12mm;
+}
+
+h2 {
+  font-size: 15pt;
+  margin: 10mm 0 3mm;
+  break-after: avoid;
+}
+
+h3 { font-size: 12pt; margin: 6mm 0 2mm; break-after: avoid; }
+h4 { font-size: 10.5pt; margin: 5mm 0 2mm; break-after: avoid; }
+
+.cover { break-after: page; }
+.cover table { width: 100%; font-size: 11pt; }
+
+.contents { break-after: page; }
+.contents ul { list-style: none; padding: 0; }
+.contents li { margin: 1.5mm 0; }
+.contents li.level3 { margin-left: 8mm; font-size: 9.5pt; }
+.contents a { color: inherit; text-decoration: none; }
+.contents a::after {
+  content: leader(".") target-counter(attr(href), page);
+}
+
+p { margin: 0 0 3mm; }
+ul { margin: 0 0 3mm; padding-left: 6mm; }
+
+table {
+  border-collapse: collapse;
+  margin: 2mm 0 5mm;
+  font-size: 8.5pt;
+}
+th, td {
+  border: 0.4pt solid #999;
+  padding: 1.2mm 2mm;
+  vertical-align: top;
+}
+th { background: #eee; text-align: left; }
+td.right, th.right { text-align: right; }
+thead { display: table-header-group; }
+tr { break-inside: avoid; }
+
+figure {
+  margin: 4mm 0 6mm;
+  break-inside: avoid;
+  text-align: center;
+}
+figure img { max-width: 100%; max-height: 110mm; }
+/* The parts, three to a row. */
+figure.part {
+  display: inline-block;
+  width: 31%;
+  margin: 2mm 1%;
+  vertical-align: top;
+}
+figure.part img { max-height: 50mm; }
+figure.part figcaption { font-size: 7.5pt; }
+
+figcaption { font-size: 9pt; font-style: italic; margin-top: 1mm; }
+figcaption em { font-style: italic; }
+
+code { font: 8.5pt Menlo, monospace; }
+mark { background: #ffe680; padding: 0 0.5mm; }
