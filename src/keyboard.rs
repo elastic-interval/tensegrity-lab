@@ -141,6 +141,12 @@ impl Keyboard {
             Box::new(|state| matches!(state, Viewing { .. } | PhysicsTesting)),
         );
         self.key_lab_event(
+            KeyCode::KeyB,
+            "Background",
+            UpdateState(StateChange::ToggleBackground),
+            Box::new(|_| true),
+        );
+        self.key_lab_event(
             KeyCode::KeyC,
             "Color by Role",
             UpdateState(StateChange::ToggleColorByRole),

@@ -41,6 +41,8 @@ pub struct TextState {
     age: Age,
     time_scale: f32,
     show_mode: bool,
+    /// Dark text, on the white background.
+    white: bool,
 }
 
 enum TextInstance {
@@ -79,6 +81,7 @@ impl TextState {
             age: Age::default(),
             time_scale: 1.0,
             show_mode: false,
+            white: true,
         };
         fresh.update_sections();
         fresh
@@ -131,6 +134,9 @@ impl TextState {
             }
             SetShowMode(on) => {
                 self.show_mode = *on;
+            }
+            ToggleBackground => {
+                self.white = !self.white;
             }
             _ => {}
         }
@@ -311,7 +317,7 @@ impl TextState {
             Nothing => section,
             Normal(text) | Large(text) => section.add_text(
                 OwnedText::new(text)
-                    .with_color([0.8, 0.8, 0.8, 1.0])
+                    .with_color(if self.white { [0.0, 0.0, 0.0, 1.0] } else { [0.8, 0.8, 0.8, 1.0] })
                     .with_scale(scale_factor),
             ),
         });

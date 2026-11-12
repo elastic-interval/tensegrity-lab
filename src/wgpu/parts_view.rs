@@ -38,6 +38,11 @@ const COUNT_SCALE: f32 = 30.0;
 const CHOSEN_TEXT: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 const OTHER_TEXT: [f32; 4] = [0.45, 0.47, 0.5, 1.0];
 const BACKGROUND: wgpu::Color = wgpu::Color { r: 0.05, g: 0.06, b: 0.08, a: 1.0 };
+// On the white background (B). Linear, so the grey shows as a mid grey
+// through the sRGB window.
+const CHOSEN_TEXT_ON_WHITE: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
+const OTHER_TEXT_ON_WHITE: [f32; 4] = [0.08, 0.085, 0.095, 1.0];
+const WHITE: wgpu::Color = wgpu::Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
 // A hinge in this view, its struts this far apart.
 const HINGE_OPENING: f32 = 135.0;
 
@@ -174,11 +179,13 @@ pub struct PartsView {
     dragging: bool,
     pointer: Option<PhysicalPosition<f64>>,
     started: Instant,
+    white: bool,
 }
 
 impl PartsView {
-    /// The view of `fabric`'s parts, showing the one at `chosen`, if it has any.
-    pub fn new(wgpu: &Wgpu, fabric: &Fabric, chosen: usize) -> Option<Self> {
+    /// The view of `fabric`'s parts, showing the one at `chosen`, if it has any,
+    /// on white if `white`.
+    pub fn new(wgpu: &Wgpu, fabric: &Fabric, chosen: usize, white: bool) -> Option<Self> {
         let connector = fabric.connector.as_ref()?;
         let sizes = PartSizes::of(&fabric.dimensions, &connector.dimensions);
         let list = parts_list(&placements(fabric));
@@ -218,9 +225,15 @@ impl PartsView {
             dragging: false,
             pointer: None,
             started: Instant::now(),
+            white,
         };
         view.lay_out(wgpu);
         Some(view)
+    }
+
+    pub fn set_white(&mut self, wgpu: &Wgpu, white: bool) {
+        self.white = white;
+        self.lay_out(wgpu);
     }
 
     /// The part showing large, to come back to next time.
@@ -248,24 +261,26 @@ impl PartsView {
                 .with_screen_position(at)
                 .add_text(OwnedText::new(text).with_color(color).with_scale(scale))
         };
+        let (chosen_text, other_text) =
+            if self.white { (CHOSEN_TEXT_ON_WHITE, OTHER_TEXT_ON_WHITE) } else { (CHOSEN_TEXT, OTHER_TEXT) };
         let large = &self.shown[self.chosen];
         let title = format!("{}   {} × {}", letter(self.chosen), large.count, large.part.name());
         let each = large.mass.f32();
         let mass = format!("{} each, {:.1} kg in all", weight(each), each * large.count as f32 / 1000.0);
         let hardware: f32 = self.shown.iter().map(|part| part.mass.f32() * part.count as f32).sum();
         self.sections = vec![
-            text(title, [self.large_left, MARGIN], CHOSEN_TEXT, TITLE_SCALE),
-            text(mass, [self.large_left, MARGIN + TITLE_SCALE * 1.2], OTHER_TEXT, COUNT_SCALE),
+            text(title, [self.large_left, MARGIN], chosen_text, TITLE_SCALE),
+            text(mass, [self.large_left, MARGIN + TITLE_SCALE * 1.2], other_text, COUNT_SCALE),
             text(
                 format!("All the parts on the list: {:.1} kg", hardware / 1000.0),
                 [self.large_left, height - MARGIN - COUNT_SCALE * 1.4],
-                OTHER_TEXT,
+                other_text,
                 COUNT_SCALE,
             ),
-            text("P or Esc to return".to_string(), [self.large_left, height - MARGIN], OTHER_TEXT, COUNT_SCALE),
+            text("P or Esc to return".to_string(), [self.large_left, height - MARGIN], other_text, COUNT_SCALE),
         ];
         for (index, (part, [left, top, side])) in self.shown.iter().zip(&self.squares).enumerate() {
-            let color = if index == self.chosen { CHOSEN_TEXT } else { OTHER_TEXT };
+            let color = if index == self.chosen { chosen_text } else { other_text };
             let at = [left + side + GAP, top + side / 2.0];
             self.sections.push(text(format!("{}   {} ×", letter(index), part.count), at, color, COUNT_SCALE));
         }
@@ -339,7 +354,10 @@ impl PartsView {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &target,
                     resolve_target: None,
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(BACKGROUND), store: wgpu::StoreOp::Store },
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(if self.white { WHITE } else { BACKGROUND }),
+                        store: wgpu::StoreOp::Store,
+                    },
                     depth_slice: None,
                 })],
                 multiview_mask: None,

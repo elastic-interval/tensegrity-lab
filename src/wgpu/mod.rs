@@ -143,7 +143,7 @@ impl Wgpu {
             let (device, queue) = Self::request_device(&adapter).await;
             let configuration = wgpu::SurfaceConfiguration {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-                format: wgpu::TextureFormat::Rgba8Unorm,
+                format: wgpu::TextureFormat::Rgba8UnormSrgb,
                 width,
                 height,
                 present_mode: wgpu::PresentMode::Fifo,

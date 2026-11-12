@@ -81,6 +81,8 @@ pub enum StateChange {
     ToggleAttachmentPoints,
     /// Toggle the parts view (`wgpu::parts_view`)
     TogglePartsView,
+    /// Toggle between the starry sky and a white background
+    ToggleBackground,
     /// Show movement analysis overlay (None to hide)
     ShowMovementAnalysis(Option<String>),
     /// Hide left/right text overlays and the bottom keyboard legend (for
@@ -109,6 +111,7 @@ impl Debug for StateChange {
             StateChange::ToggleProjection => "ToggleProjection",
             StateChange::ToggleAttachmentPoints => "ToggleAttachmentPoints",
             StateChange::TogglePartsView => "TogglePartsView",
+            StateChange::ToggleBackground => "ToggleBackground",
             StateChange::ToggleColorByRole => "ToggleColorByRole",
             StateChange::ShowMovementAnalysis(_) => "ShowMovementAnalysis()",
             StateChange::SetShowMode(_) => "SetShowMode()",

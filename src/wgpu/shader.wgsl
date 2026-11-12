@@ -206,10 +206,8 @@ fn fabric_fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let lighting = ambient + diffuse;
     let final_color = base_color * lighting * detail_factor;
 
-    // Apply gamma correction
-    let gamma_corrected = pow(final_color, vec3<f32>(1.0/2.2));
-
-    return vec4<f32>(gamma_corrected, in.color.a);
+    // Linear: the sRGB target corrects gamma.
+    return vec4<f32>(final_color, in.color.a);
 }
 
 struct SurfaceVertexOutput {
@@ -225,21 +223,41 @@ fn surface_vertex(@location(0) pos: vec4<f32>) -> SurfaceVertexOutput {
     return output;
 }
 
-// Texture bindings for surface
-@group(1) @binding(0) var surface_texture: texture_2d<f32>;
-@group(1) @binding(1) var surface_sampler: sampler;
+// The ground: hexagonal paving drawn as lines, in colours for the background.
+struct Ground {
+    line: vec4<f32>,
+    fill: vec4<f32>,
+};
+@group(1) @binding(0) var<uniform> ground: Ground;
+
+// A paving stone across its flats, and its joint's width, in metres.
+const HEX_ACROSS: f32 = 0.66;
+const JOINT: f32 = 0.012;
+
+// x mod y, positive for negative x too.
+fn modulo(x: vec2<f32>, y: vec2<f32>) -> vec2<f32> {
+    return x - y * floor(x / y);
+}
+
+// How far `p` is inside its hexagon, from its edge, in units of HEX_ACROSS:
+// 0.5 at the centre, 0 on the edge. Flat sides face ±y.
+fn hex_inside(p: vec2<f32>) -> f32 {
+    let s = vec2<f32>(1.7320508, 1.0);
+    let half = s * 0.5;
+    let a = modulo(p, s) - half;
+    let b = modulo(p - half, s) - half;
+    let local = select(b, a, dot(a, a) < dot(b, b));
+    let q = abs(local);
+    return 0.5 - max(dot(q, vec2<f32>(0.8660254, 0.5)), q.y);
+}
 
 @fragment
 fn surface_fragment(in: SurfaceVertexOutput) -> @location(0) vec4<f32> {
-    // Use world XZ position as UV for tiling (scale for tile size)
-    let tile_scale = 0.5; // Adjust for desired tile density
-    let uv = in.world_pos.xz * tile_scale;
-
-    // Sample the texture
-    let tex_color = textureSample(surface_texture, surface_sampler, uv);
-
-    // Return with some transparency
-    return vec4<f32>(tex_color.rgb, 0.8);
+    let inside = hex_inside(in.world_pos.xz / HEX_ACROSS);
+    let half_joint = 0.5 * JOINT / HEX_ACROSS;
+    let blur = fwidth(inside);
+    let on_line = 1.0 - smoothstep(half_joint - blur, half_joint + blur, inside);
+    return mix(ground.fill, ground.line, on_line);
 }
 
 // Joint marker shader code

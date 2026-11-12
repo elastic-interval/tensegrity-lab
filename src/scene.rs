@@ -22,6 +22,8 @@ pub struct Scene {
     text_renderer: TextRenderer,
     render_style: RenderStyle,
     show_attachment_points: bool,
+    /// White, or the starry sky (B).
+    white: bool,
     /// The parts view while it has the window, and the part it last showed.
     parts_view: Option<PartsView>,
     last_part: usize,
@@ -51,6 +53,7 @@ impl Scene {
             text_renderer,
             render_style,
             show_attachment_points: false,
+            white: true,
             parts_view: None,
             last_part: 0,
             pick_allowed: false,
@@ -69,7 +72,7 @@ impl Scene {
     pub fn toggle_parts_view(&mut self, fabric: &Fabric) {
         match self.parts_view.take() {
             Some(view) => self.last_part = view.chosen(),
-            None => self.parts_view = PartsView::new(&self.wgpu, fabric, self.last_part),
+            None => self.parts_view = PartsView::new(&self.wgpu, fabric, self.last_part, self.white),
         }
     }
 
@@ -85,6 +88,13 @@ impl Scene {
         match state_change {
             ToggleProjection => {
                 self.camera.toggle_projection();
+            }
+            ToggleBackground => {
+                self.white = !self.white;
+                self.surface_renderer.set_white(&self.wgpu.queue, self.white);
+                if let Some(view) = &mut self.parts_view {
+                    view.set_white(&self.wgpu, self.white);
+                }
             }
             ToggleAttachmentPoints => {
                 // In model-scale mode, attachment points are not available
@@ -182,8 +192,10 @@ impl Scene {
         let depth_view = self.wgpu.create_depth_view();
         let mut encoder = self.wgpu.create_encoder();
 
-        // First pass: render sky (no depth testing, clears the screen)
+        // First pass: render sky (no depth testing, clears the screen), or
+        // just white.
         {
+            let clear = if self.white { 1.0 } else { 0.0 };
             let mut sky_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Sky Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -191,9 +203,9 @@ impl Scene {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.0,
-                            g: 0.0,
-                            b: 0.0,
+                            r: clear,
+                            g: clear,
+                            b: clear,
                             a: 1.0,
                         }),
                         store: wgpu::StoreOp::Store,
@@ -205,7 +217,9 @@ impl Scene {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            self.sky_renderer.render(&mut sky_pass);
+            if !self.white {
+                self.sky_renderer.render(&mut sky_pass);
+            }
         }
 
         // Second pass: render everything else with depth testing
