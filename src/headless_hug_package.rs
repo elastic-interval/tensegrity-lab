@@ -1,4 +1,4 @@
-//! Headless Hug's handoff package: one folder, zipped, with everything for
+//! Headless Hug's handoff package: one folder with everything for
 //! the engineer and the makers, from one build of the current plan.
 //!
 //! ```
@@ -13,7 +13,6 @@ use crate::fabric_json::fabric_json;
 use crate::wgpu::figure;
 use std::path::Path;
 use std::fs;
-use std::process::Command;
 
 /// The engineer's RFEM script, kept in the repository and shipped as it is.
 const RFEM_SCRIPT: &str = "scripts/rfem/build_rfem.py";
@@ -80,9 +79,5 @@ fn export_headless_hug_package() {
     let readme = README.replace("{json}", &json).replace("{parts}", &parts).replace("{welding}", &welding).replace("{bouwboek}", &book);
     fs::write(format!("{folder}/README.txt"), readme).expect("write README");
 
-    let zip = format!("{folder}.zip");
-    fs::remove_file(&zip).ok();
-    let status = Command::new("zip").args(["-rq", &zip, &folder]).status().expect("run zip");
-    assert!(status.success(), "zip failed");
-    println!("{zip}");
+    println!("{folder}");
 }

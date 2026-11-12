@@ -11,12 +11,12 @@ go out in the handoff package:
 cargo test --release --lib export_headless_hug_package -- --ignored
 ```
 
-which writes `HeadlessHug-<date>/` and `HeadlessHug-<date>.zip`: the JSON,
+which writes the folder `HeadlessHug-<date>/`: the JSON,
 `build_rfem.py`, the DXFs, the welding document and the draft Bouwboek
 (`docs/bouwboek/headless-hug.md` filled in by `src/bouwboek.rs`), all from one
 build. The Bouwboek's PDF is made from the package afterwards, with
-`python3 scripts/bouwboek/pdf.py <the Bouwboek's .md>` (WeasyPrint), and is
-not in the zip. The JSON alone:
+`python3 scripts/bouwboek/pdf.py <the Bouwboek's .md>` (WeasyPrint), and
+lands in the same folder. The JSON alone:
 
 ```bash
 cargo test --release --lib export_headless_hug_json -- --ignored
