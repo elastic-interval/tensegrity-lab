@@ -144,6 +144,59 @@ impl Wgpu {
         (vertex_buffer, index_buffer, indices.len() as u32)
     }
 
+    /// A unit sphere in the cylinder's vertex format.
+    pub fn create_sphere(&self, segments: u32) -> (wgpu::Buffer, wgpu::Buffer, u32) {
+        use bytemuck::cast_slice;
+        use std::f32::consts::PI;
+        #[repr(C)]
+        #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+        struct SphereVertex {
+            position: [f32; 3],
+            normal: [f32; 3],
+            uv: [f32; 2],
+        }
+
+        let stacks = segments / 2;
+        let mut vertices = Vec::new();
+        for i in 0..=stacks {
+            let theta = i as f32 / stacks as f32 * PI;
+            for j in 0..=segments {
+                let phi = j as f32 / segments as f32 * 2.0 * PI;
+                let p = [theta.sin() * phi.cos(), theta.cos(), theta.sin() * phi.sin()];
+                vertices.push(SphereVertex {
+                    position: p,
+                    normal: p,
+                    uv: [j as f32 / segments as f32, i as f32 / stacks as f32],
+                });
+            }
+        }
+        let row = segments + 1;
+        let mut indices: Vec<u32> = Vec::new();
+        for i in 0..stacks {
+            for j in 0..segments {
+                let (a, b) = (i * row + j, i * row + j + 1);
+                let (c, d) = (a + row, b + row);
+                indices.extend_from_slice(&[a, b, c, c, b, d]);
+            }
+        }
+
+        let vertex_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Sphere Vertex Buffer"),
+                contents: cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        let index_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Sphere Index Buffer"),
+                contents: cast_slice(&indices),
+                usage: wgpu::BufferUsages::INDEX,
+            });
+        (vertex_buffer, index_buffer, indices.len() as u32)
+    }
+
     pub fn cylinder_vertex_layout<'a>() -> wgpu::VertexBufferLayout<'a> {
         use std::mem::size_of;
 

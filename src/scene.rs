@@ -256,6 +256,8 @@ impl Scene {
         if show_surface {
             self.surface_renderer.render(&mut render_pass);
         }
+        self.fabric_renderer
+            .render_highlight(&mut render_pass, &self.wgpu.uniform_bind_group);
         self.text_renderer.render(&mut render_pass, &self.wgpu);
         drop(render_pass);
 
@@ -274,6 +276,7 @@ impl Scene {
             return view.render(&self.wgpu);
         }
         self.wgpu.update_mvp_matrix(self.camera.mvp_matrix());
+        self.wgpu.update_eye(self.camera.eye());
         self.sky_renderer
             .update_time(&self.wgpu.queue, delta_seconds);
         self.fabric_renderer.update(
@@ -282,6 +285,18 @@ impl Scene {
             &self.camera.current_pick(),
             &self.render_style,
             self.show_attachment_points,
+        );
+        let preview = if self.pick_allowed && !cfg!(target_arch = "wasm32") {
+            self.camera.preview()
+        } else {
+            None
+        };
+        self.fabric_renderer.update_highlight(
+            &self.wgpu,
+            fabric,
+            self.camera.current_pick(),
+            preview,
+            self.white,
         );
         // Update surface size based on fabric bounding radius
         if has_surface {

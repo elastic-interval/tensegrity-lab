@@ -11,6 +11,15 @@ const CALIBRATION_MM: &[(f32, f32)] = &[
     (196.0, 100.0),
 ];
 
+/// A model strut is a brass tube with the same screw in each end, adding
+/// this much from the tube's end to the ring's centre.
+const MODEL_SCREW_END_MM: f32 = 25.0;
+
+/// The brass tube to cut for a model strut whose rings are this far apart.
+pub fn brass_tube_mm(ring_to_ring_mm: f32) -> f32 {
+    ring_to_ring_mm - 2.0 * MODEL_SCREW_END_MM
+}
+
 /// Convert an interval length to the expected caliper reading.
 /// Uses linear interpolation between calibration data points.
 /// Returns the reading as a string in millimeters with one decimal place.
@@ -95,6 +104,12 @@ mod tests {
     fn test_caliper_reading_extrapolation() {
         // Slope of the last two points: 50/99; at 220 mm: 100 + 24 * 50/99
         assert_eq!(caliper_reading(Meters(0.220)), "112.1");
+    }
+
+    #[test]
+    fn test_brass_tube() {
+        // Measured: a 100 mm tube with its screws puts the rings 150 mm apart
+        assert_eq!(brass_tube_mm(150.0), 100.0);
     }
 
     #[test]

@@ -7,7 +7,7 @@ use crate::fabric::IntervalEnd;
 use crate::fabric::IntervalKey;
 use crate::fabric::JointKey;
 use crate::fabric::interval::Role;
-use crate::units::Degrees;
+use crate::units::{Degrees, Unit};
 use crate::{ControlState, IntervalDetails, JointDetails, PickIntent, PointerChange};
 
 #[derive(Debug, Clone)]
@@ -15,6 +15,17 @@ pub enum Pick {
     Nothing,
     Joint(JointDetails),
     Interval(IntervalDetails),
+}
+
+impl Pick {
+    /// What is picked, and from which joint the next click continues.
+    fn identity(&self) -> (Option<JointKey>, Option<IntervalKey>) {
+        match self {
+            Pick::Nothing => (None, None),
+            Pick::Joint(details) => (Some(details.key), None),
+            Pick::Interval(details) => (Some(details.near_joint), Some(details.key)),
+        }
+    }
 }
 
 const TARGET_APPROACH_THRESHOLD: f32 = 0.001;
@@ -34,6 +45,11 @@ const TENDENCY_RATE: f32 = 0.8;
 /// scales: it watches the structure grow out of the seed instead of starting
 /// at the seed and racing back as the bricks appear.
 const MIN_BUILD_DISTANCE: f32 = 25.0;
+const NEAR_PLANE: f32 = 0.1;
+// Wheel zoom stops this close to what it looks at: some strut widths away,
+// and well clear of the near plane, which would cut into it.
+const MIN_ZOOM_STRUT_RADII: f32 = 15.0;
+const MIN_ZOOM_NEAR_PLANES: f32 = 3.0;
 
 /// Once `(pos - goal)² + (look_at - goal)² < this`, the tendency is
 /// considered satisfied and cleared.
@@ -118,7 +134,13 @@ pub struct Camera {
     tendency: Option<(Vec3, Vec3)>,
     /// Outstanding wheel-zoom distance still to be eased in (smooth zoom).
     zoom_momentum: f32,
+    /// What a left click where the pointer rests would select, and how
+    /// long it has been showing. See `PREVIEW_SECS`.
+    preview: Option<(Pick, f32)>,
 }
+
+/// How long a click's preview takes to fade away.
+pub const PREVIEW_SECS: f32 = 2.0;
 
 impl Camera {
     pub fn new(width: f32, height: f32) -> Self {
@@ -132,6 +154,7 @@ impl Camera {
             mouse_follower: None,
             mouse_click: None,
             current_pick: Pick::Nothing,
+            preview: None,
             projection_type: ProjectionType::Perspective,
             last_ray_origin: Vec3::ZERO,
             control: Control::Unplaced,
@@ -180,6 +203,22 @@ impl Camera {
     /// Returns a reference to the current pick state
     pub fn current_pick(&self) -> &Pick {
         &self.current_pick
+    }
+
+    /// What a click would select, and how long it has been showing.
+    pub fn preview(&self) -> Option<(&Pick, f32)> {
+        self.preview.as_ref().map(|(pick, age)| (pick, *age))
+    }
+
+    /// Preview the click at `mouse`: a new preview when its outcome changes,
+    /// none when the click would change nothing.
+    fn update_preview(&mut self, (px, py): (f32, f32), fabric: &Fabric) {
+        let pick = self.pick_ray((px, py), PickIntent::Select, fabric);
+        if pick.identity() == self.current_pick.identity() || matches!(pick, Pick::Nothing) {
+            self.preview = None;
+        } else if self.preview.as_ref().map(|(shown, _)| shown.identity()) != Some(pick.identity()) {
+            self.preview = Some((pick, 0.0));
+        }
     }
 
     /// Main picking method that determines what the user is selecting based on mouse position and intent
@@ -352,7 +391,13 @@ impl Camera {
                 }
             }
         }
-        self.target_approach(dt.min(MAX_STEP_SECS), fabric)
+        if let Some((_, age)) = &mut self.preview {
+            *age += dt;
+            if *age > PREVIEW_SECS {
+                self.preview = None;
+            }
+        }
+        self.target_approach(dt.min(MAX_STEP_SECS), fabric) || self.preview.is_some()
     }
 
     /// Rotate the camera position around the vertical (Y) axis through
@@ -491,7 +536,11 @@ impl Camera {
             PointerChange::NoChange => {}
             PointerChange::Moved(mouse_now) => {
                 self.mouse_now = Some(mouse_now);
+                if self.mouse_follower.is_none() {
+                    self.update_preview((mouse_now.x as f32, mouse_now.y as f32), fabric);
+                }
                 if let Some(mouse_follower) = self.mouse_follower {
+                    self.preview = None;
                     let diff = (
                         (mouse_now.x - mouse_follower.x) as f32,
                         (mouse_now.y - mouse_follower.y) as f32,
@@ -528,6 +577,7 @@ impl Camera {
             PointerChange::Released(pick_intent) => {
                 // For mouse events, always reset the follower
                 self.mouse_follower = None;
+                self.preview = None;
 
                 // Handle picking for mouse clicks
                 if let (Some(mouse_click), Some(mouse_now)) = (self.mouse_click, self.mouse_now) {
@@ -541,7 +591,7 @@ impl Camera {
                     }
                     self.mouse_click = None;
                     let PhysicalPosition { x, y } = mouse_now;
-                    let pick = self.pick_ray((x as f32, y as f32), pick_intent, fabric);
+                    let pick = self.pick_ray((x as f32, y as f32), pick_intent.clone(), fabric);
                     let announce = match &pick {
                         Pick::Nothing => {
                             self.set_target(Target::FabricMidpoint);
@@ -552,7 +602,10 @@ impl Camera {
                             Some(ControlState::ShowingJoint(details.clone()))
                         }
                         Pick::Interval(details) => {
-                            self.set_target(Target::AroundInterval(details.key));
+                            self.set_target(match pick_intent {
+                                PickIntent::Traverse => Target::AroundJoint(details.near_joint),
+                                _ => Target::AroundInterval(details.key),
+                            });
                             Some(ControlState::ShowingInterval(details.clone()))
                         }
                     };
@@ -576,7 +629,7 @@ impl Camera {
                     }
                     self.mouse_click = None;
                     let PhysicalPosition { x, y } = mouse_now;
-                    let pick = self.pick_ray((x as f32, y as f32), pick_intent, fabric);
+                    let pick = self.pick_ray((x as f32, y as f32), pick_intent.clone(), fabric);
                     let announce = match &pick {
                         Pick::Nothing => {
                             self.set_target(Target::FabricMidpoint);
@@ -587,7 +640,10 @@ impl Camera {
                             Some(ControlState::ShowingJoint(details.clone()))
                         }
                         Pick::Interval(details) => {
-                            self.set_target(Target::AroundInterval(details.key));
+                            self.set_target(match pick_intent {
+                                PickIntent::Traverse => Target::AroundJoint(details.near_joint),
+                                _ => Target::AroundInterval(details.key),
+                            });
                             Some(ControlState::ShowingInterval(details.clone()))
                         }
                     };
@@ -716,8 +772,9 @@ impl Camera {
             let fraction = (ZOOM_SMOOTHING * capped_delta_time).min(1.0);
             let step = self.zoom_momentum * fraction;
             let gaze = self.look_at - self.position;
-            // Don't zoom in past a minimum distance.
-            if gaze.length() - step > 0.1 {
+            let closest = (MIN_ZOOM_STRUT_RADII * fabric.dimensions.push_radius.f32()).max(MIN_ZOOM_NEAR_PLANES * NEAR_PLANE);
+            let step = step.min(gaze.length() - closest);
+            if step.abs() > 1e-5 {
                 self.position += gaze.normalize() * step;
                 self.zoom_momentum -= step;
             } else {
@@ -743,6 +800,10 @@ impl Camera {
     pub fn set_size(&mut self, width: f32, height: f32) {
         self.width = width;
         self.height = height;
+    }
+
+    pub fn eye(&self) -> Vec3 {
+        self.position
     }
 
     pub fn mvp_matrix(&self) -> Mat4 {
@@ -920,7 +981,7 @@ impl Camera {
         let aspect = self.width / self.height;
         let proj_matrix = match self.projection_type {
             ProjectionType::Perspective => {
-                Mat4::perspective_rh(45.0_f32.to_radians(), aspect, 0.1, 100.0)
+                Mat4::perspective_rh(45.0_f32.to_radians(), aspect, NEAR_PLANE, 100.0)
             }
             ProjectionType::Orthogonal => {
                 // For orthographic projection, calculate a reasonable view size based on distance
@@ -1136,6 +1197,21 @@ mod tests {
         let distance = camera.position.distance(centroid);
         let build_distance = MIN_BUILD_DISTANCE * fabric.scale();
         assert!(distance > 0.9 * build_distance, "{distance} vs {build_distance}");
+    }
+
+    #[test]
+    fn wheel_zoom_stops_short_of_what_it_looks_at() {
+        let (mut camera, fabric) = placed(Framing::Still);
+        let closest = (MIN_ZOOM_STRUT_RADII * fabric.dimensions.push_radius.f32())
+            .max(MIN_ZOOM_NEAR_PLANES * NEAR_PLANE);
+        for _ in 0..600 {
+            camera.pointer_changed(PointerChange::Zoomed(5.0), &fabric);
+            camera.update(FRAME, &fabric, Framing::Still);
+            let distance = camera.position.distance(camera.look_at);
+            assert!(distance >= closest - 1e-4, "{distance} closer than {closest}");
+        }
+        let distance = camera.position.distance(camera.look_at);
+        assert!(distance < closest + 1e-2, "zoomed all the way in: {distance} vs {closest}");
     }
 
     #[test]

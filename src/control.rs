@@ -4,7 +4,7 @@
 //! interval/joint detail overlays, pointer input — lives here.
 //! Events that flow through the `Radio` live in `events.rs`.
 
-use crate::caliper::caliper_reading;
+use crate::caliper::{brass_tube_mm, caliper_reading};
 use crate::events::{LabEvent, Radio, StateChange};
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::{IntervalKey, JointKey};
@@ -217,6 +217,8 @@ impl IntervalDetails {
         let caliper_info = if self.role.is_pull_like() && (scale - 1.0).abs() > 0.001 {
             let reading = caliper_reading(Meters(self.distance.0 * scale));
             format!("\nCaliper: {} mm", reading)
+        } else if self.role == Role::Pushing && (scale - 1.0).abs() > 0.001 {
+            format!("\nBrass tube: {:.1} mm", brass_tube_mm(scaled_distance_mm))
         } else {
             String::new()
         };
@@ -317,10 +319,6 @@ impl ControlState {
 #[derive(Debug, Clone)]
 pub enum AppearanceMode {
     Faded,
-    HighlightedPush,
-    HighlightedPull,
-    SelectedPush,
-    SelectedPull,
 }
 
 #[derive(Debug, Clone)]
@@ -348,22 +346,6 @@ impl Appearance {
                     radius: self.radius,
                 }
             }
-            AppearanceMode::HighlightedPush => Self {
-                color: [0.4, 0.4, 0.9, 1.0], // Bluish color for highlighted elements
-                radius: self.radius,         // Keep radius unchanged
-            },
-            AppearanceMode::HighlightedPull => Self {
-                color: [0.4, 0.4, 0.9, 1.0], // Bluish color for highlighted elements
-                radius: self.radius,         // Keep radius unchanged
-            },
-            AppearanceMode::SelectedPush => Self {
-                color: [0.0, 1.0, 0.0, 1.0], // Green color for selected elements
-                radius: self.radius,         // Keep radius unchanged
-            },
-            AppearanceMode::SelectedPull => Self {
-                color: [0.0, 1.0, 0.0, 1.0], // Green color for selected elements
-                radius: self.radius,         // Keep radius unchanged
-            },
         }
     }
 
@@ -371,20 +353,6 @@ impl Appearance {
         Self {
             color,
             radius: self.radius * 2.0,
-        }
-    }
-
-    pub fn highlighted_for_role(&self, role: Role) -> Self {
-        match role {
-            Role::Pushing => self.apply_mode(AppearanceMode::HighlightedPush),
-            _ => self.apply_mode(AppearanceMode::HighlightedPull),
-        }
-    }
-
-    pub fn selected_for_role(&self, role: Role) -> Self {
-        match role {
-            Role::Pushing => self.apply_mode(AppearanceMode::SelectedPush),
-            _ => self.apply_mode(AppearanceMode::SelectedPull),
         }
     }
 }

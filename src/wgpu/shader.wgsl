@@ -1,6 +1,7 @@
 // Uniforms passed from the application
 struct Uniforms {
     mvp_matrix: mat4x4<f32>,  // Model-view-projection matrix
+    eye: vec4<f32>,           // Camera position
 };
 @binding(0) @group(0) var<uniform> uniforms: Uniforms;
 
@@ -219,6 +220,23 @@ fn fabric_fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let final_color = base_color * lighting * detail_factor;
 
     return vec4<f32>(gamma(final_color), in.color.a);
+}
+
+// A see-through highlight shaded as a soap bubble: faint where it faces the
+// eye, stronger toward its rim, with a white specular glint.
+@fragment
+fn bubble_fragment(in: VertexOutput) -> @location(0) vec4<f32> {
+    let normal = normalize(in.world_normal);
+    let view_dir = normalize(uniforms.eye.xyz - in.world_position);
+    let light_dir = normalize(vec3<f32>(0.3, 1.0, 0.4));
+    let facing = abs(dot(normal, view_dir));
+    let rim = pow(1.0 - facing, 2.5);
+    let half_vec = normalize(light_dir + view_dir);
+    let specular = pow(max(dot(normal, half_vec), 0.0), 80.0);
+    let diffuse = 0.6 + 0.4 * max(dot(normal, light_dir), 0.0);
+    let color = in.color.rgb * diffuse + vec3<f32>(specular);
+    let alpha = clamp(in.color.a * (0.4 + 1.6 * rim) + specular * in.color.a * 2.5, 0.0, 1.0);
+    return vec4<f32>(gamma(color), alpha);
 }
 
 struct SurfaceVertexOutput {

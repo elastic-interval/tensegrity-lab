@@ -44,6 +44,9 @@ Let it build and stand, then click:
 
 - **A cable or strut:** its distance in model millimetres, joint to joint. A cable also shows
   **Caliper**: the reading to set on his caliper, which holds the cord almost folded in half.
+  A strut also shows **Brass tube**: the length to cut, 50 mm less than ring to ring, since
+  the same screw in each end adds 25 mm (`src/caliper.rs`). The stats' strut range and total
+  are still joint to joint.
 - **A joint:** its height and, if it rests on the ground, where (model scale).
 - The stats show the fabric "Built at" with the scale, e.g. "(10:1)".
 

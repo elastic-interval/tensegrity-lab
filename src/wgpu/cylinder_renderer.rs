@@ -4,9 +4,9 @@ use crate::fabric::material::Material;
 use crate::fabric::{Fabric, FabricDimensions, IntervalEnd};
 use crate::units::Unit;
 use crate::wgpu::Wgpu;
-use crate::{Appearance, AppearanceMode, IntervalDetails, JointDetails, RenderStyle};
+use crate::{Appearance, AppearanceMode, IntervalDetails, RenderStyle};
 
-fn physical_radius(role: Role, dims: &FabricDimensions) -> f32 {
+pub fn physical_radius(role: Role, dims: &FabricDimensions) -> f32 {
     use Role::*;
     let push = dims.push_radius.f32();
     let pull = dims.pull_radius.f32();
@@ -37,6 +37,23 @@ pub struct CylinderInstance {
     pub color: [f32; 4],    // RGBA color
 }
 
+const CYLINDER_INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
+    3 => Float32x3,
+    4 => Float32,
+    5 => Float32x3,
+    6 => Uint32,
+    7 => Float32x4,
+];
+
+/// How `CylinderInstance`s reach the fabric pipeline.
+pub fn cylinder_instance_layout() -> wgpu::VertexBufferLayout<'static> {
+    wgpu::VertexBufferLayout {
+        array_stride: size_of::<CylinderInstance>() as wgpu::BufferAddress,
+        step_mode: wgpu::VertexStepMode::Instance,
+        attributes: &CYLINDER_INSTANCE_ATTRIBUTES,
+    }
+}
+
 pub struct CylinderRenderer {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
@@ -50,45 +67,7 @@ impl CylinderRenderer {
     pub fn new(wgpu: &Wgpu) -> Self {
         let (vertex_buffer, index_buffer, num_indices) = wgpu.create_cylinder(12);
 
-        let instance_layout = wgpu::VertexBufferLayout {
-            array_stride: size_of::<CylinderInstance>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &[
-                // start position
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 3,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                // radius factor
-                wgpu::VertexAttribute {
-                    offset: size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 4,
-                    format: wgpu::VertexFormat::Float32,
-                },
-                // end position
-                wgpu::VertexAttribute {
-                    offset: size_of::<[f32; 4]>() as wgpu::BufferAddress,
-                    shader_location: 5,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                // material type
-                wgpu::VertexAttribute {
-                    offset: size_of::<[f32; 7]>() as wgpu::BufferAddress,
-                    shader_location: 6,
-                    format: wgpu::VertexFormat::Uint32,
-                },
-                // color
-                wgpu::VertexAttribute {
-                    offset: size_of::<[f32; 7]>() as wgpu::BufferAddress
-                        + size_of::<u32>() as wgpu::BufferAddress,
-                    shader_location: 7,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-            ],
-        };
-
-        let render_pipeline = wgpu.create_fabric_pipeline("Cylinder Pipeline", instance_layout);
+        let render_pipeline = wgpu.create_fabric_pipeline("Cylinder Pipeline", cylinder_instance_layout());
 
         Self {
             vertex_buffer,
@@ -145,90 +124,33 @@ impl CylinderRenderer {
             let start = fabric.joints[alpha].location;
             let end = fabric.joints[omega].location;
             let appearance = interval.role.appearance();
-            let appearance = match pick {
-                Pick::Nothing => match render_style {
-                    Normal { .. } => appearance,
-                    ColorByRole { .. } => Appearance {
-                        color: interval.role.color(),
-                        radius: appearance.radius,
-                    },
-                    WithAppearanceFunction { function, .. } => {
-                        function(interval).unwrap_or(appearance)
-                    }
-                    WithPullMap { map, .. } => {
-                        let key = interval.key();
-                        match map.get(&key) {
-                            None => appearance.apply_mode(AppearanceMode::Faded),
-                            Some(color) => Appearance {
-                                color: *color,
-                                radius: appearance.radius * 2.0, // Double thickness for colored intervals
-                            },
-                        }
-                    }
-                    WithPushMap { map, .. } => {
-                        let key = interval.key();
-                        match map.get(&key) {
-                            None => appearance.apply_mode(AppearanceMode::Faded),
-                            Some(color) => Appearance {
-                                color: *color,
-                                radius: appearance.radius * 2.0, // Double thickness for colored intervals
-                            },
-                        }
-                    }
+            let appearance = match render_style {
+                Normal { .. } => appearance,
+                ColorByRole { .. } => Appearance {
+                    color: interval.role.color(),
+                    radius: appearance.radius,
                 },
-                Pick::Joint(JointDetails { key, .. }) => {
-                    if interval.touches(*key) {
-                        appearance.highlighted_for_role(interval.role)
-                    } else {
-                        appearance.apply_mode(AppearanceMode::Faded)
+                WithAppearanceFunction { function, .. } => {
+                    function(interval).unwrap_or(appearance)
+                }
+                WithPullMap { map, .. } => {
+                    let key = interval.key();
+                    match map.get(&key) {
+                        None => appearance.apply_mode(AppearanceMode::Faded),
+                        Some(color) => Appearance {
+                            color: *color,
+                            radius: appearance.radius * 2.0, // Double thickness for colored intervals
+                        },
                     }
                 }
-                Pick::Interval(IntervalDetails {
-                    near_joint,
-                    far_joint,
-                    key,
-                    role,
-                    selected_push: original_interval_key,
-                    ..
-                }) => {
-                    // If this is the currently selected interval, highlight it based on its type
-                    if *key == interval_key {
-                        // Use the appropriate selected mode based on interval role
-                        appearance.selected_for_role(interval.role)
-                    } else if let Some(orig_key) = original_interval_key {
-                        // Only highlight the interval if it's currently selected
-                        if *orig_key == interval_key
-                            && *key == interval_key
-                            && interval.has_role(Role::Pushing)
-                        {
-                            appearance.apply_mode(AppearanceMode::SelectedPush)
-                        } else {
-                            if interval.touches(*near_joint) {
-                                // Use the appropriate highlighted mode based on interval role
-                                appearance.highlighted_for_role(interval.role)
-                            } else {
-                                // Use the Faded mode for non-adjacent intervals
-                                appearance.apply_mode(AppearanceMode::Faded)
-                            }
-                        }
-                    } else {
-                        // For intervals without an original_interval_id
-                        // This case is less common but we should maintain consistent behavior
-                        let active = match role {
-                            Role::Pushing => {
-                                // For push intervals, consider intervals adjacent to both near and far joints
-                                interval.touches(*near_joint) || interval.touches(*far_joint)
-                            }
-                            Role::Springy => false,
-                            _ => interval.touches(*near_joint),
-                        };
-                        if active {
-                            // Use the appropriate highlighted mode based on interval role
-                            appearance.highlighted_for_role(interval.role)
-                        } else {
-                            // Use the Faded mode for non-adjacent intervals
-                            appearance.apply_mode(AppearanceMode::Faded)
-                        }
+                WithPushMap { map, .. } => {
+                    let key = interval.key();
+                    match map.get(&key) {
+                        None => appearance.apply_mode(AppearanceMode::Faded),
+                        Some(color) => Appearance {
+                            color: *color,
+                            radius: appearance.radius * 2.0, // Double thickness for colored intervals
+                        },
                     }
                 }
             };

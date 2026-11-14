@@ -9,6 +9,7 @@ use crate::fabric::Fabric;
 use crate::wgpu::part_meshes::{PartMesh, PartSizes};
 use crate::wgpu::Wgpu;
 use bytemuck::{Pod, Zeroable};
+use glam::Vec3;
 use std::collections::BTreeMap;
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
@@ -57,6 +58,16 @@ impl PartInstance {
             center_radius: [o.x, o.y, o.z, 1.0],
             axis_thickness: [y.x, y.y, y.z, 1.0],
             boss_dir: [x.x, x.y, x.z, 0.0],
+            color,
+        }
+    }
+
+    /// A unit sphere mesh placed as a sphere of this radius.
+    pub fn sphere(center: Vec3, radius: f32, color: [f32; 4]) -> Self {
+        PartInstance {
+            center_radius: [center.x, center.y, center.z, radius],
+            axis_thickness: [0.0, 1.0, 0.0, radius],
+            boss_dir: [1.0, 0.0, 0.0, 0.0],
             color,
         }
     }

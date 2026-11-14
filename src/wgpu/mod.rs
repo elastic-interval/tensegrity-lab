@@ -2,7 +2,7 @@ use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
 use bytemuck::cast_slice;
-use glam::Mat4;
+use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt;
 use wgpu::MemoryHints::Performance;
 use wgpu::VertexAttribute;
@@ -24,6 +24,7 @@ pub mod parts_view;
 pub mod figure;
 pub mod cylinder;
 pub mod cylinder_renderer;
+pub mod highlight_renderer;
 pub mod fabric_renderer;
 pub mod connector_renderer;
 pub mod sky_renderer;
@@ -181,7 +182,8 @@ impl Wgpu {
     ) -> Wgpu {
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("MVP"),
-            contents: cast_slice(&[0.0f32; 16]),
+            // The MVP matrix, then the eye's position.
+            contents: cast_slice(&[0.0f32; 20]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let uniform_bind_group_layout =
@@ -189,7 +191,7 @@ impl Wgpu {
                 label: Some("Uniform Bind Group Layout"),
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -298,6 +300,13 @@ impl Wgpu {
             .write_buffer(&self.uniform_buffer, 0, cast_slice(&mvp_ref));
     }
 
+    /// Where the camera is, for shading that depends on the view.
+    pub fn update_eye(&self, eye: Vec3) {
+        let eye: [f32; 4] = [eye.x, eye.y, eye.z, 1.0];
+        self.queue
+            .write_buffer(&self.uniform_buffer, size_of::<Mat4>() as u64, cast_slice(&eye));
+    }
+
     /// The window's drawable size in physical pixels.
     pub fn size(&self) -> (f32, f32) {
         (self.surface_configuration.width as f32, self.surface_configuration.height as f32)
@@ -323,7 +332,7 @@ impl Wgpu {
         label: &str,
         instance_buffer_layout: wgpu::VertexBufferLayout<'_>,
     ) -> wgpu::RenderPipeline {
-        self.create_instanced_pipeline(label, instance_buffer_layout, "fabric_vertex")
+        self.create_instanced_pipeline(label, instance_buffer_layout, "fabric_vertex", false)
     }
 
     /// Same as `create_fabric_pipeline` but for the connector plate mesh,
@@ -334,7 +343,19 @@ impl Wgpu {
         label: &str,
         instance_buffer_layout: wgpu::VertexBufferLayout<'_>,
     ) -> wgpu::RenderPipeline {
-        self.create_instanced_pipeline(label, instance_buffer_layout, "plate_vertex")
+        self.create_instanced_pipeline(label, instance_buffer_layout, "plate_vertex", false)
+    }
+
+    /// Like the fabric and plate pipelines, but see-through and shaded as a
+    /// bubble: blended over what is already drawn, without hiding what is
+    /// drawn after.
+    pub fn create_transparent_pipeline(
+        &self,
+        label: &str,
+        instance_buffer_layout: wgpu::VertexBufferLayout<'_>,
+        vertex_entry: &str,
+    ) -> wgpu::RenderPipeline {
+        self.create_instanced_pipeline(label, instance_buffer_layout, vertex_entry, true)
     }
 
     fn create_instanced_pipeline(
@@ -342,6 +363,7 @@ impl Wgpu {
         label: &str,
         instance_buffer_layout: wgpu::VertexBufferLayout<'_>,
         vertex_entry: &str,
+        transparent: bool,
     ) -> wgpu::RenderPipeline {
         let pipeline_layout = self
             .device
@@ -367,15 +389,22 @@ impl Wgpu {
                         ..Default::default()
                     },
                     module: &self.shader,
-                    entry_point: Some("fabric_fragment"),
+                    entry_point: Some(if transparent { "bubble_fragment" } else { "fabric_fragment" }),
                     targets: &[Some(wgpu::ColorTargetState {
                         format: self.surface_configuration.format,
-                        blend: Some(wgpu::BlendState::REPLACE),
+                        blend: Some(if transparent {
+                            wgpu::BlendState::ALPHA_BLENDING
+                        } else {
+                            wgpu::BlendState::REPLACE
+                        }),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
                 }),
                 primitive: DEFAULT_PRIMITIVE_STATE,
-                depth_stencil: Some(default_depth_stencil_state()),
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    depth_write_enabled: !transparent,
+                    ..default_depth_stencil_state()
+                }),
                 multisample: wgpu::MultisampleState::default(),
                 multiview_mask: None,
             })
