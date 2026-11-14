@@ -14,11 +14,11 @@ Gerald builds a scale model before each big build, as a reference to hold while 
 one: brass tube struts, dyneema cords tied to rings, M4 nuts. Open Claw's was about 1:10 (73 cm);
 Headless Hug's is planned at about 1:10 too. Assume 1:10 unless he says otherwise.
 
-## The scale is a multiplier
+## The scale is the N of 1:N
 
-`--model-scale` multiplies every length shown, so **a 1:10 model is `--model-scale 0.1`**. The
-app then labels it "(10:1)". `--model-scale 10` would show everything ten times too big. It only
-changes what is displayed; the simulation runs at full size as always.
+`--model-scale` is how many times smaller the model is, so **a 1:10 model is `--model-scale 10`**,
+and every length shown is divided by 10. The app labels it "(10:1)". It only changes what is
+displayed; the simulation runs at full size as always.
 
 ## Steps
 
@@ -28,11 +28,11 @@ changes what is displayed; the simulation runs at full size as always.
    scratchpad:
 
    ```bash
-   ./target/release/tensegrity_lab --fabric "Headless Hug" --model-scale 0.1 > <scratchpad>/app.log 2>&1
+   ./target/release/tensegrity_lab --fabric "Headless Hug" --model-scale 10 > <scratchpad>/app.log 2>&1
    ```
 
-   Fabric names as in the `run-app` skill. For another scale, 1:N is `--model-scale` 1/N
-   (1:12 is `0.0833`).
+   Fabric names as in the `run-app` skill. For another scale, 1:N is `--model-scale N`
+   (1:12 is `12`).
 
 3. **Confirm it started:** `pgrep -fl "tensegrity_lab --fabric"`, and no panic in `app.log`.
 
