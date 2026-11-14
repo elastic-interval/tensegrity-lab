@@ -4,11 +4,11 @@ use crate::units::Meters;
 /// The caliper holds a cord that is almost folded in half, so the reading
 /// is approximately half the input length, but not exactly.
 const CALIBRATION_MM: &[(f32, f32)] = &[
-    (29.0, 15.0),
-    (57.0, 30.0),
-    (88.5, 45.0),
-    (118.3, 60.0),
-    (140.0, 70.9),
+    (21.3, 12.0),
+    (27.7, 15.0),
+    (46.7, 25.0),
+    (97.0, 50.0),
+    (196.0, 100.0),
 ];
 
 /// Convert an interval length to the expected caliper reading.
@@ -72,35 +72,29 @@ mod tests {
 
     #[test]
     fn test_caliper_reading_at_calibration_points() {
-        // Test exact calibration points
-        assert_eq!(caliper_reading(Meters(0.029)), "15.0");
-        assert_eq!(caliper_reading(Meters(0.057)), "30.0");
-        assert_eq!(caliper_reading(Meters(0.0885)), "45.0");
-        assert_eq!(caliper_reading(Meters(0.1183)), "60.0");
-        assert_eq!(caliper_reading(Meters(0.140)), "70.9");
+        assert_eq!(caliper_reading(Meters(0.0213)), "12.0");
+        assert_eq!(caliper_reading(Meters(0.0277)), "15.0");
+        assert_eq!(caliper_reading(Meters(0.0467)), "25.0");
+        assert_eq!(caliper_reading(Meters(0.097)), "50.0");
+        assert_eq!(caliper_reading(Meters(0.196)), "100.0");
     }
 
     #[test]
     fn test_caliper_reading_interpolation() {
-        // Test interpolation between calibration points
-        // Between 57mm and 88.5mm (midpoint ~72.75mm should give ~37.5)
-        let reading = caliper_reading(Meters(0.07275));
-        assert_eq!(reading, "37.5");
+        // Midway between 97 mm and 196 mm
+        assert_eq!(caliper_reading(Meters(0.1465)), "75.0");
     }
 
     #[test]
-    fn test_caliper_reading_at_140mm() {
-        // Verified by physical measurement: 140mm cord → 70.9mm caliper
-        assert_eq!(caliper_reading(Meters(0.140)), "70.9");
+    fn test_caliper_reading_below_knot_minimum() {
+        // 12 mm is the shortest reading a knot can be tied at
+        assert_eq!(caliper_reading(Meters(0.015)), "12.0");
     }
 
     #[test]
     fn test_caliper_reading_extrapolation() {
-        // Test extrapolation beyond last calibration point (140mm)
-        // Slope from last two points: (70.9-60)/(140-118.3) = 10.9/21.7 ≈ 0.502
-        // At 160mm: 70.9 + 0.502 * (160 - 140) ≈ 70.9 + 10.0 ≈ 80.9
-        let reading = caliper_reading(Meters(0.160));
-        assert_eq!(reading, "80.9");
+        // Slope of the last two points: 50/99; at 220 mm: 100 + 24 * 50/99
+        assert_eq!(caliper_reading(Meters(0.220)), "112.1");
     }
 
     #[test]

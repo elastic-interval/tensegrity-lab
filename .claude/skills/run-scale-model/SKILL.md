@@ -53,8 +53,8 @@ What the lengths are:
   rings, without the real connectors' pins and terminals.
 - The real build's lengths, pin to pin and unloaded, are in the handoff JSON, not here.
 
-Mind the caliper's range: its calibration (`src/caliper.rs`) covers cords of 29 to 140 mm.
-Longer ones are extrapolated, and anything shorter reads as 15 mm. At 1:10 Headless Hug's cables
-run from about 28 to 174 mm, so check the longest and shortest by measuring.
+The caliper (a 300 mm one) is calibrated (`src/caliper.rs`) for cords of 21.3 to 196 mm,
+readings 12 to 100 mm. Longer ones are extrapolated. A reading of 12 mm is the shortest a knot can
+be tied at, so anything shorter than 21.3 mm also reads 12 mm: such a cord can't be made.
 
 In model mode the connector (C) and parts (P) views are off; the other keys work as in `run-app`.
