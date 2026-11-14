@@ -239,6 +239,43 @@ fn bubble_fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     return vec4<f32>(gamma(color), alpha);
 }
 
+// A label's rounded box, or its leader line, already in screen space.
+struct LabelInput {
+    @location(0) position: vec2<f32>,
+    @location(1) local: vec2<f32>,
+    @location(2) half_size: vec2<f32>,
+    @location(3) radius: f32,
+    @location(4) color: vec4<f32>,
+};
+
+struct LabelOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) local: vec2<f32>,
+    @location(1) half_size: vec2<f32>,
+    @location(2) radius: f32,
+    @location(3) color: vec4<f32>,
+};
+
+@vertex
+fn label_vertex(in: LabelInput) -> LabelOutput {
+    var out: LabelOutput;
+    out.clip_position = vec4<f32>(in.position, 0.0, 1.0);
+    out.local = in.local;
+    out.half_size = in.half_size;
+    out.radius = in.radius;
+    out.color = in.color;
+    return out;
+}
+
+// Rounded corners by signed distance, softened over a pixel.
+@fragment
+fn label_fragment(in: LabelOutput) -> @location(0) vec4<f32> {
+    let q = abs(in.local) - in.half_size + vec2<f32>(in.radius);
+    let distance = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - in.radius;
+    let coverage = clamp(0.5 - distance, 0.0, 1.0);
+    return vec4<f32>(gamma(in.color.rgb), in.color.a * coverage);
+}
+
 struct SurfaceVertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) world_pos: vec3<f32>,

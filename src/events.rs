@@ -57,6 +57,8 @@ pub enum StateChange {
     ResetView,
     RestartApproach,
     JumpToFabric,
+    /// Step a selected interval back to the joint it continues from.
+    BackToJoint,
     ToggleColorByRole,
     SetAppearanceFunction(AppearanceFunction),
     SetIntervalColor {
@@ -103,6 +105,7 @@ impl Debug for StateChange {
             StateChange::ResetView => "ResetView()",
             StateChange::RestartApproach => "RestartApproach()",
             StateChange::JumpToFabric => "JumpToFabric()",
+            StateChange::BackToJoint => "BackToJoint()",
             StateChange::SetAnimating(_) => "SetAnimating()",
             StateChange::SetExperimentTitle { .. } => "SetExperimentTitle()",
             StateChange::SetKeyboardLegend(_) => "SetKeyboardLegend()",

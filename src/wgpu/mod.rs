@@ -25,6 +25,7 @@ pub mod figure;
 pub mod cylinder;
 pub mod cylinder_renderer;
 pub mod highlight_renderer;
+pub mod label_renderer;
 pub mod fabric_renderer;
 pub mod connector_renderer;
 pub mod sky_renderer;

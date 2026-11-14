@@ -173,67 +173,23 @@ impl IntervalDetails {
         self.format_joint(false, show_attachment_points)
     }
 
-    pub fn format_with_scale(&self, scale: f32) -> String {
-        let role_text = match self.role {
-            Role::Pushing => "Strut",
-            Role::Pulling => "Cable",
-            Role::Springy => "Spring",
-            Role::Circumference => "Circumference",
-            Role::BowTie => "BowTie",
-            Role::FaceRadial => "FaceRadial",
-            Role::Support => "Support",
-            Role::GuyLine => "GuyLine",
-            Role::PrismPull => "PrismPull",
-        };
-
-        let show_attachment_points = SHOW_ATTACHMENT_POINTS.with(|cell| *cell.borrow());
-
-        let angle_info = if show_attachment_points {
-            let alpha_angle = self
-                .alpha_pivot_angle
-                .map(|a| format!("α: {}", a))
-                .unwrap_or_default();
-            let omega_angle = self
-                .omega_pivot_angle
-                .map(|a| format!("ω: {}", a))
-                .unwrap_or_default();
-            if !alpha_angle.is_empty() || !omega_angle.is_empty() {
-                let separator = if !alpha_angle.is_empty() && !omega_angle.is_empty() {
-                    ", "
-                } else {
-                    ""
-                };
-                format!("\nPivot: {}{}{}", alpha_angle, separator, omega_angle)
-            } else {
-                String::new()
-            }
+    /// The floating label: which interval, and what to build it to.
+    pub fn label_text(&self, scale: f32) -> String {
+        let name = format!("{}–{}", self.near_joint_label, self.far_joint_label);
+        let distance_mm = self.distance_mm() * scale;
+        let model = (scale - 1.0).abs() > 0.001;
+        let length = if !model {
+            format!("{distance_mm:.0} mm")
+        } else if self.role == Role::Pushing {
+            format!("Tube {:.1} mm", brass_tube_mm(distance_mm))
+        } else if self.role.is_pull_like() {
+            format!("{distance_mm:.1} mm\nCaliper {}", caliper_reading(Meters(self.distance.0 * scale)))
         } else {
-            String::new()
+            format!("{distance_mm:.1} mm")
         };
-
-        let scaled_distance_mm = self.distance_mm() * scale;
-
-        // Show caliper reading for Pull intervals when in model-scale mode.
-        let caliper_info = if self.role.is_pull_like() && (scale - 1.0).abs() > 0.001 {
-            let reading = caliper_reading(Meters(self.distance.0 * scale));
-            format!("\nCaliper: {} mm", reading)
-        } else if self.role == Role::Pushing && (scale - 1.0).abs() > 0.001 {
-            format!("\nBrass tube: {:.1} mm", brass_tube_mm(scaled_distance_mm))
-        } else {
-            String::new()
-        };
-
-        format!(
-            "{} {}-{}\nDistance: {:.1} mm\nStrain: {:.6}%{}{}\nRight-click to jump",
-            role_text,
-            self.near_joint_text(show_attachment_points),
-            self.far_joint_text(show_attachment_points),
-            scaled_distance_mm,
-            self.strain_percent(),
-            angle_info,
-            caliper_info
-        )
+        format!("{name}\n{length}")
     }
+
 }
 
 #[derive(Clone, Debug)]
@@ -281,21 +237,6 @@ impl JointDetails {
         self.path.clone()
     }
 
-    pub fn format_with_scale(&self, scale: f32) -> String {
-        let height_m = self.location.y * scale;
-
-        let surface_location = match self.surface_location_mm() {
-            None => "".into(),
-            Some((x, z)) => format!(" at ({:.1} mm, {:.1} mm)", x * scale, z * scale),
-        };
-
-        format!(
-            "{} at {:.2} m{}\nClick interval for details",
-            self.joint_text(),
-            height_m,
-            surface_location
-        )
-    }
 }
 
 #[derive(Debug, Clone)]

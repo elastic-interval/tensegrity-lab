@@ -346,6 +346,24 @@ impl Camera {
         }
     }
 
+    /// From a selected interval back to the joint it continues from.
+    pub fn back_to_joint(&mut self, fabric: &Fabric) -> Option<ControlState> {
+        let Pick::Interval(details) = &self.current_pick else {
+            return None;
+        };
+        let key = details.near_joint;
+        let joint = JointDetails {
+            key,
+            path: details.near_joint_label.clone(),
+            location: fabric.location(key),
+            selected_push: fabric.push_at(key),
+        };
+        self.current_pick = Pick::Joint(joint.clone());
+        self.preview = None;
+        self.set_target(Target::AroundJoint(key));
+        Some(ControlState::ShowingJoint(joint))
+    }
+
     pub fn reset(&mut self) {
         self.current_pick = Pick::Nothing;
         self.set_target(Target::FabricMidpoint);
@@ -804,6 +822,12 @@ impl Camera {
 
     pub fn eye(&self) -> Vec3 {
         self.position
+    }
+
+    /// The world direction that points up on the screen.
+    pub fn screen_up(&self) -> Vec3 {
+        let gaze = (self.look_at - self.position).normalize();
+        gaze.cross(Vec3::Y).cross(gaze).normalize()
     }
 
     pub fn mvp_matrix(&self) -> Mat4 {

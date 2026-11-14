@@ -4,6 +4,7 @@ use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::parts_view::PartsView;
 use crate::wgpu::sky_renderer::SkyRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
+use crate::wgpu::label_renderer::LabelRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::Wgpu;
 use crate::{
@@ -20,6 +21,7 @@ pub struct Scene {
     fabric_renderer: FabricRenderer,
     surface_renderer: SurfaceRenderer,
     text_renderer: TextRenderer,
+    label_renderer: LabelRenderer,
     render_style: RenderStyle,
     show_attachment_points: bool,
     /// White, or the starry sky (B).
@@ -39,6 +41,7 @@ impl Scene {
         let fabric_renderer = wgpu.create_fabric_renderer();
         let surface_renderer = wgpu.create_surface_renderer();
         let text_renderer = wgpu.create_text_renderer(mobile_device, model_scale);
+        let label_renderer = LabelRenderer::new(&wgpu);
         let render_style = RenderStyle::Normal;
         SHOW_ATTACHMENT_POINTS.with(|cell| {
             *cell.borrow_mut() = false;
@@ -51,6 +54,7 @@ impl Scene {
             fabric_renderer,
             surface_renderer,
             text_renderer,
+            label_renderer,
             render_style,
             show_attachment_points: false,
             white: true,
@@ -258,6 +262,7 @@ impl Scene {
         }
         self.fabric_renderer
             .render_highlight(&mut render_pass, &self.wgpu.uniform_bind_group);
+        self.label_renderer.render(&mut render_pass);
         self.text_renderer.render(&mut render_pass, &self.wgpu);
         drop(render_pass);
 
@@ -296,6 +301,17 @@ impl Scene {
             fabric,
             self.camera.current_pick(),
             preview,
+            self.white,
+        );
+        let no_pick = Pick::Nothing;
+        self.label_renderer.update(
+            &self.wgpu,
+            &mut self.text_renderer,
+            fabric,
+            if self.pick_allowed { self.camera.current_pick() } else { &no_pick },
+            self.camera.mvp_matrix(),
+            self.camera.screen_up(),
+            self.model_scale.unwrap_or(1.0),
             self.white,
         );
         // Update surface size based on fabric bounding radius
@@ -352,6 +368,12 @@ impl Scene {
     pub fn reset(&mut self) {
         self.pick_allowed = false;
         self.camera.reset();
+    }
+
+    pub fn back_to_joint(&mut self, fabric: &Fabric) {
+        if let Some(control_state) = self.camera.back_to_joint(fabric) {
+            control_state.send(&self.radio);
+        }
     }
 
     /// Jump camera to ideal viewing position for the given fabric

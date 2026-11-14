@@ -52,11 +52,19 @@ impl Keyboard {
     pub fn with_actions(mut self, model_scale: Option<f32>) -> Self {
         use CrucibleAction::*;
         use LabEvent::*;
+        // Esc steps back out of a selection: an interval to its joint, a
+        // joint to nothing. The instructions on the right say so, not the legend.
         self.key_lab_event(
             KeyCode::Escape,
-            "Cancel selection",
+            "",
+            UpdateState(StateChange::BackToJoint),
+            Box::new(|state| matches!(state, ShowingInterval(_))),
+        );
+        self.key_lab_event(
+            KeyCode::Escape,
+            "",
             Crucible(ClearSelection),
-            Box::new(|state| matches!(state, ShowingJoint(_) | ShowingInterval(_))),
+            Box::new(|state| matches!(state, ShowingJoint(_))),
         );
         self.key_lab_event(
             KeyCode::Escape,

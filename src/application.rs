@@ -623,6 +623,10 @@ impl ApplicationHandler<LabEvent> for Application {
                     if let Some(scene) = &mut self.scene {
                         scene.jump_to_fabric(&self.crucible.fabric);
                     }
+                } else if let StateChange::BackToJoint = &app_change {
+                    if let Some(scene) = &mut self.scene {
+                        scene.back_to_joint(&self.crucible.fabric);
+                    }
                 } else if let StateChange::ToggleBackground = &app_change {
                     self.with_scene(|scene| scene.update_state(app_change.clone()));
                     RequestRedraw.send(&self.radio);

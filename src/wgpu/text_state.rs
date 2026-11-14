@@ -197,15 +197,17 @@ impl TextState {
                     None => Nothing,
                 },
             );
-            let scale = self.model_scale.unwrap_or(1.0);
+            // What the selection is shows in the scene, on its labels.
             self.update_section(
                 SectionName::Right,
                 match control_state {
-                    Viewing { .. } => Large("Click to select".to_string()),
-                    ShowingJoint(joint_details) => Large(joint_details.format_with_scale(scale)),
-                    ShowingInterval(interval_details) => {
-                        Large(interval_details.format_with_scale(scale))
-                    }
+                    Viewing { .. } => Large("Click: joint".to_string()),
+                    ShowingJoint(_) => Large(
+                        "Click: interval\nRight-click: other joint\nEsc: deselect".to_string(),
+                    ),
+                    ShowingInterval(_) => Large(
+                        "Click: next interval\nRight-click: far end\nEsc: back to joint".to_string(),
+                    ),
                     PhysicsTesting => match &self.movement_analysis {
                         Some(text) => Normal(text.clone()),
                         None => Nothing,

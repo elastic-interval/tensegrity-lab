@@ -1,4 +1,5 @@
 use crate::camera::{Pick, PREVIEW_SECS};
+use crate::fabric::interval::Interval;
 use crate::fabric::Fabric;
 use crate::units::Unit;
 use crate::wgpu::connector_renderer::{part_instance_layout, PartInstance};
@@ -106,6 +107,16 @@ impl HighlightRenderer {
     }
 }
 
+/// The bubble around a highlighted joint.
+pub fn sphere_radius(fabric: &Fabric) -> f32 {
+    fabric.dimensions.push_radius.f32() * SPHERE_RADIUS
+}
+
+/// The tube around a highlighted interval, standing off its surface.
+pub fn tube_radius(fabric: &Fabric, interval: &Interval) -> f32 {
+    physical_radius(interval.role, &fabric.dimensions) + fabric.dimensions.push_radius.f32() * TUBE_GAP
+}
+
 fn add_shapes(
     fabric: &Fabric,
     pick: &Pick,
@@ -114,7 +125,6 @@ fn add_shapes(
     tubes: &mut Vec<CylinderInstance>,
     spheres: &mut Vec<PartInstance>,
 ) {
-    let strut_radius = fabric.dimensions.push_radius.f32();
     let (joint, interval) = match pick {
         Pick::Nothing => (None, None),
         Pick::Joint(JointDetails { key, .. }) => (Some(*key), None),
@@ -127,14 +137,14 @@ fn add_shapes(
         let end = fabric.joints[interval.omega_key].location;
         tubes.push(CylinderInstance {
             start: start.into(),
-            radius_factor: physical_radius(interval.role, &fabric.dimensions) + strut_radius * TUBE_GAP,
+            radius_factor: tube_radius(fabric, interval),
             end: end.into(),
             material_type: 0,
             color,
         });
     }
     if let Some(key) = joint {
-        spheres.push(PartInstance::sphere(fabric.location(key), strut_radius * SPHERE_RADIUS, color));
+        spheres.push(PartInstance::sphere(fabric.location(key), sphere_radius(fabric), color));
     }
 }
 

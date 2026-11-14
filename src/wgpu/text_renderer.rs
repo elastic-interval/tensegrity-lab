@@ -2,12 +2,14 @@ use crate::wgpu::text_state::TextState;
 use crate::wgpu::{default_depth_stencil_state, Wgpu};
 use crate::StateChange;
 use wgpu::RenderPass;
-use wgpu_text::glyph_brush::ab_glyph::FontRef;
+use wgpu_text::glyph_brush::ab_glyph::{FontRef, Rect};
+use wgpu_text::glyph_brush::OwnedSection;
 use wgpu_text::{BrushBuilder, TextBrush};
 
 pub struct TextRenderer {
     text_state: TextState,
     brush: TextBrush<FontRef<'static>>,
+    labels: Vec<OwnedSection>,
 }
 
 impl TextRenderer {
@@ -25,11 +27,20 @@ impl TextRenderer {
                     wgpu.surface_configuration.format,
                 );
         let text_state = TextState::new(mobile_device, model_scale, width, height);
-        TextRenderer { brush, text_state }
+        TextRenderer { brush, text_state, labels: Vec::new() }
     }
 
     pub fn update_state(&mut self, state_change: &StateChange) {
         self.text_state.update_state(state_change);
+    }
+
+    pub fn glyph_bounds(&mut self, section: &OwnedSection) -> Option<Rect> {
+        self.brush.glyph_bounds(section)
+    }
+
+    /// The floating labels' text, drawn with everything else.
+    pub fn set_labels(&mut self, labels: Vec<OwnedSection>) {
+        self.labels = labels;
     }
 
     pub fn render<'a>(&'a mut self, render_pass: &mut RenderPass<'a>, wgpu: &Wgpu) {
@@ -37,7 +48,7 @@ impl TextRenderer {
             .queue(
                 &wgpu.device,
                 &wgpu.queue,
-                self.text_state.sections().clone(),
+                self.text_state.sections().into_iter().chain(&self.labels),
             )
             .unwrap();
         self.brush.draw(render_pass);

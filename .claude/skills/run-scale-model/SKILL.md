@@ -40,14 +40,15 @@ displayed; the simulation runs at full size as always.
 
 ## Reading the model's lengths
 
-Let it build and stand, then click:
+Let it build and stand, then click. What's selected is named on labels floating above it in the
+scene; the right of the screen only says what a click will do.
 
-- **A cable or strut:** its distance in model millimetres, joint to joint. A cable also shows
-  **Caliper**: the reading to set on his caliper, which holds the cord almost folded in half.
-  A strut also shows **Brass tube**: the length to cut, 50 mm less than ring to ring, since
-  the same screw in each end adds 25 mm (`src/caliper.rs`). The stats' strut range and total
-  are still joint to joint.
-- **A joint:** its height and, if it rests on the ground, where (model scale).
+- **A cable:** its length in model millimetres, joint to joint, and **Caliper**: the reading to
+  set on his caliper, which holds the cord almost folded in half.
+- **A strut:** **Tube**, the brass tube to cut: 50 mm less than ring to ring, since the same
+  screw in each end adds 25 mm (`src/caliper.rs`). The stats' strut range and total are still
+  joint to joint.
+- **A joint:** its name.
 - The stats show the fabric "Built at" with the scale, e.g. "(10:1)".
 
 What the lengths are:
