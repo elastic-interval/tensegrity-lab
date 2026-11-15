@@ -281,20 +281,23 @@ struct SurfaceVertexOutput {
     @location(0) world_pos: vec3<f32>,
 };
 
-@vertex
-fn surface_vertex(@location(0) pos: vec4<f32>) -> SurfaceVertexOutput {
-    var output: SurfaceVertexOutput;
-    output.position = uniforms.mvp_matrix * pos;
-    output.world_pos = pos.xyz;
-    return output;
-}
-
-// The ground: hexagonal paving drawn as lines, in colours for the background.
+// The ground: hexagonal paving drawn as lines, in colours for the background,
+// and how far a quake has moved it.
 struct Ground {
     line: vec4<f32>,
     fill: vec4<f32>,
+    shift: vec4<f32>,
 };
 @group(1) @binding(0) var<uniform> ground: Ground;
+
+// The paving moves with the ground, so its pattern is where it lies still.
+@vertex
+fn surface_vertex(@location(0) pos: vec4<f32>) -> SurfaceVertexOutput {
+    var output: SurfaceVertexOutput;
+    output.position = uniforms.mvp_matrix * (pos + vec4<f32>(ground.shift.xyz, 0.0));
+    output.world_pos = pos.xyz;
+    return output;
+}
 
 // A paving stone across its flats, and its joint's width, in metres.
 const HEX_ACROSS: f32 = 0.66;

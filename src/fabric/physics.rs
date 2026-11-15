@@ -3,7 +3,7 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 use crate::units::Unit;
-use crate::{Radio, StateChange, TweakFeature, TweakParameter};
+use crate::{TweakFeature, TweakParameter};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SurfaceCharacter {
@@ -178,18 +178,6 @@ impl Tweak {
 }
 
 impl Physics {
-    pub fn broadcast_tweaks(&self, radio: &Radio) {
-        use TweakFeature::*;
-
-        let tweak_params = [
-            MassScale.parameter(self.tweak.mass_multiplier),
-            RigidityScale.parameter(self.tweak.rigidity_multiplier),
-        ];
-        for p in tweak_params {
-            StateChange::SetTweakParameter(p).send(radio);
-        }
-    }
-
     pub fn accept_tweak(&mut self, parameter: TweakParameter) {
         use TweakFeature::*;
         let TweakParameter { feature, value } = parameter;

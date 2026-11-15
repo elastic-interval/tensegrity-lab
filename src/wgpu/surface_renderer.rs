@@ -2,6 +2,7 @@ use crate::wgpu::surface_vertex::SurfaceVertex;
 use crate::wgpu::Wgpu;
 use crate::wgpu::DEFAULT_PRIMITIVE_STATE;
 use bytemuck::{cast_slice, Pod, Zeroable};
+use glam::Vec3;
 use wgpu::util::DeviceExt;
 use wgpu::RenderPass;
 
@@ -9,8 +10,8 @@ pub struct SurfaceRenderer {
     pub vertices: Vec<SurfaceVertex>,
     pub pipeline: wgpu::RenderPipeline,
     pub buffer: wgpu::Buffer,
-    colors_buffer: wgpu::Buffer,
-    colors_bind_group: wgpu::BindGroup,
+    ground_buffer: wgpu::Buffer,
+    ground_bind_group: wgpu::BindGroup,
     current_radius: f32,
 }
 
@@ -18,34 +19,36 @@ pub struct SurfaceRenderer {
 /// shader's `Ground` uniform reads them.
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
-struct GroundColors {
+struct Ground {
     line: [f32; 4],
     fill: [f32; 4],
+    shift: [f32; 4],
 }
 
-impl GroundColors {
-    fn for_background(white: bool) -> [GroundColors; 1] {
+impl Ground {
+    fn for_background(white: bool, shift: Vec3) -> [Ground; 1] {
+        let shift = shift.extend(0.0).into();
         [if white {
-            GroundColors { line: [0.35, 0.35, 0.35, 1.0], fill: [0.85, 0.85, 0.85, 0.6] }
+            Ground { line: [0.35, 0.35, 0.35, 1.0], fill: [0.85, 0.85, 0.85, 0.6], shift }
         } else {
-            GroundColors { line: [0.18, 0.19, 0.2, 1.0], fill: [0.012, 0.013, 0.016, 0.9] }
+            Ground { line: [0.18, 0.19, 0.2, 1.0], fill: [0.012, 0.013, 0.016, 0.9], shift }
         }]
     }
 }
 
 impl SurfaceRenderer {
     pub fn new(wgpu: &Wgpu) -> Self {
-        let colors_buffer = wgpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Ground Colors"),
-            contents: cast_slice(&GroundColors::for_background(true)),
+        let ground_buffer = wgpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Ground"),
+            contents: cast_slice(&Ground::for_background(false, Vec3::ZERO)),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-        let colors_bind_group_layout =
+        let ground_bind_group_layout =
             wgpu.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("Ground Colors Bind Group Layout"),
+                label: Some("Ground Bind Group Layout"),
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -54,10 +57,10 @@ impl SurfaceRenderer {
                     count: None,
                 }],
             });
-        let colors_bind_group = wgpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &colors_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry { binding: 0, resource: colors_buffer.as_entire_binding() }],
-            label: Some("Ground Colors Bind Group"),
+        let ground_bind_group = wgpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &ground_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry { binding: 0, resource: ground_buffer.as_entire_binding() }],
+            label: Some("Ground Bind Group"),
         });
 
         // The camera's uniform, then the ground's colours
@@ -65,7 +68,7 @@ impl SurfaceRenderer {
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Surface Pipeline Layout"),
-                bind_group_layouts: &[&wgpu.uniform_bind_group_layout, &colors_bind_group_layout],
+                bind_group_layouts: &[&wgpu.uniform_bind_group_layout, &ground_bind_group_layout],
                 immediate_size: 0,
             });
 
@@ -111,8 +114,8 @@ impl SurfaceRenderer {
             vertices: surface_vertices,
             pipeline: surface_pipeline,
             buffer: surface_buffer,
-            colors_buffer,
-            colors_bind_group,
+            ground_buffer,
+            ground_bind_group,
             current_radius: 10.0,
         }
     }
@@ -134,12 +137,18 @@ impl SurfaceRenderer {
 
     /// The colours for the white background, or the starry sky's.
     pub fn set_white(&self, queue: &wgpu::Queue, white: bool) {
-        queue.write_buffer(&self.colors_buffer, 0, cast_slice(&GroundColors::for_background(white)));
+        queue.write_buffer(&self.ground_buffer, 0, cast_slice(&Ground::for_background(white, Vec3::ZERO)));
+    }
+
+    /// Move the ground as far as a quake has moved it.
+    pub fn set_shift(&self, queue: &wgpu::Queue, shift: Vec3) {
+        let offset = std::mem::offset_of!(Ground, shift) as u64;
+        queue.write_buffer(&self.ground_buffer, offset, cast_slice(&shift.extend(0.0).to_array()));
     }
 
     pub fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
         render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(1, &self.colors_bind_group, &[]);
+        render_pass.set_bind_group(1, &self.ground_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.buffer.slice(..));
         render_pass.draw(0..self.vertices.len() as u32, 0..1);
     }

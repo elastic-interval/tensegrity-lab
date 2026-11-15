@@ -3,7 +3,7 @@ use crate::fabric::interval::Interval;
 use crate::fabric::Fabric;
 use crate::units::Unit;
 use crate::wgpu::connector_renderer::{part_instance_layout, PartInstance};
-use crate::wgpu::cylinder_renderer::{cylinder_instance_layout, physical_radius, CylinderInstance};
+use crate::wgpu::cylinder_renderer::{cylinder_instance_layout, drawn_ends, physical_radius, CylinderInstance};
 use crate::wgpu::Wgpu;
 use crate::{IntervalDetails, JointDetails};
 use wgpu::util::DeviceExt;
@@ -70,6 +70,7 @@ impl HighlightRenderer {
         pick: &Pick,
         preview: Option<(&Pick, f32)>,
         light_background: bool,
+        show_attachment_points: bool,
     ) {
         let (selected_color, preview_color) = if light_background {
             (SELECTED_COLOR_ON_LIGHT, PREVIEW_COLOR_ON_LIGHT)
@@ -78,13 +79,21 @@ impl HighlightRenderer {
         };
         let mut tubes = Vec::new();
         let mut spheres = Vec::new();
-        add_shapes(fabric, pick, selected_color, true, &mut tubes, &mut spheres);
+        add_shapes(fabric, pick, selected_color, true, show_attachment_points, &mut tubes, &mut spheres);
         if let Some((preview, age)) = preview {
             let rise = (age / PREVIEW_RISE_SECS).min(1.0);
             let fade = (1.0 - age / PREVIEW_SECS).max(0.0);
             let [r, g, b, a] = preview_color;
             // A preview interval continues from the selected joint, whose sphere is already shown.
-            add_shapes(fabric, preview, [r, g, b, a * rise * fade], false, &mut tubes, &mut spheres);
+            add_shapes(
+                fabric,
+                preview,
+                [r, g, b, a * rise * fade],
+                false,
+                show_attachment_points,
+                &mut tubes,
+                &mut spheres,
+            );
         }
         self.tubes = instance_buffer(wgpu, &tubes);
         self.spheres = instance_buffer(wgpu, &spheres);
@@ -122,6 +131,7 @@ fn add_shapes(
     pick: &Pick,
     color: [f32; 4],
     near_sphere: bool,
+    show_attachment_points: bool,
     tubes: &mut Vec<CylinderInstance>,
     spheres: &mut Vec<PartInstance>,
 ) {
@@ -129,12 +139,11 @@ fn add_shapes(
         Pick::Nothing => (None, None),
         Pick::Joint(JointDetails { key, .. }) => (Some(*key), None),
         Pick::Interval(IntervalDetails { key, near_joint, .. }) => {
-            (near_sphere.then_some(*near_joint), fabric.intervals.get(*key))
+            (near_sphere.then_some(*near_joint), fabric.intervals.get(*key).map(|interval| (*key, interval)))
         }
     };
-    if let Some(interval) = interval {
-        let start = fabric.joints[interval.alpha_key].location;
-        let end = fabric.joints[interval.omega_key].location;
+    if let Some((key, interval)) = interval {
+        let (start, end) = drawn_ends(fabric, key, show_attachment_points);
         tubes.push(CylinderInstance {
             start: start.into(),
             radius_factor: tube_radius(fabric, interval),

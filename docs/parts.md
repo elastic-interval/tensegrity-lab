@@ -28,7 +28,7 @@ cargo test --release --lib export_headless_hug_dxf -- --ignored
 
 ## Bill of materials
 
-The app's parts list (`connector::parts`, shown in the C view) covers the
+The app's parts list (`connector::parts`, shown in the parts view) covers the
 connector hardware. The second table adds what it doesn't track yet.
 
 | Qty | Part | Kind |

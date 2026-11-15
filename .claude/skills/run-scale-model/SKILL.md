@@ -61,4 +61,4 @@ The caliper (a 300 mm one) is calibrated (`src/caliper.rs`) for cords of 21.3 to
 readings 12 to 100 mm. Longer ones are extrapolated. A reading of 12 mm is the shortest a knot can
 be tied at, so anything shorter than 21.3 mm also reads 12 mm: such a cord can't be made.
 
-In model mode the connector (C) and parts (P) views are off; the other keys work as in `run-app`.
+In model mode the connectors and the Parts button are off; the other buttons work as in `run-app`.

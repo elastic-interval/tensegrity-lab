@@ -1,16 +1,17 @@
-//! The parts view, on the P key: every part of the fabric turning in a strip down
+//! The parts view, on the Parts button: every part of the fabric turning in a strip down
 //! the left, and the one clicked on large beside them, to look closely at its
 //! design. Assembled parts show whole, so a hinge has its rod end. It takes over
 //! the window, its own camera and text, while the fabric runs on unseen.
 
 use crate::connector::parts::{parts_list, placements, Part, Placement};
 use crate::fabric::Fabric;
+use crate::wgpu::button::{Button, Buttons, Press};
 use crate::wgpu::connector_renderer::{part_instance_layout, PartInstance};
 use crate::wgpu::part_meshes::{PartMesh, PartSizes};
 use crate::wgpu::{default_depth_stencil_state, Wgpu};
 use crate::units::{Grams, Unit};
 use crate::PointerChange;
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat4, Quat, Vec2, Vec3};
 use instant::Instant;
 use wgpu::util::DeviceExt;
 use wgpu_text::glyph_brush::ab_glyph::FontRef;
@@ -85,11 +86,14 @@ pub(super) fn camera_matrix(center: Vec3, radius: f32, azimuth: f32, elevation: 
         * Mat4::look_at_rh(center + toward * distance, center, Vec3::Y)
 }
 
-/// A uniform buffer for a camera matrix and the bind group reaching it.
+/// A uniform buffer for a camera matrix and the bind group reaching it. The
+/// shader's uniforms also hold the eye, which these views leave at zero.
 pub(super) fn create_camera(wgpu: &Wgpu) -> (wgpu::Buffer, wgpu::BindGroup) {
+    let mut uniforms = [0.0f32; 20];
+    uniforms[..16].copy_from_slice(&Mat4::IDENTITY.to_cols_array());
     let camera = wgpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Part View Camera"),
-        contents: bytemuck::cast_slice(&Mat4::IDENTITY.to_cols_array()),
+        contents: bytemuck::cast_slice(&uniforms),
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });
     let bind_group = wgpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -161,6 +165,13 @@ fn strip_squares(width: f32, height: f32, count: usize) -> Vec<Square> {
     (0..count).map(|row| [MARGIN, top + pitch * row as f32, side]).collect()
 }
 
+/// What a button in the parts view does.
+#[derive(Clone, Copy)]
+enum Choice {
+    Part(usize),
+    Back,
+}
+
 pub struct PartsView {
     pipeline: wgpu::RenderPipeline,
     camera: wgpu::Buffer,
@@ -168,6 +179,7 @@ pub struct PartsView {
     shown: Vec<ShownPart>,
     brush: TextBrush<FontRef<'static>>,
     sections: Vec<OwnedSection>,
+    buttons: Buttons<Choice>,
     squares: Vec<Square>,
     // Where the large view begins, to the right of the strip.
     large_left: f32,
@@ -215,6 +227,7 @@ impl PartsView {
             shown,
             brush,
             sections: Vec::new(),
+            buttons: Buttons::new(wgpu),
             squares: Vec::new(),
             large_left: 0.0,
             chosen,
@@ -268,49 +281,50 @@ impl PartsView {
         let each = large.mass.f32();
         let mass = format!("{} each, {:.1} kg in all", weight(each), each * large.count as f32 / 1000.0);
         let hardware: f32 = self.shown.iter().map(|part| part.mass.f32() * part.count as f32).sum();
+        let brush = &mut self.brush;
+        let back = self.buttons.lay_out(
+            wgpu,
+            &mut |section| brush.glyph_bounds(section),
+            vec![vec![Button::new("Back", Choice::Back)]],
+            self.large_left,
+            width,
+            height - MARGIN,
+            self.white,
+        );
+        let above_back = self.buttons.top().unwrap_or(height - MARGIN) - GAP - COUNT_SCALE / 2.0;
         self.sections = vec![
             text(title, [self.large_left, MARGIN], chosen_text, TITLE_SCALE),
             text(mass, [self.large_left, MARGIN + TITLE_SCALE * 1.2], other_text, COUNT_SCALE),
             text(
                 format!("All the parts on the list: {:.1} kg", hardware / 1000.0),
-                [self.large_left, height - MARGIN - COUNT_SCALE * 1.4],
+                [self.large_left, above_back],
                 other_text,
                 COUNT_SCALE,
             ),
-            text("P or Esc to return".to_string(), [self.large_left, height - MARGIN], other_text, COUNT_SCALE),
         ];
+        self.sections.extend(back);
         for (index, (part, [left, top, side])) in self.shown.iter().zip(&self.squares).enumerate() {
             let color = if index == self.chosen { chosen_text } else { other_text };
             let at = [left + side + GAP, top + side / 2.0];
             self.sections.push(text(format!("{}   {} ×", letter(index), part.count), at, color, COUNT_SCALE));
+            let half = Vec2::new((self.large_left - left) / 2.0, side / 2.0);
+            self.buttons.add(Vec2::new(left + half.x, top + half.y), half, Choice::Part(index));
         }
     }
 
-    /// The part whose row in the strip is under the pointer.
-    fn row_under_pointer(&self) -> Option<usize> {
-        let position = self.pointer?;
-        let (x, y) = (position.x as f32, position.y as f32);
-        self.squares.iter().position(|[left, top, side]| {
-            (*left..self.large_left).contains(&x) && (*top..top + side).contains(&y)
-        })
-    }
-
-    /// Show the part under the pointer large, or drag if it's on none of them.
-    fn press(&mut self, wgpu: &Wgpu) {
-        let Some(row) = self.row_under_pointer() else {
-            self.dragging = true;
-            if self.turning {
-                self.azimuth += self.started.elapsed().as_secs_f32() * TURN_RATE;
-                self.turning = false;
+    /// Show a part large, or drag the one there; true to leave.
+    pub fn pointer_changed(&mut self, change: PointerChange, wgpu: &Wgpu) -> bool {
+        match self.buttons.pointer_changed(&change) {
+            Press::Button(Choice::Back) => return true,
+            Press::Button(Choice::Part(index)) => {
+                self.chosen = index;
+                self.zoom = 1.0;
+                self.lay_out(wgpu);
+                return false;
             }
-            return;
-        };
-        self.chosen = row;
-        self.zoom = 1.0;
-        self.lay_out(wgpu);
-    }
-
-    pub fn pointer_changed(&mut self, change: PointerChange, wgpu: &Wgpu) {
+            Press::Held => return false,
+            Press::Free => {}
+        }
         match change {
             PointerChange::Moved(position) => {
                 if let (true, Some(last)) = (self.dragging, self.pointer) {
@@ -319,15 +333,21 @@ impl PartsView {
                 }
                 self.pointer = Some(position);
             }
-            PointerChange::Pressed => self.press(wgpu),
-            PointerChange::TouchPressed(position) => {
-                self.pointer = Some(position);
-                self.press(wgpu);
+            PointerChange::Pressed | PointerChange::TouchPressed(_) => {
+                if let PointerChange::TouchPressed(position) = change {
+                    self.pointer = Some(position);
+                }
+                self.dragging = true;
+                if self.turning {
+                    self.azimuth += self.started.elapsed().as_secs_f32() * TURN_RATE;
+                    self.turning = false;
+                }
             }
             PointerChange::Released(_) | PointerChange::TouchReleased(_) => self.dragging = false,
             PointerChange::Zoomed(amount) => self.zoom = (self.zoom * (1.0 + amount)).clamp(0.2, 20.0),
             PointerChange::NoChange => {}
         }
+        false
     }
 
     pub fn render(&mut self, wgpu: &Wgpu) -> Result<(), wgpu::SurfaceError> {
@@ -377,6 +397,7 @@ impl PartsView {
                 part.draw(&mut pass, &part.strip_bind_group);
             }
             pass.set_viewport(0.0, 0.0, width, height, 0.0, 1.0);
+            self.buttons.render(&mut pass);
             self.brush.draw(&mut pass);
         }
         wgpu.queue.submit(std::iter::once(encoder.finish()));

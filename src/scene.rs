@@ -1,4 +1,5 @@
 use crate::camera::{Camera, Framing, Pick};
+use crate::wgpu::button::{Button, Buttons, Press};
 use crate::fabric::Fabric;
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::parts_view::PartsView;
@@ -8,11 +9,15 @@ use crate::wgpu::label_renderer::LabelRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::Wgpu;
 use crate::{
-    ControlState, PickIntent, PointerChange, Radio, RenderStyle, StateChange,
+    ControlState, LabEvent, PickIntent, PointerChange, Radio, RenderStyle, StateChange,
     SHOW_ATTACHMENT_POINTS,
 };
 use std::rc::Rc;
 use winit::dpi::PhysicalSize;
+
+// From the window's sides, and from its bottom, clear of the time.
+const BUTTON_MARGIN: f32 = 50.0;
+const BUTTON_BOTTOM: f32 = 100.0;
 
 pub struct Scene {
     pub wgpu: Wgpu,
@@ -22,6 +27,7 @@ pub struct Scene {
     surface_renderer: SurfaceRenderer,
     text_renderer: TextRenderer,
     label_renderer: LabelRenderer,
+    buttons: Buttons<LabEvent>,
     render_style: RenderStyle,
     show_attachment_points: bool,
     /// White, or the starry sky (B).
@@ -42,6 +48,7 @@ impl Scene {
         let surface_renderer = wgpu.create_surface_renderer();
         let text_renderer = wgpu.create_text_renderer(mobile_device, model_scale);
         let label_renderer = LabelRenderer::new(&wgpu);
+        let buttons = Buttons::new(&wgpu);
         let render_style = RenderStyle::Normal;
         SHOW_ATTACHMENT_POINTS.with(|cell| {
             *cell.borrow_mut() = false;
@@ -55,9 +62,10 @@ impl Scene {
             surface_renderer,
             text_renderer,
             label_renderer,
+            buttons,
             render_style,
             show_attachment_points: false,
-            white: true,
+            white: false,
             parts_view: None,
             last_part: 0,
             pick_allowed: false,
@@ -78,6 +86,22 @@ impl Scene {
             Some(view) => self.last_part = view.chosen(),
             None => self.parts_view = PartsView::new(&self.wgpu, fabric, self.last_part, self.white),
         }
+    }
+
+    /// The buttons along the bottom, above the time.
+    pub fn set_buttons(&mut self, buttons: Vec<Vec<Button<LabEvent>>>) {
+        let (width, height) = self.wgpu.size();
+        let text_renderer = &mut self.text_renderer;
+        let sections = self.buttons.lay_out(
+            &self.wgpu,
+            &mut |section| text_renderer.glyph_bounds(section),
+            buttons,
+            BUTTON_MARGIN,
+            width - BUTTON_MARGIN,
+            height - BUTTON_BOTTOM,
+            self.white,
+        );
+        self.text_renderer.set_buttons(sections);
     }
 
     pub fn parts_view_showing(&self) -> bool {
@@ -263,6 +287,7 @@ impl Scene {
         self.fabric_renderer
             .render_highlight(&mut render_pass, &self.wgpu.uniform_bind_group);
         self.label_renderer.render(&mut render_pass);
+        self.buttons.render(&mut render_pass);
         self.text_renderer.render(&mut render_pass, &self.wgpu);
         drop(render_pass);
 
@@ -302,6 +327,7 @@ impl Scene {
             self.camera.current_pick(),
             preview,
             self.white,
+            self.show_attachment_points,
         );
         let no_pick = Pick::Nothing;
         self.label_renderer.update(
@@ -313,11 +339,13 @@ impl Scene {
             self.camera.screen_up(),
             self.model_scale.unwrap_or(1.0),
             self.white,
+            self.show_attachment_points,
         );
         // Update surface size based on fabric bounding radius
         if has_surface {
             self.surface_renderer
                 .update_radius(&self.wgpu.queue, fabric.bounding_radius());
+            self.surface_renderer.set_shift(&self.wgpu.queue, fabric.ground_shift());
         }
         self.render(has_surface)?;
         Ok(())
@@ -331,10 +359,16 @@ impl Scene {
         }
     }
 
-    pub fn pointer_changed(&mut self, pointer_changed: PointerChange, fabric: &Fabric) {
+    /// What a button pressed asks for.
+    pub fn pointer_changed(&mut self, pointer_changed: PointerChange, fabric: &Fabric) -> Option<LabEvent> {
         if let Some(view) = &mut self.parts_view {
-            view.pointer_changed(pointer_changed, &self.wgpu);
-            return;
+            let leave = view.pointer_changed(pointer_changed, &self.wgpu);
+            return leave.then_some(LabEvent::UpdateState(StateChange::TogglePartsView));
+        }
+        match self.buttons.pointer_changed(&pointer_changed) {
+            Press::Button(event) => return Some(event),
+            Press::Held => return None,
+            Press::Free => {}
         }
         // When picking is not allowed (or always on the web — pure mouse-driven, no
         // selection), convert pick intents to Reset (release without picking). Camera
@@ -352,6 +386,7 @@ impl Scene {
         if let Some(control_state) = self.camera.pointer_changed(pointer_changed, fabric) {
             control_state.send(&self.radio);
         }
+        None
     }
 
     pub fn update_camera(&mut self, dt: f32, fabric: &Fabric, framing: Framing) -> bool {

@@ -9,6 +9,7 @@ use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::{ANIMATING, VIEWING};
 use crate::fabric::physics::Physics;
 use crate::fabric::physics_tester::PhysicsTester;
+use crate::fabric::quake;
 use crate::fabric::wind::Wind;
 use crate::fabric::Fabric;
 use glam::Vec3;
@@ -58,10 +59,11 @@ impl Crucible {
             .unwrap_or(false)
     }
 
-    /// Get ControlState::Viewing with correct animation_available flag
+    /// Get ControlState::Viewing with correct availability flags
     pub fn viewing_state(&self) -> ControlState {
         ControlState::Viewing {
             animation_available: self.animation_available(),
+            physics_testing_available: self.fabric_plan.is_none(),
         }
     }
 }
@@ -188,6 +190,7 @@ impl Crucible {
             return;
         }
 
+        let quaking_before = self.fabric.quake.is_some();
         // Handle other stages
         match &mut self.stage {
             Empty => {}
@@ -247,6 +250,10 @@ impl Crucible {
                     self.stage = new_stage;
                 }
             }
+        }
+        let quaking = self.fabric.quake.is_some();
+        if quaking != quaking_before {
+            SetQuaking(quaking).send(&self.radio);
         }
     }
 
@@ -361,6 +368,19 @@ impl Crucible {
                     _ => "No wind".to_string(),
                 };
                 context.send_event(LabEvent::UpdateState(SetStageLabel(label)));
+            }
+            CrucibleAction::Quake => {
+                let fabric = &mut *context.fabric;
+                let age = fabric.age;
+                match &mut fabric.quake {
+                    Some(quake) if !quake.stopping() => quake.stop(age),
+                    _ => {
+                        let seed = age.elapsed_since(crate::Age::default()).0.to_bits() as u64;
+                        fabric.quake = Some(quake::Quake::starting(age, seed));
+                        fabric.unfreeze();
+                        context.send_event(LabEvent::UpdateState(SetQuaking(true)));
+                    }
+                }
             }
             CentralizeFabric(altitude) => {
                 // Altitude is in meters, coordinates are in meters

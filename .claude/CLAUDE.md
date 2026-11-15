@@ -136,20 +136,24 @@ angles or per-position variants:
   per assignment rebuild and rendered red).
 
 Fabrics opt in per plan via `FabricDimensions::with_connector()`; the config
-becomes `Fabric::connector` at construction. Those meant to be built for real
-(Open Claw, Headless Hug) also set `with_connectors_shown()`, so they open with
-the hardware showing, as if C were pressed. `None` (the default) means
-connectors play no role anywhere: no slot assignment, no rendering, and the
-C-key toggle is inert. Slot assignments and part shapes are committed when
+becomes `Fabric::connector` at construction. Once built, the hardware always
+shows at real scale and never on a model (`--model-scale`). `None` (the
+default) means connectors play no role anywhere: no slot assignment, no
+rendering. Slot assignments and part shapes are committed when
 the fabric enters Viewing (and for export) — not incrementally during
-build, and not again afterwards: animation and the C key keep them.
+build, and not again afterwards: animation keeps them.
 
 ### Time
 
 - One iteration = 50 µs of fabric time (`TICK_DURATION` / `TICK_SECS` in `src/lib.rs`).
 - `Age::iteration_duration()` returns that value; `Age::iterations_per_second()` returns its inverse (20000).
-- `iterations_per_frame` is computed live each frame in `application.rs`:
-  `time_scale × iterations_per_second / fps`.
+- The app runs in real time. `application.rs` steps the physics in fixed
+  10 ms updates (up to 3 a frame), each `time_scale × iterations_per_second
+  × 10 ms` iterations, so fabric time keeps pace with the wall clock at any
+  frame rate; the frame rate is only displayed. `time_scale` is 1 except
+  while Fast-forward hurries a build (it goes back to 1 when the build ends).
+  There is no speed control. A frame over 100 ms drops that time rather than
+  catching up.
 - Don't introduce hardcoded iteration counts.
 
 ### Crucible — lifecycle manager
@@ -159,7 +163,8 @@ build, and not again afterwards: animation and the C key keep them.
 - `Viewing` — settled, idle.
 - `Animating(Animator)` — runs DSL-defined actuators. `Animator` needs only
   a `Fabric` and `Physics`, so animations also run headless, in tests.
-- `PhysicsTesting(PhysicsTester)` — real-time gravity test.
+- `PhysicsTesting(PhysicsTester)` — real-time gravity test, offered only for
+  fabrics without a plan (sphere, Klein, Möbius).
 - `BakingBrick(Oven)`, `Evolving(...)`, `Articulating(...)` — brick baking
   and the evolution runners.
 
@@ -227,9 +232,14 @@ need to adjust mass or rigidity multipliers at runtime.
   visible, drawn from the parts list (`connector::parts`): one mesh per
   `Part` (`part_meshes.rs`, metres, in the part's own frame), instanced at
   every `Placement`. A new kind of hardware is a new `Part` variant.
-- `parts_view.rs` — the P key: the parts full screen, click one in the strip to
-  see it large, with its mass (`Part::mass`). It takes the window, pointer and
-  keyboard from the scene.
+- `parts_view.rs` — the Parts button: the parts full screen, click one in the
+  strip to see it large, with its mass (`Part::mass`). It takes the window and
+  pointer from the scene.
+- `button.rs` — on-screen buttons for mouse and touch: `Buttons` lays a row
+  of labelled ones out and draws them, or takes any rect its owner draws
+  (the parts view's strip); a button acts on release over it. There are no
+  key bindings: `ButtonBar` (`src/button_bar.rs`) registers every button
+  with its label, the stages it shows in and the event it sends.
 - `sky_renderer.rs`, `surface_renderer.rs`, `text_renderer.rs` — chrome.
 - `shader.wgsl` — shared WGSL for fabric pipelines.
 
@@ -244,7 +254,7 @@ UI/render state separation:
 ### GPU compute (native only)
 
 `src/physics_gpu/` parallelises CPU-built fabrics on the GPU for evolution and
-the in-app live-physics mode (G key in Viewing). Architecture and the
+the in-app live-physics mode (no longer reachable from the app; see `docs/gpu-compute-backend.md`). Architecture and the
 WASM/WebGPU caveat are documented in `docs/gpu-compute-backend.md`.
 
 ## File Structure
@@ -260,7 +270,7 @@ src/
 ├── crucible_context.rs # Bundles fabric/physics/radio for inner code
 ├── camera.rs           # Camera (spherical, pick/zoom/approach)
 ├── scene.rs            # Scene = renderers + camera + render style
-├── keyboard.rs         # Key bindings
+├── button_bar.rs       # ButtonBar: every button, its stages and event
 ├── pointer.rs          # Mouse/touch → PointerChange
 ├── caliper.rs          # Caliper readings for model-scale display
 ├── units.rs            # Meters/Seconds/Grams etc. newtypes
@@ -287,7 +297,8 @@ src/
 │   ├── physics.rs      # Physics struct, presets
 │   ├── physics_tester.rs
 │   ├── vulcanize.rs
-│   ├── wind.rs         # Gusting wind: drag on every member (W key, wind tests)
+│   ├── wind.rs         # Gusting wind: drag on every member (Wind button, wind tests)
+│   ├── quake.rs        # Shaking ground, carrying what rests on it (Quake button)
 │   └── fabric_sampler.rs
 │
 ├── build/
@@ -337,6 +348,10 @@ Important integration tests:
   `measure_headless_hug_in_wind` reports apex sway, peak forces and slack
   cables with the wind from five directions. `Fabric::wind` is `None` in
   every build, so the wind never changes one.
+- `src/fabric/quake.rs` — `headless_hug_stands_through_a_quake`: 20 s of
+  ground shaking at up to half of g, 0.5–2 Hz, then stopped; it stays whole
+  and stands again within 50 mm. The Quake button starts and stops it.
+  `Fabric::quake`, like the wind, is `None` in every build.
 - `src/physics_gpu/parity_test.rs` — CPU vs GPU numeric parity.
 - `src/connector/dimensions.rs` (inline `pivot_geometry_tests`) — derived dimension formulas.
 
@@ -365,13 +380,14 @@ trunk serve --release
 
 ## Key Insights and Gotchas
 
-1. **Iterations per frame is computed, not constant.** Don't hardcode iteration
-   counts; let the outer loop do `time_scale × iterations_per_second / fps`.
+1. **Iterations per update are computed, not constant.** Don't hardcode
+   iteration counts; let the outer loop do `time_scale ×
+   iterations_per_second × update interval`, which keeps real time.
 
 2. **Slot assignment is committed, not incremental.** Connector slot
    assignments and part shapes are settled once on entering Viewing
    (`Crucible::finalize_to_viewing`), and for export. Toggling
-   attachment points ON only re-marks collisions. Don't trigger rebuilds
+   the hardware on (when the fabric is built) only re-marks collisions. Don't trigger rebuilds
    from elsewhere.
 
 3. **Coordinate systems.** Simulation is Y-up. The JSON export converts to

@@ -396,7 +396,7 @@ and a guy line at a hinge is refused; both are reported as failed plan steps.
 
 ## How Cables Get Assigned to Slots
 
-When the fabric is built and settled, each push interval determines which cables connect to it and at which slot (`ConnectorSystem::update_all_connections`). This is the moment the hardware is **committed**: it runs on entering Viewing and for export, and the slots, part shapes and fork rods it decides then stay put while the fabric animates or the C key is pressed (which only re-checks collisions). The optimiser (`find_optimal_assignment`, `src/connector/attachment.rs`) works per push end:
+When the fabric is built and settled, each push interval determines which cables connect to it and at which slot (`ConnectorSystem::update_all_connections`). This is the moment the hardware is **committed**: it runs on entering Viewing and for export, and the slots, part shapes and fork rods it decides then stay put while the fabric animates or the hardware is shown (which only re-checks collisions). The optimiser (`find_optimal_assignment`, `src/connector/attachment.rs`) works per push end:
 
 - **No ordering rules**: every permutation of the cables over the slots is tried, and any cable may take any slot. (An earlier hard rule kept outward-pulling cables off the topmost slot, so the retaining nut would not carry their full axial load; it was dropped to clear collisions, so that nut load needs checking.)
 - **Objective**: fewest pairs of forks whose capsule models collide — the same test that marks culprits.
@@ -451,16 +451,16 @@ are drawn brighter than galvanized ones, POM washers off-white, and every
 part of a colliding assembly red. The cable itself (`cylinder_renderer.rs`,
 at the true 6 mm diameter) ends buried in its terminal's barrel, aimed at
 the far end's *pivot*, so terminal and cable stay collinear; a fork rod's
-threaded rod is drawn the same way, ending inside its fork. Nothing is drawn unless the attachment
-points are shown (C key).
+threaded rod is drawn the same way, ending inside its fork. Nothing is drawn on a model
+(`--model-scale`).
 
-The **parts view** (P key, `src/wgpu/parts_view.rs`) takes over the window: every
+The **parts view** (Parts button, `src/wgpu/parts_view.rs`) takes over the window: every
 distinct part with a letter and its count, turning in a strip down the left, and
 the one clicked on large beside them.
 
 ### Collision culprits
 
-The fork/tube dimensions and a capsule model of each assembled cable end live in `src/connector/fork.rs`. `ConnectorSystem::mark_culprits` (run when the hardware is committed and again when the C key shows it, never per frame) does a pairwise capsule scan and records every cable end whose assembly would physically intersect another in `ConnectorSystem::culprits`. The renderer paints all parts of a culprit assembly red — these are real construction issues to resolve, not rendering artifacts.
+The fork/tube dimensions and a capsule model of each assembled cable end live in `src/connector/fork.rs`. `ConnectorSystem::mark_culprits` (run when the hardware is committed and again when the hardware is shown, never per frame) does a pairwise capsule scan and records every cable end whose assembly would physically intersect another in `ConnectorSystem::culprits`. The renderer paints all parts of a culprit assembly red — these are real construction issues to resolve, not rendering artifacts.
 
 ## Export
 

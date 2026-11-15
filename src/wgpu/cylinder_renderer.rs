@@ -1,7 +1,8 @@
 use crate::camera::Pick;
 use crate::fabric::interval::{Role, Span};
 use crate::fabric::material::Material;
-use crate::fabric::{Fabric, FabricDimensions, IntervalEnd};
+use crate::fabric::{Fabric, FabricDimensions, IntervalEnd, IntervalKey};
+use glam::Vec3;
 use crate::units::Unit;
 use crate::wgpu::Wgpu;
 use crate::{Appearance, AppearanceMode, IntervalDetails, RenderStyle};
@@ -120,9 +121,6 @@ impl CylinderRenderer {
                 WithPushMap { .. } if !push => continue,
                 _ => {}
             }
-            let (alpha, omega) = (interval.alpha_key, interval.omega_key);
-            let start = fabric.joints[alpha].location;
-            let end = fabric.joints[omega].location;
             let appearance = interval.role.appearance();
             let appearance = match render_style {
                 Normal { .. } => appearance,
@@ -154,102 +152,10 @@ impl CylinderRenderer {
                     }
                 }
             };
-            // Check if this is a pull interval connected to a selected push interval or joint
-            let mut modified_start = start;
-            let mut modified_end = end;
+            let (modified_start, modified_end) = drawn_ends(fabric, interval_key, show_attachment_points);
 
-            // For pull-like intervals, connect them to tab positions on push intervals
-            // only when attachment points are visible (connector mode)
             if interval.role.is_pull_like() && show_attachment_points {
-                if let Some(connector) = fabric.connector.as_ref() {
-                    // Use the current index as the pull interval ID
-                    let pull_key = interval_key;
-
-                    // Process both ends of the pull interval
-                    let joint_keys = [interval.alpha_key, interval.omega_key];
-                    let other_joint_keys = [interval.omega_key, interval.alpha_key];
-                    let modified_points = [&mut modified_start, &mut modified_end];
-
-                    // For each end of the pull interval
-                    for (i, joint_key) in joint_keys.iter().enumerate() {
-                        let other_joint_pos = fabric.joints[other_joint_keys[i]].location;
-
-                        // At a bridle node the cable ends in its terminal,
-                        // pinned through its hole in the node plate.
-                        if fabric.bridle_nodes.contains_key(joint_key) {
-                            if let Some(hole) = connector.pull_end_pivot(fabric, pull_key, *joint_key) {
-                                let aim = connector
-                                    .pull_end_pivot(fabric, pull_key, other_joint_keys[i])
-                                    .unwrap_or(other_joint_pos);
-                                *modified_points[i] = connector.termination(fabric, pull_key, hole, aim);
-                            }
-                            continue;
-                        }
-
-                        // Find all push intervals connected to this joint
-                        for (push_key, push_interval) in fabric.intervals.iter() {
-                            // Only consider push intervals
-                            if push_interval.has_role(Role::Pushing) {
-                                // Check if this push interval is connected to the current joint
-                                if push_interval.touches(*joint_key) {
-                                    // Determine which end of the push interval is connected to the joint
-                                    let push_end = if push_interval.alpha_key == *joint_key {
-                                        IntervalEnd::Alpha
-                                    } else {
-                                        IntervalEnd::Omega
-                                    };
-
-                                    // Get the connection data for this end
-                                    if let Some(connections) = connector.connections(push_key, push_end) {
-                                        // Look for a connection to this pull interval
-                                        for conn in connections.iter() {
-                                            if let Some(pull_conn) = conn {
-                                                if pull_conn.pull_interval_key == pull_key {
-                                                    // Found the connection - calculate carabiner position
-                                                    // Where this end's stack starts, and its outward axis
-                                                    let [alpha_stack, omega_stack] =
-                                                        connector.stack_ends(fabric, push_key);
-                                                    let (push_end_pos, push_axis) = match push_end {
-                                                        IntervalEnd::Alpha => alpha_stack,
-                                                        IntervalEnd::Omega => omega_stack,
-                                                    };
-
-                                                    // The cable ends inside its fork's swage
-                                                    // shank, aimed at the far end's pivot (not
-                                                    // the far joint) so it stays collinear with
-                                                    // the fork even on short cables.
-                                                    let aim = connector
-                                                        .pull_end_pivot(
-                                                            fabric,
-                                                            pull_key,
-                                                            other_joint_keys[i],
-                                                        )
-                                                        .unwrap_or(other_joint_pos);
-                                                    let (pivot_pos, _elevation) =
-                                                        connector.connection_pivot(
-                                                            push_end_pos,
-                                                            push_axis,
-                                                            pull_conn,
-                                                            aim,
-                                                        );
-
-                                                    *modified_points[i] =
-                                                        connector.termination(fabric, pull_key, pivot_pos, aim);
-
-                                                    // We found the connection, no need to check others
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    // Keep looking: at a hinge pin two struts end here,
-                                    // and the cable may be on the other one's stack.
-                                }
-                            }
-                        }
-                    }
-
+                if fabric.connector.is_some() {
                     // Additional processing for selected elements
                     match pick {
                         // If a push interval is selected, we want to ensure that pull intervals
@@ -324,4 +230,104 @@ impl CylinderRenderer {
         // Draw all instances at once
         render_pass.draw_indexed(0..self.num_indices, 0, 0..self.num_instances);
     }
+}
+
+/// Where an interval is drawn: between its joints, or for a cable with the
+/// hardware showing, between its terminations.
+pub fn drawn_ends(fabric: &Fabric, interval_key: IntervalKey, show_attachment_points: bool) -> (Vec3, Vec3) {
+    let interval = &fabric.intervals[interval_key];
+    let mut modified_start = fabric.joints[interval.alpha_key].location;
+    let mut modified_end = fabric.joints[interval.omega_key].location;
+    let connector = match &fabric.connector {
+        Some(connector) if interval.role.is_pull_like() && show_attachment_points => connector,
+        _ => return (modified_start, modified_end),
+    };
+    let pull_key = interval_key;
+
+    // Process both ends of the pull interval
+    let joint_keys = [interval.alpha_key, interval.omega_key];
+    let other_joint_keys = [interval.omega_key, interval.alpha_key];
+    let modified_points = [&mut modified_start, &mut modified_end];
+
+    // For each end of the pull interval
+    for (i, joint_key) in joint_keys.iter().enumerate() {
+        let other_joint_pos = fabric.joints[other_joint_keys[i]].location;
+
+        // At a bridle node the cable ends in its terminal,
+        // pinned through its hole in the node plate.
+        if fabric.bridle_nodes.contains_key(joint_key) {
+            if let Some(hole) = connector.pull_end_pivot(fabric, pull_key, *joint_key) {
+                let aim = connector
+                    .pull_end_pivot(fabric, pull_key, other_joint_keys[i])
+                    .unwrap_or(other_joint_pos);
+                *modified_points[i] = connector.termination(fabric, pull_key, hole, aim);
+            }
+            continue;
+        }
+
+        // Find all push intervals connected to this joint
+        for (push_key, push_interval) in fabric.intervals.iter() {
+            // Only consider push intervals
+            if push_interval.has_role(Role::Pushing) {
+                // Check if this push interval is connected to the current joint
+                if push_interval.touches(*joint_key) {
+                    // Determine which end of the push interval is connected to the joint
+                    let push_end = if push_interval.alpha_key == *joint_key {
+                        IntervalEnd::Alpha
+                    } else {
+                        IntervalEnd::Omega
+                    };
+
+                    // Get the connection data for this end
+                    if let Some(connections) = connector.connections(push_key, push_end) {
+                        // Look for a connection to this pull interval
+                        for conn in connections.iter() {
+                            if let Some(pull_conn) = conn {
+                                if pull_conn.pull_interval_key == pull_key {
+                                    // Found the connection - calculate carabiner position
+                                    // Where this end's stack starts, and its outward axis
+                                    let [alpha_stack, omega_stack] =
+                                        connector.stack_ends(fabric, push_key);
+                                    let (push_end_pos, push_axis) = match push_end {
+                                        IntervalEnd::Alpha => alpha_stack,
+                                        IntervalEnd::Omega => omega_stack,
+                                    };
+
+                                    // The cable ends inside its fork's swage
+                                    // shank, aimed at the far end's pivot (not
+                                    // the far joint) so it stays collinear with
+                                    // the fork even on short cables.
+                                    let aim = connector
+                                        .pull_end_pivot(
+                                            fabric,
+                                            pull_key,
+                                            other_joint_keys[i],
+                                        )
+                                        .unwrap_or(other_joint_pos);
+                                    let (pivot_pos, _elevation) =
+                                        connector.connection_pivot(
+                                            push_end_pos,
+                                            push_axis,
+                                            pull_conn,
+                                            aim,
+                                        );
+
+                                    *modified_points[i] =
+                                        connector.termination(fabric, pull_key, pivot_pos, aim);
+
+                                    // We found the connection, no need to check others
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // Keep looking: at a hinge pin two struts end here,
+                    // and the cable may be on the other one's stack.
+                }
+            }
+        }
+    }
+
+    (modified_start, modified_end)
 }

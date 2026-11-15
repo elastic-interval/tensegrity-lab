@@ -9,16 +9,15 @@ use wgpu_text::glyph_brush::{
 pub enum SectionName {
     Top = 0,
     TopSubtitle = 1,
-    Bottom = 2,
-    Left = 3,
-    Right = 4,
-    BottomLeft = 5,
-    Center = 6,
+    Left = 2,
+    Right = 3,
+    BottomLeft = 4,
+    Center = 5,
 }
 
 impl SectionName {
     const fn count() -> usize {
-        7
+        6
     }
 }
 
@@ -32,10 +31,10 @@ pub struct TextState {
     experiment_title: String,
     control_state: ControlState,
     stage_label: String,
+    quaking: bool,
     fabric_stats: Option<FabricStats>,
     movement_analysis: Option<String>,
     sections: [Option<OwnedSection>; SectionName::count()],
-    keyboard_legend: Option<String>,
     animating: bool,
     frames_per_second: f32,
     age: Age,
@@ -73,15 +72,15 @@ impl TextState {
             experiment_title: "".to_string(),
             control_state: ControlState::Waiting,
             stage_label: "Waiting".to_string(),
+            quaking: false,
             fabric_stats: None,
             movement_analysis: None,
-            keyboard_legend: None,
             sections: Default::default(),
             frames_per_second: 0.0,
             age: Age::default(),
             time_scale: 1.0,
             show_mode: false,
-            white: true,
+            white: false,
         };
         fresh.update_sections();
         fresh
@@ -92,6 +91,9 @@ impl TextState {
         match app_change {
             SetControlState(control_state) => {
                 self.control_state = control_state.clone();
+            }
+            SetQuaking(quaking) => {
+                self.quaking = *quaking;
             }
             SetStageLabel(label) => {
                 self.stage_label = label.clone();
@@ -116,9 +118,6 @@ impl TextState {
             } => {
                 self.experiment_title = title.clone();
                 self.fabric_stats = Some(fabric_stats.clone());
-            }
-            SetKeyboardLegend(legend) => {
-                self.keyboard_legend = Some(legend.clone());
             }
             Time {
                 frames_per_second,
@@ -164,7 +163,8 @@ impl TextState {
             );
 
             // Add state subtitle below title (normal size, not small)
-            self.update_section(SectionName::TopSubtitle, Normal(self.stage_label.clone()));
+            let subtitle = if self.quaking { "Quaking".to_string() } else { self.stage_label.clone() };
+            self.update_section(SectionName::TopSubtitle, Normal(subtitle));
         }
 
         // Show time scale if not 1.0
@@ -184,29 +184,21 @@ impl TextState {
             // title, subtitle, and the bottom-left fps/age strip.
             self.update_section(SectionName::Left, Nothing);
             self.update_section(SectionName::Right, Nothing);
-            self.update_section(SectionName::Bottom, Nothing);
             self.update_section(SectionName::Center, Nothing);
             return;
         }
 
         if !self.mobile_device {
-            self.update_section(
-                SectionName::Bottom,
-                match &self.keyboard_legend {
-                    Some(legend) => Normal(legend.clone()),
-                    None => Nothing,
-                },
-            );
             // What the selection is shows in the scene, on its labels.
             self.update_section(
                 SectionName::Right,
                 match control_state {
                     Viewing { .. } => Large("Click: joint".to_string()),
                     ShowingJoint(_) => Large(
-                        "Click: interval\nRight-click: other joint\nEsc: deselect".to_string(),
+                        "Click: interval\nRight-click: other joint".to_string(),
                     ),
                     ShowingInterval(_) => Large(
-                        "Click: next interval\nRight-click: far end\nEsc: back to joint".to_string(),
+                        "Click: next interval\nRight-click: far end".to_string(),
                     ),
                     PhysicsTesting => match &self.movement_analysis {
                         Some(text) => Normal(text.clone()),
@@ -337,7 +329,6 @@ impl TextState {
         Layout::default()
             .v_align(match section_name {
                 Top | TopSubtitle => VerticalAlign::Top,
-                Bottom => VerticalAlign::Bottom,
                 Left => VerticalAlign::Center,
                 Right => VerticalAlign::Center,
                 BottomLeft => VerticalAlign::Bottom,
@@ -345,7 +336,6 @@ impl TextState {
             })
             .h_align(match section_name {
                 Top | TopSubtitle => HorizontalAlign::Center,
-                Bottom => HorizontalAlign::Center,
                 Left => HorizontalAlign::Left,
                 Right => HorizontalAlign::Right,
                 BottomLeft => HorizontalAlign::Left,
@@ -358,7 +348,6 @@ impl TextState {
         let middle = self.width / 2.0;
         match section_name {
             Top | TopSubtitle => [self.width, self.width],
-            Bottom => [self.width, self.width],
             Left => [middle, self.width],
             Right => [middle, self.width],
             BottomLeft => [middle, middle],
@@ -374,7 +363,6 @@ impl TextState {
         match section_name {
             Top => [middle_h, margin],
             TopSubtitle => [middle_h, margin + 70.0], // Below the title
-            Bottom => [middle_h, self.height - margin],
             Left => [margin, middle_v],
             Right => [self.width - margin, middle_v],
             BottomLeft => [margin, self.height - margin],

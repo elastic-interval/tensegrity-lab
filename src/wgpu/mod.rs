@@ -20,6 +20,7 @@ use crate::{LabEvent, Radio};
 
 pub mod part_meshes;
 pub mod parts_view;
+pub mod button;
 #[cfg(test)]
 pub mod figure;
 pub mod cylinder;

@@ -61,8 +61,9 @@ impl FabricRenderer {
         pick: &Pick,
         preview: Option<(&Pick, f32)>,
         light_background: bool,
+        show_attachment_points: bool,
     ) {
-        self.highlight_renderer.update(wgpu, fabric, pick, preview, light_background);
+        self.highlight_renderer.update(wgpu, fabric, pick, preview, light_background, show_attachment_points);
     }
 
     /// The selection's see-through highlight, drawn last so everything

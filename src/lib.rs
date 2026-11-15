@@ -16,7 +16,7 @@ pub mod crucible_context;
 pub mod fabric_json;
 pub mod events;
 pub mod fabric;
-pub mod keyboard;
+pub mod button_bar;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod physics_gpu;
 pub mod pointer;

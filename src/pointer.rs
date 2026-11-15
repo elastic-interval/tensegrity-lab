@@ -88,8 +88,13 @@ impl PointerHandler {
             return; // We've handled the pinch, no need to process further
         }
 
-        // For non-pinch touches, only process if there's exactly one touch
-        if self.active_touch_count != 1 {
+        // For non-pinch touches, only process if there's exactly one touch,
+        // or there was one and it just ended.
+        let lone = match touch.phase {
+            TouchPhase::Ended | TouchPhase::Cancelled => self.active_touch_count == 0,
+            _ => self.active_touch_count == 1,
+        };
+        if !lone {
             return; // Skip multi-touch events that aren't pinches
         }
 

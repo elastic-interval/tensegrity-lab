@@ -5,21 +5,19 @@ use crate::build::algo::tensegrity_sphere::generate_sphere;
 use crate::build::dsl::fabric_library;
 use crate::build::dsl::fabric_plan_executor::ExecutorStage;
 use crate::camera::Framing;
+use crate::button_bar::ButtonBar;
 use crate::crucible::Crucible;
-use crate::keyboard::Keyboard;
 use crate::pointer::PointerHandler;
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 use crate::{
     Age, ControlState, CrucibleAction, LabEvent, PointerChange, Radio, RunStyle, StateChange,
-    TesterAction,
 };
 use instant::{Duration, Instant};
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
-use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{WindowAttributes, WindowId};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -40,10 +38,6 @@ struct NativeState {
     record_until: Option<Seconds>,
     gpu_batch: Option<GpuBatch>,
 }
-
-/// True when compiled for the web. The web build is pure mouse-driven: no
-/// keyboard, no selection.
-const WEB: bool = cfg!(target_arch = "wasm32");
 
 /// Show-mode state (cycle): walk through every named fabric, pause
 /// `CYCLE_DWELL` after each one completes (`FabricBuilt`), then move to
@@ -67,7 +61,7 @@ pub struct Application {
     mobile_device: bool,
     window_attributes: WindowAttributes,
     scene: Option<Scene>,
-    keyboard: Keyboard,
+    button_bar: ButtonBar,
     crucible: Crucible,
     radio: Radio,
     last_update: Instant,
@@ -104,8 +98,8 @@ impl Application {
             mobile_device: false,
             window_attributes,
             radio: radio.clone(),
-            keyboard: Keyboard::new(radio.clone()).with_actions(model_scale.map(|n| 1.0 / n)),
             scene: None,
+            button_bar: ButtonBar::new(model_scale.is_some()),
             crucible: Crucible::new(radio.clone()),
             last_update: Instant::now(),
             accumulated_time: Duration::default(),
@@ -122,11 +116,6 @@ impl Application {
             #[cfg(not(target_arch = "wasm32"))]
             native: NativeState::default(),
         }
-    }
-
-    /// Adjust time scale by a factor
-    pub fn adjust_time_scale(&mut self, factor: f32) {
-        self.time_scale = (self.time_scale * factor).clamp(0.1, 100.0);
     }
 
     /// Enable Show mode: after each fabric finishes, wait `CYCLE_DWELL`
@@ -155,11 +144,8 @@ impl Application {
     }
 
     fn redraw(&mut self) {
-        // Update keyboard legend (the web build has no keyboard, so no legend)
-        if !WEB {
-            StateChange::SetKeyboardLegend(self.keyboard.legend(&self.control_state).join(", "))
-                .send(&self.radio);
-        }
+        let buttons = self.button_bar.buttons(&self.control_state);
+        self.with_scene(|scene| scene.set_buttons(buttons));
 
         if self.last_motion.elapsed() >= MOTION_INTERVAL {
             self.last_motion = Instant::now();
@@ -534,7 +520,8 @@ impl ApplicationHandler<LabEvent> for Application {
                 StateChange::SetStageLabel("Viewing".to_string()).send(&self.radio);
                 let connectors_showing =
                     self.with_scene(|scene| scene.render_style_shows_attachment_points()).unwrap_or(true);
-                if self.crucible.fabric.dimensions.connectors_shown && !connectors_showing {
+                // Connectors show at real scale, never on a model.
+                if self.model_scale.is_none() && !connectors_showing {
                     StateChange::ToggleAttachmentPoints.send(&self.radio);
                 }
                 if self.mobile_device && self.crucible.animation_available() {
@@ -571,9 +558,6 @@ impl ApplicationHandler<LabEvent> for Application {
                     self.redraw();
                 }
             }
-            AdjustTimeScale(factor) => {
-                self.adjust_time_scale(factor);
-            }
             SetTimeScale(scale) => {
                 self.time_scale = scale.clamp(0.1, 100.0);
             }
@@ -589,33 +573,6 @@ impl ApplicationHandler<LabEvent> for Application {
                 match &app_change {
                     StateChange::SetControlState(control_state) => {
                         self.control_state = control_state.clone();
-                        // The web build has no keyboard, so no legend.
-                        if !WEB {
-                            StateChange::SetKeyboardLegend(
-                                self.keyboard.legend(control_state).join(", "),
-                            )
-                            .send(&self.radio);
-                        }
-                    }
-                    StateChange::SetTweakParameter(parameter) => {
-                        self.keyboard.set_tweak_parameter(parameter);
-                        self.crucible.physics.accept_tweak(parameter.clone());
-
-                        // Trigger fabric rebuild (but not in PhysicsTesting mode)
-                        if !matches!(self.control_state, ControlState::PhysicsTesting) {
-                            RebuildFabric.send(&self.radio);
-                        }
-
-                        CrucibleAction::TesterDo(TesterAction::SetTweakParameter(
-                            parameter.clone(),
-                        ))
-                        .send(&self.radio);
-                        if !WEB {
-                            StateChange::SetKeyboardLegend(
-                                self.keyboard.legend(&self.control_state).join(", "),
-                            )
-                            .send(&self.radio);
-                        }
                     }
                     _ => {}
                 }
@@ -670,53 +627,16 @@ impl ApplicationHandler<LabEvent> for Application {
                         *when = Instant::now() + CYCLE_DWELL;
                     }
                 }
-                if let Some(scene) = &mut self.scene {
-                    scene.pointer_changed(pointer_change, &self.crucible.fabric);
-                }
-            }
-            #[cfg(not(target_arch = "wasm32"))]
-            ToggleAnimationExport => {
-                if let Some(exporter) = &mut self.native.animation_exporter {
-                    // Stop recording
-                    let frame_count = exporter.frame_count();
-                    match exporter.stop() {
-                        Ok(_) => {
-                            let label = format!("Saved {} frames", frame_count);
-                            StateChange::SetStageLabel(label).send(&self.radio);
-                        }
-                        Err(e) => {
-                            eprintln!("Animation export error: {}", e);
-                            StateChange::SetStageLabel("Export error".to_string())
-                                .send(&self.radio);
-                        }
+                let pressed = self
+                    .scene
+                    .as_mut()
+                    .and_then(|scene| scene.pointer_changed(pointer_change, &self.crucible.fabric));
+                if let Some(event) = pressed {
+                    // A button pressed in Show mode stays on this fabric.
+                    if self.cycle.take().is_some() {
+                        StateChange::SetShowMode(false).send(&self.radio);
                     }
-                    self.native.animation_exporter = None;
-                } else {
-                    // Start recording
-                    let mut exporter = AnimationExporter::new("animation_export", 100.0);
-                    exporter.start();
-                    StateChange::SetStageLabel("Recording...".to_string()).send(&self.radio);
-                    self.native.animation_exporter = Some(exporter);
-                }
-            }
-            #[cfg(not(target_arch = "wasm32"))]
-            ExportSnapshot => {
-                let exporter = self
-                    .native
-                    .animation_exporter
-                    .get_or_insert_with(|| AnimationExporter::new("animation_export", 100.0));
-                match exporter.snapshot(&self.crucible.fabric) {
-                    Ok(path) => {
-                        let label = format!(
-                            "Snapshot: {}",
-                            path.file_name().unwrap_or_default().to_string_lossy()
-                        );
-                        StateChange::SetStageLabel(label).send(&self.radio);
-                    }
-                    Err(e) => {
-                        eprintln!("Snapshot error: {}", e);
-                        StateChange::SetStageLabel("Snapshot error".to_string()).send(&self.radio);
-                    }
+                    event.send(&self.radio);
                 }
             }
             #[cfg(not(target_arch = "wasm32"))]
@@ -748,34 +668,6 @@ impl ApplicationHandler<LabEvent> for Application {
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
-                return;
-            }
-            WindowEvent::KeyboardInput {
-                event: key_event, ..
-            } => {
-                // The web build is pure mouse-driven — ignore all keyboard input.
-                if WEB {
-                    return;
-                }
-                // In Show mode the bottom legend is hidden, so we
-                // suppress all key bindings too — only window-level keys
-                // (e.g. CloseRequested via Cmd+W / Alt+F4) still work.
-                if self.cycle.is_some() {
-                    return;
-                }
-                // The parts view takes the keyboard too: only leaving it works.
-                if self.scene.as_ref().is_some_and(|scene| scene.parts_view_showing()) {
-                    let leave = matches!(
-                        key_event.physical_key,
-                        PhysicalKey::Code(KeyCode::Escape | KeyCode::KeyP)
-                    );
-                    if leave && key_event.state.is_pressed() && !key_event.repeat {
-                        LabEvent::UpdateState(StateChange::TogglePartsView).send(&self.radio);
-                    }
-                    return;
-                }
-                self.keyboard
-                    .handle_key_event(key_event, &self.control_state);
                 return;
             }
             _ => {}
@@ -928,19 +820,20 @@ impl ApplicationHandler<LabEvent> for Application {
             self.accumulated_time -= update_interval;
             updates_this_frame += 1;
 
-            // Calculate iterations needed to maintain time scale
-            let iterations_per_second = Age::iterations_per_second();
-            let iterations_per_frame = if self.current_fps > 0.0 && animate {
-                (self.time_scale * iterations_per_second / self.current_fps).round() as usize
+            // Real time: each update moves the fabric on by the update
+            // interval, however many frames a second there are.
+            let iterations_per_update = if animate {
+                let seconds = update_interval.as_secs_f32();
+                (self.time_scale * Age::iterations_per_second() * seconds).round() as usize
             } else {
                 0
             };
 
-            if iterations_per_frame > 0 {
+            if iterations_per_update > 0 {
                 #[cfg(not(target_arch = "wasm32"))]
                 if let Some(batch) = &self.native.gpu_batch {
                     if let Some(scene) = &self.scene {
-                        batch.step(&scene.wgpu.device, &scene.wgpu.queue, iterations_per_frame as u32);
+                        batch.step(&scene.wgpu.device, &scene.wgpu.queue, iterations_per_update as u32);
                         let positions = batch.read_positions(&scene.wgpu.device, &scene.wgpu.queue);
                         // Periodically check the GPU's frozen flag; if set, surface
                         // it once as a stage label so the user can tell "frozen"
@@ -966,7 +859,7 @@ impl ApplicationHandler<LabEvent> for Application {
                                 let y_min = positions.iter().map(|p| p.y).fold(f32::INFINITY, f32::min);
                                 eprintln!(
                                     "[gpu-live] frame={} iters={} joints={} y=[{:.3},{:.3}]",
-                                    n, iterations_per_frame, positions.len(), y_min, y_max,
+                                    n, iterations_per_update, positions.len(), y_min, y_max,
                                 );
                             }
                         }
@@ -975,10 +868,10 @@ impl ApplicationHandler<LabEvent> for Application {
                         }
                     }
                 } else {
-                    self.crucible.iterate(iterations_per_frame);
+                    self.crucible.iterate(iterations_per_update);
                 }
                 #[cfg(target_arch = "wasm32")]
-                self.crucible.iterate(iterations_per_frame);
+                self.crucible.iterate(iterations_per_update);
             }
 
             // Capture frame for animation export if enabled (works in all states)
@@ -996,7 +889,7 @@ impl ApplicationHandler<LabEvent> for Application {
                     self.native.record_until = None;
                     self.native.animation_exporter = None;
                 } else {
-                    exporter.tick(&self.crucible.fabric, iterations_per_frame);
+                    exporter.tick(&self.crucible.fabric, iterations_per_update);
                 }
             }
         }

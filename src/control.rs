@@ -243,7 +243,9 @@ impl JointDetails {
 pub enum ControlState {
     Waiting,
     Building,
-    Viewing { animation_available: bool },
+    /// Physics testing is for fabrics made without a plan: the sphere,
+    /// the Klein bottle and the Möbius strip.
+    Viewing { animation_available: bool, physics_testing_available: bool },
     Animating,
     ShowingJoint(JointDetails),
     ShowingInterval(IntervalDetails),

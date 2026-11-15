@@ -1,5 +1,6 @@
 use crate::camera::Pick;
 use crate::fabric::Fabric;
+use crate::wgpu::cylinder_renderer::drawn_ends;
 use crate::wgpu::highlight_renderer::{sphere_radius, tube_radius};
 use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::{default_depth_stencil_state, Wgpu};
@@ -11,26 +12,26 @@ use wgpu_text::glyph_brush::{HorizontalAlign, Layout, OwnedSection, OwnedText, V
 // In physical pixels.
 const FONT_SIZE: f32 = 36.0;
 const PADDING: Vec2 = Vec2::new(16.0, 10.0);
-const CORNER_RADIUS: f32 = 12.0;
+pub(super) const CORNER_RADIUS: f32 = 12.0;
 const LEADER_LENGTH: f32 = 70.0;
 const LEADER_WIDTH: f32 = 3.0;
 // The box's border, in the leader's colour and width.
-const BORDER_WIDTH: f32 = LEADER_WIDTH;
+pub(super) const BORDER_WIDTH: f32 = LEADER_WIDTH;
 const LABEL_GAP: f32 = 10.0;
 
-struct Palette {
-    background: [f32; 4],
-    text: [f32; 4],
-    leader: [f32; 4],
+pub(super) struct Palette {
+    pub(super) background: [f32; 4],
+    pub(super) text: [f32; 4],
+    pub(super) leader: [f32; 4],
 }
 
-const ON_DARK: Palette = Palette {
+pub(super) const ON_DARK: Palette = Palette {
     background: [0.02, 0.02, 0.025, 0.92],
     text: [0.85, 0.85, 0.85, 1.0],
     leader: [0.6, 0.6, 0.6, 1.0],
 };
 
-const ON_LIGHT: Palette = Palette {
+pub(super) const ON_LIGHT: Palette = Palette {
     background: [0.92, 0.92, 0.9, 0.92],
     text: [0.0, 0.0, 0.0, 1.0],
     leader: [0.15, 0.15, 0.15, 1.0],
@@ -39,7 +40,7 @@ const ON_LIGHT: Palette = Palette {
 /// A rounded rectangle on screen, in pixels.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
-struct BoxVertex {
+pub(super) struct BoxVertex {
     position: [f32; 2],
     local: [f32; 2],
     half_size: [f32; 2],
@@ -64,48 +65,7 @@ pub struct LabelRenderer {
 
 impl LabelRenderer {
     pub fn new(wgpu: &Wgpu) -> Self {
-        let layout = wgpu.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Label Pipeline Layout"),
-            bind_group_layouts: &[],
-            immediate_size: 0,
-        });
-        let pipeline = wgpu.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            cache: None,
-            label: Some("Label Pipeline"),
-            layout: Some(&layout),
-            vertex: wgpu::VertexState {
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                module: &wgpu.shader,
-                entry_point: Some("label_vertex"),
-                buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: size_of::<BoxVertex>() as wgpu::BufferAddress,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &BOX_VERTEX_ATTRIBUTES,
-                }],
-            },
-            fragment: Some(wgpu::FragmentState {
-                compilation_options: wgpu::PipelineCompilationOptions {
-                    constants: wgpu.gamma_constants(),
-                    ..Default::default()
-                },
-                module: &wgpu.shader,
-                entry_point: Some("label_fragment"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: wgpu.surface_configuration.format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: Some(wgpu::DepthStencilState {
-                depth_write_enabled: false,
-                depth_compare: wgpu::CompareFunction::Always,
-                ..default_depth_stencil_state()
-            }),
-            multisample: wgpu::MultisampleState::default(),
-            multiview_mask: None,
-        });
-        Self { pipeline, vertices: None }
+        Self { pipeline: create_box_pipeline(wgpu), vertices: None }
     }
 
     /// Lay out this frame's labels: their boxes here, their text in the
@@ -120,13 +80,14 @@ impl LabelRenderer {
         screen_up: Vec3,
         scale: f32,
         light_background: bool,
+        show_attachment_points: bool,
     ) {
         let palette = if light_background { &ON_LIGHT } else { &ON_DARK };
         let (width, height) = wgpu.size();
         let mut placed: Vec<(Vec2, Vec2)> = Vec::new();
         let mut vertices = Vec::new();
         let mut sections = Vec::new();
-        for (anchor, radius, text) in labels(fabric, pick, scale) {
+        for (anchor, radius, text) in labels(fabric, pick, scale, show_attachment_points) {
             // The line ends on top of the highlight, not at its centre.
             let Some(point) = to_screen(mvp, anchor + screen_up * radius, width, height) else {
                 continue;
@@ -187,10 +148,55 @@ impl LabelRenderer {
     }
 }
 
+/// Draws `BoxVertex` triangles over the scene.
+pub(super) fn create_box_pipeline(wgpu: &Wgpu) -> wgpu::RenderPipeline {
+    let layout = wgpu.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("Label Pipeline Layout"),
+        bind_group_layouts: &[],
+        immediate_size: 0,
+    });
+    wgpu.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        cache: None,
+        label: Some("Label Pipeline"),
+        layout: Some(&layout),
+        vertex: wgpu::VertexState {
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            module: &wgpu.shader,
+            entry_point: Some("label_vertex"),
+            buffers: &[wgpu::VertexBufferLayout {
+                array_stride: size_of::<BoxVertex>() as wgpu::BufferAddress,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &BOX_VERTEX_ATTRIBUTES,
+            }],
+        },
+        fragment: Some(wgpu::FragmentState {
+            compilation_options: wgpu::PipelineCompilationOptions {
+                constants: wgpu.gamma_constants(),
+                ..Default::default()
+            },
+            module: &wgpu.shader,
+            entry_point: Some("label_fragment"),
+            targets: &[Some(wgpu::ColorTargetState {
+                format: wgpu.surface_configuration.format,
+                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: Some(wgpu::DepthStencilState {
+            depth_write_enabled: false,
+            depth_compare: wgpu::CompareFunction::Always,
+            ..default_depth_stencil_state()
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview_mask: None,
+    })
+}
+
 /// What to label: the selected joint, or the selected interval and the
 /// joint the next click continues from, each with its highlight's centre
 /// and radius.
-fn labels(fabric: &Fabric, pick: &Pick, scale: f32) -> Vec<(Vec3, f32, String)> {
+fn labels(fabric: &Fabric, pick: &Pick, scale: f32, show_attachment_points: bool) -> Vec<(Vec3, f32, String)> {
     let bubble = sphere_radius(fabric);
     match pick {
         Pick::Nothing => vec![],
@@ -202,7 +208,10 @@ fn labels(fabric: &Fabric, pick: &Pick, scale: f32) -> Vec<(Vec3, f32, String)> 
             vec![
                 (fabric.location(details.near_joint), bubble, details.near_joint_label.clone()),
                 (
-                    interval.midpoint(&fabric.joints),
+                    {
+                        let (start, end) = drawn_ends(fabric, details.key, show_attachment_points);
+                        (start + end) / 2.0
+                    },
                     tube_radius(fabric, interval),
                     details.label_text(scale),
                 ),
@@ -220,7 +229,7 @@ fn to_screen(mvp: Mat4, point: Vec3, width: f32, height: f32) -> Option<Vec2> {
     Some(Vec2::new((ndc.x + 1.0) / 2.0 * width, (1.0 - ndc.y) / 2.0 * height))
 }
 
-fn push_box(
+pub(super) fn push_box(
     vertices: &mut Vec<BoxVertex>,
     center: Vec2,
     half: Vec2,

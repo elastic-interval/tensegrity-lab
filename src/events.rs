@@ -2,9 +2,7 @@
 //! proxy). Anything the simulation, UI, or user sends to be reacted to lives
 //! here. UI state types that *react* to events live in `control.rs`.
 
-use crate::control::{
-    AppearanceFunction, ControlState, PointerChange, TweakParameter,
-};
+use crate::control::{AppearanceFunction, ControlState, PointerChange, TweakFeature};
 use crate::build::dsl::FabricPlan;
 use crate::fabric::{self, FabricMotion, FabricStats, JointKey};
 use crate::units::Meters;
@@ -14,7 +12,8 @@ use std::fmt::{Debug, Formatter};
 
 #[derive(Debug, Clone)]
 pub enum TesterAction {
-    SetTweakParameter(TweakParameter),
+    /// Multiply the mass or rigidity by a factor.
+    ScaleTweak(TweakFeature, f32),
     DumpPhysics,
     ToggleMovementSampler,
 }
@@ -29,6 +28,8 @@ pub enum CrucibleAction {
     CentralizeFabric(Option<Meters>),
     /// Step the wind: from the front, the side, behind, then off.
     CycleWind,
+    /// Start the ground shaking, or stop it.
+    Quake,
     ClearSelection,
     AdjustAnimationFrequency(f32),
     ToViewing,
@@ -54,6 +55,8 @@ pub enum StateChange {
     SetFabricMotion(FabricMotion),
     SetControlState(ControlState),
     SetStageLabel(String),
+    /// The ground shaking or not, shown over the stage label.
+    SetQuaking(bool),
     ResetView,
     RestartApproach,
     JumpToFabric,
@@ -70,8 +73,6 @@ pub enum StateChange {
         title: String,
         fabric_stats: FabricStats,
     },
-    SetKeyboardLegend(String),
-    SetTweakParameter(TweakParameter),
     Time {
         frames_per_second: f32,
         age: Age,
@@ -87,8 +88,7 @@ pub enum StateChange {
     ToggleBackground,
     /// Show movement analysis overlay (None to hide)
     ShowMovementAnalysis(Option<String>),
-    /// Hide left/right text overlays and the bottom keyboard legend (for
-    /// `--cycle` Show mode).
+    /// Hide left/right text overlays (for `--cycle` Show mode).
     SetShowMode(bool),
 }
 
@@ -100,6 +100,7 @@ impl Debug for StateChange {
             StateChange::SetFabricMotion(_) => "SetFabricMotion()",
             StateChange::SetControlState(_) => "SetControlState()",
             StateChange::SetStageLabel(_) => "SetStageLabel()",
+            StateChange::SetQuaking(_) => "SetQuaking()",
             StateChange::SetAppearanceFunction(_) => "SetColorFunction()",
             StateChange::SetIntervalColor { .. } => "SetIntervalColor()",
             StateChange::ResetView => "ResetView()",
@@ -108,8 +109,6 @@ impl Debug for StateChange {
             StateChange::BackToJoint => "BackToJoint()",
             StateChange::SetAnimating(_) => "SetAnimating()",
             StateChange::SetExperimentTitle { .. } => "SetExperimentTitle()",
-            StateChange::SetKeyboardLegend(_) => "SetKeyboardLegend()",
-            StateChange::SetTweakParameter(_) => "SetTweakParameter()",
             StateChange::Time { .. } => "Time()",
             StateChange::ToggleProjection => "ToggleProjection",
             StateChange::ToggleAttachmentPoints => "ToggleAttachmentPoints",
@@ -143,14 +142,9 @@ pub enum LabEvent {
     NextBrick,
     RequestRedraw,
     PointerChanged(PointerChange),
-    AdjustTimeScale(f32),
     SetTimeScale(f32),
     #[cfg(not(target_arch = "wasm32"))]
     ToGpuPhysics,
-    #[cfg(not(target_arch = "wasm32"))]
-    ToggleAnimationExport,
-    #[cfg(not(target_arch = "wasm32"))]
-    ExportSnapshot,
 }
 
 pub type Radio = winit::event_loop::EventLoopProxy<LabEvent>;

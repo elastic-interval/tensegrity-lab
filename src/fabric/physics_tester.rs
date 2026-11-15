@@ -75,8 +75,19 @@ impl PhysicsTester {
     pub fn action(&mut self, action: TesterAction) {
         use TesterAction::*;
         match action {
-            SetTweakParameter(parameter) => {
-                self.physics.accept_tweak(parameter);
+            ScaleTweak(feature, factor) => {
+                use crate::TweakFeature::*;
+                let value = match feature {
+                    MassScale => self.physics.mass_multiplier(),
+                    RigidityScale => self.physics.rigidity_multiplier(),
+                } * factor;
+                self.physics.accept_tweak(feature.parameter(value));
+                let label = format!(
+                    "Mass ×{:.2}, rigidity ×{:.2}",
+                    self.physics.mass_multiplier(),
+                    self.physics.rigidity_multiplier()
+                );
+                StateChange::SetStageLabel(label).send(&self.radio);
             }
             DumpPhysics => {
                 println!("{:?}", self.physics);

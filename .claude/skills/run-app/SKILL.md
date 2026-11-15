@@ -3,7 +3,7 @@ name: run-app
 description: >
   Launch the native tensegrity-lab app on a fabric so Gerald can watch it build, stand, animate or
   take the wind. Builds release, starts the window in the background, confirms it is running, and
-  lists the keys. Invoke when the user says "run HH", "run Open Claw", "start the app", "show me
+  lists the buttons. Invoke when the user says "run HH", "run Open Claw", "start the app", "show me
   the wind", "launch <fabric>", or invokes /run-app. Argument: a fabric name (defaults to Headless
   Hug).
 ---
@@ -11,7 +11,7 @@ description: >
 # run-app
 
 The app is a native wgpu window. It opens on Gerald's own screen, so he watches and drives it; you
-launch it and tell him which keys do what.
+launch it and tell him which buttons do what.
 
 ## Steps
 
@@ -33,31 +33,27 @@ launch it and tell him which keys do what.
    `app.log` holds no panic. When the background task finishes, the window was closed (exit 0) or
    it crashed (read the log).
 
-4. **Tell him the keys that matter for what he asked**, from the table below. The window also
-   lists the keys available at each moment.
+4. **Tell him the buttons that matter for what he asked**, from the table below. There are no
+   key bindings: the buttons along the bottom are the controls, each shown only where it applies.
 
-## Keys
+## Buttons
 
-The fabric builds, pretensions, falls and settles by itself; most keys work once it stands
+The fabric builds, pretensions, falls and settles by itself; most buttons appear once it stands
 (Viewing).
 
-| Key | Does |
+| Button | Does |
 |---|---|
-| W | Wind, cycling: from the front, the side, behind, then off (`src/fabric/wind.rs`) |
-| A | Start / stop the animation |
-| F / f | Faster / slower animation |
-| T / t | Faster / slower time |
-| C | Connector hardware (Open Claw, Headless Hug), or colour by role |
-| P | The parts, full screen; P or Esc to return |
-| S | Movement stats |
-| G | Live GPU physics |
-| X | Physics testing (gravity) |
-| M / m, R / r | Mass and rigidity up / down, while physics testing |
-| J | Jump |
-| Enter | Fast-forward the build, or reload the fabric |
-| N | Snapshot |
-| M | Record a movie (outside physics testing) |
-| Esc | Cancel the selection, then exit |
+| Wind | Cycling: from the front, the side, behind, then off (`src/fabric/wind.rs`) |
+| Quake | Start / stop the ground shaking, up to half of g (`src/fabric/quake.rs`) |
+| Start / Stop animation | The animation |
+| − Frequency + | Slower / faster animation |
+| Parts | The parts, full screen; Back to return |
+| Background | The starry sky (the default) or white |
+| Fast-forward / Reload fabric | Fast-forward the build, or reload the fabric |
+| Deselect / Back to joint | Step back out of a selection |
+
+The connector hardware always shows at real scale. A movie is recorded from the command line
+(`--record <seconds>`).
 
 Click a joint or interval to select it; drag to orbit, wheel to zoom.
 

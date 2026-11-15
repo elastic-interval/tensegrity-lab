@@ -10,6 +10,7 @@ pub struct TextRenderer {
     text_state: TextState,
     brush: TextBrush<FontRef<'static>>,
     labels: Vec<OwnedSection>,
+    buttons: Vec<OwnedSection>,
 }
 
 impl TextRenderer {
@@ -27,7 +28,7 @@ impl TextRenderer {
                     wgpu.surface_configuration.format,
                 );
         let text_state = TextState::new(mobile_device, model_scale, width, height);
-        TextRenderer { brush, text_state, labels: Vec::new() }
+        TextRenderer { brush, text_state, labels: Vec::new(), buttons: Vec::new() }
     }
 
     pub fn update_state(&mut self, state_change: &StateChange) {
@@ -43,12 +44,17 @@ impl TextRenderer {
         self.labels = labels;
     }
 
+    /// The buttons' text, drawn with everything else.
+    pub fn set_buttons(&mut self, buttons: Vec<OwnedSection>) {
+        self.buttons = buttons;
+    }
+
     pub fn render<'a>(&'a mut self, render_pass: &mut RenderPass<'a>, wgpu: &Wgpu) {
         self.brush
             .queue(
                 &wgpu.device,
                 &wgpu.queue,
-                self.text_state.sections().into_iter().chain(&self.labels),
+                self.text_state.sections().into_iter().chain(&self.labels).chain(&self.buttons),
             )
             .unwrap();
         self.brush.draw(render_pass);
