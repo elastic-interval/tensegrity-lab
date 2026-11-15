@@ -354,15 +354,47 @@ connectors clear and, settled under gravity, gives struts a median of 3.0 kN (ma
 `force`). Less collides (0.2–0.4%); more raises the forces by half (0.6%) and
 tips the stance.
 
-The most loaded, settled:
+The most loaded cables, standing and at the peak of the animation at its
+resonance (2026-11-15; forces averaged over 20 ms, which removes a fast axial
+ringing that only the simulation has, and peaks taken after the first period):
 
-| Cable | Settled |
-|---|---:|
-| L45–L30, R45–R30 | 5.0, 5.1 kN |
-| L5–L5b, R5–R5b (hangers, M8 rod) | 4.9, 5.0 kN |
-| R43–R32 | 4.5 kN |
-| L5b–Z4, R5b–Z4 | 4.4, 4.4 kN |
-| Z5b–Z1 | 4.3 kN |
+| Cable | Length | Standing | Peak |
+|---|---:|---:|---:|
+| L45–L30, R45–R30 | 0.76 m | 5.0, 5.2 kN | 6.9, **7.2 kN** |
+| L43–L32, R43–R32 | 0.72 m | 4.4, 4.4 kN | 6.1, 6.4 kN |
+| L5–L5b, R5–R5b (hangers, M8 rod) | 0.11 m | 4.8, 4.9 kN | 5.9, 5.9 kN |
+| Z5b–Z1 | 0.35 m | 4.2 kN | 5.6 kN |
+| L32–L44, R32–R44 | 0.97 m | 3.7, 3.7 kN | 5.4, 5.6 kN |
+| L5b–Z4, R5b–Z4 | 0.81 m | 4.4, 4.5 kN | 5.4, 5.4 kN |
+| L15–L15b, R15–R15b (hangers) | 0.12 m | 4.2, 4.1 kN | 5.3, 5.2 kN |
+| L5–L2, R5–R2 | 0.86 m | 4.2, 4.2 kN | 5.2, 5.2 kN |
+
+Of 272 tension members the median carries 1.5 kN standing; 2 are slack standing
+and 6 go slack at some point in each cycle. The worst peak, 7.2 kN, is 28% of a
+6 mm cable's 25.5 kN breaking load, a factor of 3.5, below the factor of 5 usual
+for wire rope: at that factor its working load is 5.1 kN, which L45–L30 and R45–R30
+reach standing. The fork rods peak at 3.9 kN, the guy lines at 1.7 kN. The hangers'
+5.9 kN is on M8 rod and the forks' 3.8 mm jaws, whose capacity depends on the rod's
+grade and needs the engineer.
+
+The most loaded struts, whose risk is bowing: each strut's ideal (Euler) buckling
+load is worked out as the telescoped tube it is, pinned at both ends, 33×3 inner
+tube alone at its ends and 40×3 outer between, the overlap counted as the outer
+alone. That is on the safe side, but no design factors are applied. Margin is
+that load over the force; a code check would want roughly 2.
+
+| Strut | Length | Standing | Peak | Buckling load | Margin at peak |
+|---|---:|---:|---:|---:|---:|
+| Z1–Z2 | 2.40 m | 4.0 kN | 5.5 kN | 6.6 kN | **1.20** |
+| L5–L6, R5–R6 | 2.28 m | 4.9, 5.0 kN | 6.0, 6.0 kN | 7.4 kN | 1.23, 1.24 |
+| Z3–Z4 | 2.38 m | 4.0 kN | 5.0 kN | 6.7 kN | 1.34 |
+| L2–R2 | 2.38 m | 4.0 kN | 4.9 kN | 6.7 kN | 1.36 |
+
+These five need the engineer's buckling check. Open Claw's struts passed it at
+similar lengths, so the real margin is likely better than this. Retuned for each
+scale (pretension and guy lines), 0.8 leaves L5–L6 and R5–R6 at their buckling load
+standing (margin 0.82 at peak) or, at a lower pretension, collides; 0.7 collides
+too and gives Z1–Z2 no more margin (1.10). 0.75 is the best of the three.
 
 These move by up to 1 kN with the stance, which isn't pinned down: a change in
 floating-point rounding alone (the order of a multiplication in the physics, or
@@ -371,11 +403,6 @@ leans the settled figure by about 1° (14 cm at its 8.4 m apex), changing the
 forces with it. The real stance is set by the guy lines; see the next section.
 The settle runs 30 s, long enough for the sway to die away: afterwards nothing
 moves more than 7 mm (`headless_hug_stands_upright` checks it).
-
-Through the animation at its resonance, measured on 2026-11-04 when these were
-about 1 kN lower settled, no cable passed 6.3 kN, a quarter of a 6 mm cable's
-25.5 kN breaking load; the most loaded rose by about 2 kN at their peak. Nothing
-measures the peaks automatically, so they need measuring again.
 
 Wind isn't modelled; Open Claw's engineer had cables reaching 4.7 kN under wind
 alone. 8 mm cable for any of these is the engineer's call with real load cases.
