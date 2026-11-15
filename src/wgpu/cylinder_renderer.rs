@@ -178,7 +178,7 @@ impl CylinderRenderer {
             }
 
             // With the hardware showing, a strut is its tubes, drawn as parts.
-            if interval.has_role(Role::Pushing) && (interval.is_out() || show_attachment_points && fabric.connector.is_some()) {
+            if interval.is_out() || interval.has_role(Role::Pushing) && show_attachment_points && fabric.connector.is_some() {
                 continue;
             }
 

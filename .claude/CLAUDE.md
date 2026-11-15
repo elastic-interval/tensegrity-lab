@@ -293,6 +293,7 @@ src/
 ├── fabric/
 │   ├── mod.rs          # Fabric struct + main impl
 │   ├── bridle.rs       # Fabric::bridle, tighten_bridles, hang_bridles
+│   ├── chain.rs        # A slack cable hung as a chain so it drapes (Fabric::drape, the assembly)
 │   ├── symmetrize.rs   # symmetrize_mirror (exact mirror shape for connectors)
 │   ├── dimensions.rs   # FabricDimensions (incl. optional connector config)
 │   ├── interval.rs     # Interval, Role, Span

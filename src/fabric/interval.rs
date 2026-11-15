@@ -382,6 +382,9 @@ pub struct Interval {
     pub unit: Vec3,
     pub strain: f32,
     pub stiffness: Percent,
+    /// A segment of a slack cable hung as a chain (`fabric/chain.rs`): it
+    /// has the cable's mass along it but no end fittings of its own.
+    pub chain: bool,
 }
 
 impl Interval {
@@ -400,6 +403,7 @@ impl Interval {
             unit: Vec3::ZERO,
             strain: 0.0,
             stiffness: Percent(100.0),
+            chain: false,
         }
     }
 
@@ -486,8 +490,9 @@ impl Interval {
         }
     }
 
-    /// A strut taken out of the fabric, its caps left on the cable net:
-    /// it neither pushes nor weighs anything, and is not drawn.
+    /// Taken out of the fabric but kept, with its key: a strut whose caps
+    /// stay on the cable net, or a slack cable hung as a chain. It carries
+    /// and weighs nothing, and is not drawn.
     pub fn is_out(&self) -> bool {
         self.stiffness.0 == 0.0
     }
@@ -557,13 +562,17 @@ impl Interval {
 
         // Mass: a constant per identical telescoping strut when declared, else the
         // length-proportional density.
-        let (interval_mass, end_mass) = dimensions.interval_masses(self.material, self.role, actual_length, physics);
+        let (interval_mass, end_mass) = if self.chain {
+            (dimensions.linear_density(self.material, physics) * actual_length, crate::units::Grams(0.0))
+        } else {
+            dimensions.interval_masses(self.material, self.role, actual_length, physics)
+        };
         let end_mass = interval_mass / 2.0 + end_mass;
         joints[alpha_key].accumulated_mass += end_mass;
         joints[omega_key].accumulated_mass += end_mass;
 
         // Cable-end fork terminals as node point masses (real self-weight model only).
-        if dimensions.strut_mass.is_some() && self.role == Pulling {
+        if dimensions.strut_mass.is_some() && self.role == Pulling && !self.chain {
             joints[alpha_key].accumulated_mass += dimensions.pull_end_mass;
             joints[omega_key].accumulated_mass += dimensions.pull_end_mass;
         }

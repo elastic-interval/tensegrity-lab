@@ -154,6 +154,12 @@ cargo test --release --lib assembly::put_headless_hug_together -- --ignored --no
   the struts' caps and ring stacks on them: a connected net that lies
   slack where its struts are missing. Everything
   is at its final length.
+- **Slack cables drape.** A cable stays a straight, stiff cable while
+  either of its caps holds a strut. With both struts out it hangs as a
+  chain of segments about 35 cm long, as in Open Claw's take-down, and
+  with a strut back at either end it is a cable again, drawn to its
+  length. Fork rods stay rigid. The net alone, hung as chains, weighs
+  158 kg.
 - **A strut is drawn in, then taken out.** It shortens, by a tenth of its
   length at most, until it carries nothing. It goes back in at that
   length, between the same two caps, and is lengthened to its own. A strut
@@ -205,18 +211,19 @@ until no joint touches the ground, it is ready to go into the trailer.
 It starts from that hanging net, which is laid out by four lines from
 stakes in the ground, as it is done on site:
 
-- **The legs are hauled out first.** A line runs to each foot (L54, R54)
-  from a stake 8 m beyond where that foot lay, on the line out from the
-  middle of the net. Both are hauled in steadily over the first 12 s,
-  until 8 m of each is left, so the net comes down with its legs already
-  apart, not dragged apart once it is down.
+- **The legs are pulled out first, in the air.** A line runs to each foot
+  (L54, R54) from a stake 8 m beyond where that foot lay, on the line out
+  from the middle of the net. For the first 10 s the hook holds still, and
+  both lines are reeled in hard (up to 1.5 m/s, to about 1.4 kN) until
+  8 m of each is left. The legs swing out clear of the ground: after 5 s
+  the feet are nearly 2 m up and within 0.25 m of being over their places.
 - **The hands are only kept taut.** A line runs to the tip of each hand
   (L62, R62) from a stake 3 m beyond where it lay, and is reeled in at up
   to 0.5 m/s only while it is barely taut, until 3 m is left.
-- **The hook lets the net down** over 30 s meanwhile.
-
-It comes down with the feet within 0.2 m and the hand tips within 0.3 m of
-where they lay, the rest of the net 0.85 m off on average, 1.6 m at most.
+- **Then the hook lets the net down**, over 30 s. Nothing touches the
+  ground until the feet land, 10 s into that, within 0.15 m of their
+  places; the net then settles from the feet inwards without being
+  dragged.
 
 So the hand tips want an eye each, as L25 and R25 have: **eyes on L62 and
 R62** for the laying-out lines. The feet have their rod ends.
@@ -285,11 +292,7 @@ Not built yet:
    was made (December 2025, re-rendered April 2026). The export skips
    `Support` intervals; the sling legs need their own look, and members
    that appear part-way need checking in the importer.
-2. **Cables that drape.** The net is kept whole now, but a slack cable is
-   still drawn as a straight line between its ends. Open Claw's
-   disassembly (branch `open-claw-after`, `src/build/packer.rs`) let the
-   loose ones hang as chains, which would look truer.
-3. **The crane travelling.** The hook follows the figure sideways as the
+2. **The crane travelling.** The hook follows the figure sideways as the
    feet are drawn to their mounts; a real crane would carry it there.
 
 Open questions for Gerald:

@@ -61,6 +61,7 @@ new_key_type! {
 
 pub mod brick;
 pub mod bridle;
+pub mod chain;
 pub mod dimensions;
 pub mod error;
 pub mod fabric_sampler;

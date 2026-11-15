@@ -19,13 +19,16 @@
 //! lines go back on the anchors they came off.
 //!
 //! Only struts come out: the cables and node plates stay, with the struts'
-//! caps on them, a connected net that lies slack where its struts are gone. A strut is drawn in until it
+//! caps on them, a connected net that lies slack where its struts are gone.
+//! A cable none of whose caps holds a strut hangs as a chain and drapes
+//! (`fabric/chain.rs`); with a strut back at either end it is a cable again. A strut is drawn in until it
 //! carries nothing, then taken out; it goes back in at that length, where it
 //! came out, and is lengthened to its own. Each stage is the whole figure
 //! with the struts not yet in taken out, so parts keep their keys. The
 //! ground and the hook are the building site's (`fabric/site.rs`). Results
 //! are in `docs/crane-lift.md`.
 
+use crate::fabric::chain::Chain;
 use crate::fabric::interval::{Role, Span};
 use crate::fabric::joint::JointLabel;
 use crate::fabric::physics::Physics;
@@ -50,18 +53,22 @@ const SETTLING: Seconds = Seconds(3.0);
 /// at most.
 const SHORTENED: f32 = 0.9;
 const SHORTENING: Seconds = Seconds(4.0);
-const SPREADING: Seconds = Seconds(30.0);
+const SPREADING: Seconds = Seconds(40.0);
 const EASING: Seconds = Seconds(5.0);
-/// The legs are hauled out first, over this long, by lines from stakes this
-/// far beyond where the feet lay: the net then comes down with its legs
-/// already apart. The lines to the hand tips, from stakes this far beyond,
-/// are only reeled in, at this many metres per second, while they are
-/// stretched less than `JUST_TAUT`.
-const HAULING: Seconds = Seconds(12.0);
+/// The legs are pulled out first, the hook holding still this long, by
+/// lines from stakes this far beyond where the feet lay: they swing out
+/// clear of the ground and come down already apart. A line is reeled in, at
+/// so many metres per second, only while it is stretched less than its
+/// share: the foot lines hard, the lines to the hand tips barely taut.
+const LEGS_OUT_FIRST: Seconds = Seconds(10.0);
 const FOOT_LINE: Meters = Meters(8.0);
 const HAND_LINE: Meters = Meters(3.0);
-const REELING: f32 = 0.5;
+const FOOT_REELING: f32 = 1.5;
+const HAND_REELING: f32 = 0.5;
+const FOOT_TAUT: f32 = 0.001;
 const JUST_TAUT: f32 = 0.0005;
+/// A slack cable hangs as a chain of segments about this long.
+const CHAIN_SEGMENT: Meters = Meters(0.35);
 const RESTING: Seconds = Seconds(10.0);
 const SWINGING: Seconds = Seconds(30.0);
 /// An arm strut goes on or comes off with its lower end this near the ground.
@@ -262,12 +269,12 @@ struct Step {
 /// A line from a stake to a foot or a hand, laying the net out.
 struct Line {
     key: IntervalKey,
-    /// In metres, as it starts and as it ends.
-    from: f32,
+    /// In metres, as it ends.
     to: f32,
-    /// Hauled in steadily over `HAULING`, whatever it takes; if not, reeled
-    /// in only while barely taut.
-    hauled: bool,
+    /// Reeled in at this many metres per second while stretched less than
+    /// `taut`.
+    reeling: f32,
+    taut: f32,
 }
 
 struct Running {
@@ -275,8 +282,10 @@ struct Running {
     until: Until,
     ticks: usize,
     slack_ticks: usize,
-    /// The hook's way from where it was to where it is going.
+    /// The hook's way from where it was to where it is going, once it has
+    /// held still for `held`.
     sweep: Option<(Vec3, Vec3)>,
+    held: Seconds,
     /// The net eased from here to where it lay.
     spread: Option<Pose>,
     /// Lines being reeled in, each with the length it ends at.
@@ -300,6 +309,8 @@ pub struct Assembly {
     /// Where everything was when the strut of this index, drawn in, came out.
     poses: Vec<Pose>,
     placed: usize,
+    /// The slack cables hanging as chains.
+    chains: Vec<Chain>,
     steps: VecDeque<Step>,
     running: Option<Running>,
 }
@@ -325,7 +336,7 @@ impl Assembly {
         let (order, before_arms, stops) = build_order(&whole);
         let poses = vec![Pose::new(); order.len()];
         let placed = order.len();
-        Assembly { stood, whole, anchors, order, before_arms, stops, poses, placed, steps: VecDeque::new(), running: None }
+        Assembly { stood, whole, anchors, order, before_arms, stops, poses, placed, chains: Vec::new(), steps: VecDeque::new(), running: None }
     }
 
     /// Heavier drag than viewing's: a hanging figure swings for a long time.
@@ -397,6 +408,36 @@ impl Assembly {
             .collect()
     }
 
+    /// Hang as a chain every cable none of whose caps holds a strut, and
+    /// take the chain down where a strut is back. Fork rods stay as they
+    /// are, and so does a cable between two node plates.
+    fn drape_slack_cables(&mut self, fabric: &mut Fabric) {
+        let held = |fabric: &Fabric, cable: IntervalKey| {
+            let cable = &self.whole.intervals[cable];
+            let caps: Vec<IntervalKey> =
+                [cable.alpha_key, cable.omega_key].iter().filter_map(|&end| self.whole.push_at(end)).collect();
+            caps.is_empty() || caps.iter().any(|&strut| !fabric.intervals[strut].is_out())
+        };
+        let (back, hanging): (Vec<Chain>, Vec<Chain>) =
+            std::mem::take(&mut self.chains).into_iter().partition(|chain| held(fabric, chain.cable));
+        self.chains = hanging;
+        for chain in back {
+            fabric.undrape(chain, FITTING);
+        }
+        let rod = |cable: IntervalKey| self.whole.connector.as_ref().is_some_and(|connector| connector.link_length(cable).is_some());
+        let slack: Vec<IntervalKey> = self
+            .whole
+            .intervals
+            .iter()
+            .filter(|(key, interval)| interval.role.is_pull_like() && !interval.has_role(Role::GuyLine) && !rod(*key))
+            .map(|(key, _)| key)
+            .filter(|&cable| !fabric.intervals[cable].is_out() && !held(fabric, cable))
+            .collect();
+        for cable in slack {
+            self.chains.push(fabric.drape(cable, CHAIN_SEGMENT));
+        }
+    }
+
     /// Each strut or pair of twins, as the indices `from..to`, in the order
     /// they go in.
     fn groups(&self) -> Vec<(usize, usize)> {
@@ -465,6 +506,7 @@ impl Assembly {
         let mut sweep = None;
         let mut spread = None;
         let mut mounting = None;
+        let mut held = Seconds(0.0);
         let mut lines = Vec::new();
         let kept = match step.change {
             Change::Shorten(_, to) => Some(to - 1),
@@ -501,10 +543,14 @@ impl Assembly {
                 mounting = Some(feet);
             }
             Change::Take(count) => {
-                let mut next = partial(&self.whole, &self.order[..count]);
-                carry_over(fabric, &mut next, None);
-                self.replace(fabric, next);
+                for &strut in &self.order[count..] {
+                    let length = self.whole.intervals[strut].ideal();
+                    let strut = &mut fabric.intervals[strut];
+                    strut.stiffness = Percent(0.0);
+                    strut.span = Span::Fixed { length };
+                }
                 self.placed = count;
+                self.drape_slack_cables(fabric);
             }
             Change::Shorten(from, to) => {
                 self.poses[to - 1] = pose_of(fabric);
@@ -522,16 +568,17 @@ impl Assembly {
                 let taut = (eyes[0] + eyes[1]) / 2.0 + Vec3::Y * (LEG.f32() * LEG.f32() - aside * aside).sqrt();
                 sweep = Some((fabric.location(hook.joint), taut));
                 let middle = lain.values().sum::<Vec3>() / lain.len() as f32;
-                let feet = FEET.map(|name| (joint(&self.whole, name), FOOT_LINE, true));
-                let hands = self.hand_tips().into_iter().map(|tip| (tip, HAND_LINE, false));
-                for (end, left, hauled) in feet.into_iter().chain(hands) {
+                let feet = FEET.map(|name| (joint(&self.whole, name), FOOT_LINE, FOOT_REELING, FOOT_TAUT));
+                let hands = self.hand_tips().into_iter().map(|tip| (tip, HAND_LINE, HAND_REELING, JUST_TAUT));
+                held = LEGS_OUT_FIRST;
+                for (end, left, reeling, taut) in feet.into_iter().chain(hands) {
                     let outwards = Vec3::new(lain[end].x - middle.x, 0.0, lain[end].z - middle.z).normalize();
                     let stake = Vec3::new(lain[end].x, 0.0, lain[end].z) + outwards * left.f32();
                     let anchor = fabric.create_joint(stake);
                     let length = fabric.location(end).distance(stake);
                     let line = fabric.create_fixed_interval(end, anchor, Role::GuyLine, Meters(length));
                     fabric.site.as_mut().expect("a site").anchors.push((anchor, stake));
-                    lines.push(Line { key: line, from: length, to: left.f32(), hauled });
+                    lines.push(Line { key: line, to: left.f32(), reeling, taut });
                 }
             }
             Change::LaidOut => {
@@ -546,10 +593,23 @@ impl Assembly {
                 if let Some(hook) = fabric.site.as_mut().and_then(|site| site.hook.as_mut()) {
                     hook.place = None;
                 }
-                let mut next = partial(&self.whole, &self.order[..count]);
-                carry_over(fabric, &mut next, Some(&self.poses[count - 1]));
-                self.replace(fabric, next);
+                let pose = &self.poses[count - 1];
+                for (key, joint) in fabric.joints.iter_mut() {
+                    if let Some(&at) = pose.get(key) {
+                        joint.location = at;
+                    }
+                    joint.velocity = Vec3::ZERO;
+                }
+                let going_in: Vec<IntervalKey> =
+                    self.order[..count].iter().copied().filter(|&strut| fabric.intervals[strut].is_out()).collect();
+                for strut in going_in {
+                    let spanned = fabric.intervals[strut].length(&fabric.joints);
+                    fabric.intervals[strut].stiffness = Percent(100.0);
+                    fabric.intervals[strut].span = Span::Fixed { length: spanned };
+                    fabric.extend_interval(strut, self.whole.intervals[strut].ideal(), FITTING);
+                }
                 self.placed = count;
+                self.drape_slack_cables(fabric);
             }
             Change::GuysOn => {
                 let anchors = self.anchors.clone();
@@ -588,7 +648,7 @@ impl Assembly {
             hook.climb = step.climb;
         }
         fabric.unfreeze();
-        self.running = Some(Running { label: step.label, until: step.until, ticks: 0, slack_ticks: 0, sweep, spread, mounting, lines, kept });
+        self.running = Some(Running { label: step.label, until: step.until, ticks: 0, slack_ticks: 0, sweep, held, spread, mounting, lines, kept });
     }
 
     /// One tick. Gives the label of a step that ended with it.
@@ -600,7 +660,9 @@ impl Assembly {
         let running = self.running.as_mut().expect("a step under way");
         let hook = fabric.site.as_mut().and_then(|site| site.hook.as_mut());
         if let (Some((from, to)), Until::After(seconds), Some(hook)) = (running.sweep, &running.until, hook) {
-            let at = from.lerp(to, (running.ticks + 1) as f32 / ticks(*seconds) as f32);
+            let held = ticks(running.held);
+            let along = (running.ticks + 1).saturating_sub(held) as f32 / (ticks(*seconds) - held) as f32;
+            let at = from.lerp(to, along);
             (hook.height, hook.place) = (at.y, Some(at));
         }
         if let (Some(feet), Until::After(seconds), Some(site)) = (&running.mounting, &running.until, fabric.site.as_mut()) {
@@ -609,14 +671,10 @@ impl Assembly {
         }
         for line in &running.lines {
             let interval = &mut fabric.intervals[line.key];
-            let length = if line.hauled {
-                let along = ((running.ticks + 1) as f32 / ticks(HAULING) as f32).min(1.0);
-                line.from + (line.to - line.from) * along
-            } else if interval.strain < JUST_TAUT {
-                (interval.ideal().f32() - REELING / ticks(Seconds(1.0)) as f32).max(line.to)
-            } else {
+            if interval.strain >= line.taut {
                 continue;
-            };
+            }
+            let length = (interval.ideal().f32() - line.reeling / ticks(Seconds(1.0)) as f32).max(line.to);
             interval.span = Span::Fixed { length: Meters(length) };
         }
         if let (Some(hung), Until::After(seconds)) = (&running.spread, &running.until) {
