@@ -486,7 +486,17 @@ impl Interval {
         }
     }
 
+    /// A strut taken out of the fabric, its caps left on the cable net:
+    /// it neither pushes nor weighs anything, and is not drawn.
+    pub fn is_out(&self) -> bool {
+        self.stiffness.0 == 0.0
+    }
+
     pub fn iterate(&mut self, joints: &mut Joints, age: Age, physics: &Physics, dimensions: &FabricDimensions) -> SpanTransition {
+        if self.is_out() {
+            self.strain = 0.0;
+            return SpanTransition::Unchanged;
+        }
         if matches!(self.span, Measuring { .. }) {
             return SpanTransition::Unchanged;
         }

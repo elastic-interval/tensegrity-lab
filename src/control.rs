@@ -245,8 +245,11 @@ pub enum ControlState {
     Building,
     /// Physics testing is for fabrics made without a plan: the sphere,
     /// the Klein bottle and the Möbius strip.
-    Viewing { animation_available: bool, physics_testing_available: bool },
+    /// Taking apart is for Headless Hug.
+    Viewing { animation_available: bool, physics_testing_available: bool, assembly_available: bool },
     Animating,
+    /// Being taken apart or put together; `apart` once every strut is out.
+    Assembling { apart: bool },
     ShowingJoint(JointDetails),
     ShowingInterval(IntervalDetails),
     PhysicsTesting,

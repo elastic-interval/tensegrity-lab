@@ -30,6 +30,8 @@ pub enum CrucibleAction {
     CycleWind,
     /// Start the ground shaking, or stop it.
     Quake,
+    /// Take the standing figure apart strut by strut, or put it together again.
+    Assemble,
     ClearSelection,
     AdjustAnimationFrequency(f32),
     ToViewing,

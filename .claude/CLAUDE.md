@@ -163,6 +163,10 @@ build, and not again afterwards: animation keeps them.
 - `Viewing` — settled, idle.
 - `Animating(Animator)` — runs DSL-defined actuators. `Animator` needs only
   a `Fabric` and `Physics`, so animations also run headless, in tests.
+- `Assembling(Assembly)` — Headless Hug taken apart strut by strut on a
+  crane hook, then put together again (`src/build/assembly.rs`,
+  `docs/crane-lift.md`). While it runs `Fabric::site` is set, `None` in
+  every build like the wind and the quake.
 - `PhysicsTesting(PhysicsTester)` — real-time gravity test, offered only for
   fabrics without a plan (sphere, Klein, Möbius).
 - `BakingBrick(Oven)`, `Evolving(...)`, `Articulating(...)` — brick baking
@@ -299,10 +303,12 @@ src/
 │   ├── vulcanize.rs
 │   ├── wind.rs         # Gusting wind: drag on every member (Wind button, wind tests)
 │   ├── quake.rs        # Shaking ground, carrying what rests on it (Quake button)
+│   ├── site.rs         # Building site: ground that lets go, pinned struts, crane hook (Fabric::site)
 │   └── fabric_sampler.rs
 │
 ├── build/
 │   ├── animator.rs     # Animation actuators
+│   ├── assembly.rs     # Headless Hug taken apart and put together strut by strut (Take apart button)
 │   ├── oven.rs         # Brick baking
 │   ├── settler.rs
 │   ├── algo/           # Algorithmic generators (sphere, klein, mobius)
@@ -313,6 +319,8 @@ src/
 ├── headless_hug_package.rs # The handoff package folder (test-only)
 ├── bouwboek.rs         # Draft Bouwboek: fills docs/bouwboek/headless-hug.md (test-only)
 ├── omission_scan.rs    # Buildability test + bridle/omission search tools
+├── crane_lift.rs       # Headless Hug on a crane hook: lifting eyes (test-only, docs/crane-lift.md)
+├── assembly.rs         # Tests of build/assembly.rs: every step's forces (test-only, docs/crane-lift.md)
 ├── fabric_smoke_test.rs # Every fabric builds and its plan applies cleanly
 ├── open_claw_symmetry.rs # OpenClaw threefold-symmetry enforcement
 ├── open_claw_test.rs   # OpenClaw build/geometry tests (base triangle, feet)

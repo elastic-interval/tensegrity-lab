@@ -38,6 +38,8 @@ impl ButtonBar {
         );
         bar.once("Wind", |s| matches!(s, Viewing { .. } | Animating), Crucible(CycleWind));
         bar.once("Quake", |s| matches!(s, Viewing { .. } | Animating), Crucible(Quake));
+        bar.once("Take apart", |s| matches!(s, Viewing { assembly_available: true, .. }), Crucible(Assemble));
+        bar.once("Put together", |s| matches!(s, Assembling { apart: true }), Crucible(Assemble));
         bar.once(
             "Physics test",
             |s| matches!(s, Viewing { physics_testing_available: true, .. }),
@@ -60,7 +62,7 @@ impl ButtonBar {
             );
         }
         bar.once("Next brick", |s| matches!(s, Baking), NextBrick);
-        bar.once("Fast-forward", |s| matches!(s, Building), SetTimeScale(20.0));
+        bar.once("Fast-forward", |s| matches!(s, Building | Assembling { apart: false }), SetTimeScale(20.0));
         bar.once("Reload fabric", |s| !matches!(s, Baking | Building), RebuildFabric);
         bar.step(
             "Frequency",

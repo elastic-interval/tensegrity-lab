@@ -73,6 +73,7 @@ pub mod physics;
 pub mod symmetrize;
 pub mod vulcanize;
 pub mod quake;
+pub mod site;
 pub mod wind;
 
 pub mod physics_tester;
@@ -275,6 +276,8 @@ pub struct Fabric {
     pub wind: Option<wind::Wind>,
     /// Shaking the ground when set; `None` in every build.
     pub quake: Option<quake::Quake>,
+    /// Being put together or lifted when set; `None` in every build.
+    pub site: Option<site::Site>,
 
     cached_bounding_radius: f32,
     approaching_count: usize,
@@ -309,6 +312,7 @@ impl Fabric {
             bridle_hangers: HashSet::new(),
             wind: None,
             quake: None,
+            site: None,
             limb_names: HashMap::new(),
             approaching_count: 0,
             quiet_since: None,
@@ -562,6 +566,14 @@ impl Fabric {
         self.stats.reset();
         let dt = Age::iteration_duration().f32();
         let has_gravity = physics.surface.is_some();
+        // A site has its own ground, which lets go of a joint that lifts.
+        let on_site;
+        let physics = if self.site.is_some() {
+            on_site = Physics { surface: None, ..physics.clone() };
+            &on_site
+        } else {
+            physics
+        };
 
         // A joint resting on a frozen surface stays put. Otherwise the first
         // half-kick lets it drift a little each tick before the surface zeroes
@@ -633,6 +645,7 @@ impl Fabric {
                 max_speed_squared = speed_squared;
             }
         }
+        self.apply_site();
 
         let elapsed = self.age.tick();
         self.stats.finalize();
@@ -657,7 +670,7 @@ impl Fabric {
         // imperfectly cancelled interval forces); see commit notes.
         const QUIET_MAX_SPEED_SQ: f32 = 2.5e-3; // (5e-2 m/s)² = (50 mm/s)²
         const QUIET_FREEZE_DURATION_SECS: f32 = 10.0;
-        if self.approaching_count > 0 || max_speed_squared > QUIET_MAX_SPEED_SQ || self.wind.is_some() || self.quake.is_some() {
+        if self.approaching_count > 0 || max_speed_squared > QUIET_MAX_SPEED_SQ || self.wind.is_some() || self.quake.is_some() || self.site.is_some() {
             self.quiet_since = None;
         } else {
             match self.quiet_since {

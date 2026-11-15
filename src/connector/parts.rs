@@ -412,7 +412,7 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
 
     // Each strut's tubes, from stack to stack, red where no tube set fits it.
     for (key, push) in fabric.intervals.iter() {
-        if !push.has_role(Role::Pushing) {
+        if !push.has_role(Role::Pushing) || push.is_out() {
             continue;
         }
         let [(alpha, _), (omega, _)] = connector.stack_ends(fabric, key);

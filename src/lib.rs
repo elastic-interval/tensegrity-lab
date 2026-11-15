@@ -34,6 +34,10 @@ mod headless_hug_package;
 mod open_claw_symmetry;
 mod open_claw_test;
 mod omission_scan;
+#[cfg(test)]
+mod crane_lift;
+#[cfg(test)]
+mod assembly;
 mod propeller_blender_export;
 
 // Re-export every public name from `control` and `events` at the crate root

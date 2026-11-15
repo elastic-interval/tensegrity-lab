@@ -139,6 +139,10 @@ impl Scene {
                     self.reset();
                     self.pick_allowed = true;
                 }
+                // No picking: parts come and go.
+                Assembling { .. } => {
+                    self.reset();
+                }
                 Baking => {
                     self.render_style = WithAppearanceFunction {
                         function: Rc::new(|_| None),
