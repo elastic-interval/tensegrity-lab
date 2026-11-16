@@ -225,6 +225,51 @@ What this means for the plan:
   baker (a removal now ends in struts passing through each other rather
   than in a mechanism).
 
+## The census (2026-11-16)
+
+For bricks this small, trying everything beats evolving: the space under
+threefold symmetry is small enough to enumerate, and a census gives a
+guarantee evolution cannot. So the order of work is now: **census first,
+then evolution tested against the census**, then evolution alone on bricks
+too big to count (the elliptical brick, combinations).
+
+Code: `src/build/evo/brick/census.rs`. A class is its struts, placed as the
+prototypes place them, in groups of three along X, Y and Z; one turn of the
+symmetry carries X to Y to Z. A candidate is a set of face orbits and pull
+orbits under that turn, in which every strut end is held by a face or a
+pull. Each is baked, the rules applied, and the viable ranked by uniform
+stress, fewer members first among equals. Topologies are compared up to
+renaming struts and swapping their ends (graph isomorphism), so
+relabellings of one brick count once.
+
+| Class | Tried | Viable | Winner | Its strain spread | Runner-up's |
+|---|---|---|---|---|---|
+| 3 struts, up to 4 face and 4 pull orbits | 236 | 96 | SingleTwistLeft (2 faces, 3 pulls) | 0.00000 | 0.015 (1 face, 6 pulls) |
+| 6 struts, faces only, up to 4 face orbits | 353,672 | 23,602 | OmniSymmetrical (8 faces) | 0.00000 | 0.152 (7 faces) |
+
+**Both current bricks appear, first in their class, by a wide margin.**
+Nobody typed their topology: the struts, the symmetry and the rules are
+enough. The census takes half a second for Single's class and five minutes
+for Omni's.
+
+**Single's number does not appear.** Across pull/strut ratios 0.40 to 0.67
+its stress stays uniform; stiffness per member is lowest near 0.52 and
+rises both ways; clearance grows steadily to the cliff at about 0.675,
+where the faces can no longer reach their strain. Nothing picks today's
+0.624, so it stays as Single's one number (any ratio in the range gives a
+valid Single; the census tries 0.45 to 0.65 and reports the best).
+
+Tests: `single_appears` runs with the suite; `omni_appears` (five minutes)
+and the report are ignored:
+
+```bash
+cargo test --release --lib census_of_single_and_omni -- --ignored --nocapture
+```
+
+Limits: Omni's class stops at four face orbits (twelve faces), and neither
+class allows a strut out of the X, Y, Z placement. Next: Torque, which needs
+its own symmetry worked out first, and bricks joined face to face.
+
 ## What was taken from `evo-brick`, and what was not
 
 Nothing was merged as code. Its changes would change the bricks, and the

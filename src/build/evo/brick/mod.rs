@@ -1,6 +1,7 @@
 //! Evolving the library bricks from a simple specification and rules
 //! (docs/brick-evolution.md).
 
+pub mod census;
 pub mod measure;
 pub mod neighbours;
 
