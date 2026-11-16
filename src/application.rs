@@ -524,6 +524,11 @@ impl ApplicationHandler<LabEvent> for Application {
                 if self.model_scale.is_none() && !connectors_showing {
                     StateChange::ToggleAttachmentPoints.send(&self.radio);
                 }
+                // A model's lengths are measured from it once it has
+                // settled, for hours, so it need not go on moving.
+                if self.model_scale.is_some() {
+                    self.crucible.fabric.frozen = true;
+                }
                 if self.mobile_device && self.crucible.animation_available() {
                     // Auto-start animation on mobile devices with actuators
                     CrucibleAction::ToAnimating.send(&self.radio);

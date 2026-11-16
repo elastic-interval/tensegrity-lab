@@ -28,20 +28,23 @@ pub struct ButtonBar {
 }
 
 impl ButtonBar {
-    /// A model, at `--model-scale`, has no connectors, so no parts.
+    /// A model, at `--model-scale`, is for building from: no connectors, so no
+    /// parts, and no animation, wind, quake or assembly.
     pub fn new(model: bool) -> Self {
         let mut bar = ButtonBar { entries: Vec::new() };
         bar.once("Back to joint", |s| matches!(s, ShowingInterval(_)), UpdateState(StateChange::BackToJoint));
         bar.once("Deselect", |s| matches!(s, ShowingJoint(_)), Crucible(ClearSelection));
-        bar.once("Stop animation", |s| matches!(s, Animating), Crucible(ToViewing));
-        bar.once(
-            "Start animation",
-            |s| matches!(s, Viewing { animation_available: true, .. }),
-            Crucible(ToAnimating),
-        );
-        bar.once("Wind", |s| matches!(s, Viewing { .. } | Animating), Crucible(CycleWind));
-        bar.once("Quake", |s| matches!(s, Viewing { .. } | Animating), Crucible(Quake));
-        bar.once("Take apart", |s| matches!(s, Viewing { assembly_available: true, .. }), Crucible(Assemble));
+        if !model {
+            bar.once("Stop animation", |s| matches!(s, Animating), Crucible(ToViewing));
+            bar.once(
+                "Start animation",
+                |s| matches!(s, Viewing { animation_available: true, .. }),
+                Crucible(ToAnimating),
+            );
+            bar.once("Wind", |s| matches!(s, Viewing { .. } | Animating), Crucible(CycleWind));
+            bar.once("Quake", |s| matches!(s, Viewing { .. } | Animating), Crucible(Quake));
+            bar.once("Take apart", |s| matches!(s, Viewing { assembly_available: true, .. }), Crucible(Assemble));
+        }
         bar.once(
             "Physics test",
             |s| matches!(s, Viewing { physics_testing_available: true, .. }),
@@ -66,13 +69,15 @@ impl ButtonBar {
         bar.once("Next brick", |s| matches!(s, Baking), NextBrick);
         bar.once("Fast-forward", |s| matches!(s, Building | Assembling { fast: false }), SetTimeScale(FAST_FORWARD));
         bar.once("Slow", |s| matches!(s, Assembling { fast: true }), SetTimeScale(1.0));
-        bar.once("Reload fabric", |s| !matches!(s, Baking | Building), RebuildFabric);
-        bar.step(
-            "Frequency",
-            |s| matches!(s, Animating | ShowingJoint(_)),
-            Crucible(AdjustAnimationFrequency(0.99)),
-            Crucible(AdjustAnimationFrequency(1.01)),
-        );
+        bar.once("Reload", |s| !matches!(s, Baking | Building), RebuildFabric);
+        if !model {
+            bar.step(
+                "Frequency",
+                |s| matches!(s, Animating | ShowingJoint(_)),
+                Crucible(AdjustAnimationFrequency(0.99)),
+                Crucible(AdjustAnimationFrequency(1.01)),
+            );
+        }
         for (label, feature) in [("Mass", TweakFeature::MassScale), ("Rigidity", TweakFeature::RigidityScale)] {
             bar.step(
                 label,

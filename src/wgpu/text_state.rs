@@ -1,5 +1,6 @@
 use crate::fabric::{FabricMotion, FabricStats};
 use crate::{Age, ControlState, StateChange};
+use crate::caliper::brass_tube_mm;
 use std::default::Default;
 use wgpu_text::glyph_brush::{
     BuiltInLineBreaker, HorizontalAlign, Layout, OwnedSection, OwnedText, VerticalAlign,
@@ -244,7 +245,6 @@ impl TextState {
                         slack_cable_count,
                     } = motion;
 
-                    let scale = self.model_scale.unwrap_or(1.0);
                     let scale_label = self
                         .model_scale
                         .map(|s| {
@@ -257,43 +257,72 @@ impl TextState {
                         })
                         .unwrap_or_default();
 
-                    let text = format!(
-                        "Built at {age}{scale_label}:\n\
-                         Joints: {:?}\n\
-                         Bars: {:?}\n\
-                         → {:.1}-{:.1}mm\n\
-                         → total {:.1}m\n\
-                         Cables: {:?}\n\
-                         → {:.1}-{:.1}mm\n\
-                         → total {:.1}m\n\
-                         Mass: {:.0}kg\n\
-                         \n\
-                         Each second:\n\
-                         Height: {:.3}m\n\
-                         Max cable: {:.1}kN\n\
-                         Max bar: {:.1}kN\n\
-                         Cable strain: {:.2}% to {:.2}%\n\
-                         Bar strain: {:.2}% to {:.2}%\n\
-                         Slack cables: {}",
-                        joint_count,
-                        push_count,
-                        push_range.0.to_mm() * scale,
-                        push_range.1.to_mm() * scale,
-                        push_total.0 * scale,
-                        pull_count,
-                        pull_range.0.to_mm() * scale,
-                        pull_range.1.to_mm() * scale,
-                        pull_total.0 * scale,
-                        mass.to_kg(),
-                        height.0 * scale,
-                        max_cable_force.to_kilonewtons(),
-                        max_strut_force.to_kilonewtons(),
-                        cable_strain_range.0 * 100.0,
-                        cable_strain_range.1 * 100.0,
-                        strut_strain_range.0 * 100.0,
-                        strut_strain_range.1 * 100.0,
-                        slack_cable_count,
-                    );
+                    let text = match self.model_scale {
+                        Some(scale) => {
+                            let struts = *push_count as f32;
+                            let tube_mm = brass_tube_mm(push_total.to_mm() * scale / struts) * struts;
+                            format!(
+                                "Built at {age}{scale_label}:\n\
+                                 Joints: {:?}\n\
+                                 Bars: {:?}\n\
+                                 → {:.1}-{:.1}mm\n\
+                                 → total {:.2}m\n\
+                                 → brass tube {:.2}m\n\
+                                 Cables: {:?}\n\
+                                 → {:.1}-{:.1}mm\n\
+                                 → total {:.2}m\n\
+                                 Height: {:.0}mm",
+                                joint_count,
+                                push_count,
+                                push_range.0.to_mm() * scale,
+                                push_range.1.to_mm() * scale,
+                                push_total.0 * scale,
+                                tube_mm / 1000.0,
+                                pull_count,
+                                pull_range.0.to_mm() * scale,
+                                pull_range.1.to_mm() * scale,
+                                pull_total.0 * scale,
+                                height.to_mm() * scale,
+                            )
+                        }
+                        None => format!(
+                            "Built at {age}:\n\
+                             Joints: {:?}\n\
+                             Bars: {:?}\n\
+                             → {:.1}-{:.1}mm\n\
+                             → total {:.1}m\n\
+                             Cables: {:?}\n\
+                             → {:.1}-{:.1}mm\n\
+                             → total {:.1}m\n\
+                             Mass: {:.0}kg\n\
+                             \n\
+                             Each second:\n\
+                             Height: {:.3}m\n\
+                             Max cable: {:.1}kN\n\
+                             Max bar: {:.1}kN\n\
+                             Cable strain: {:.2}% to {:.2}%\n\
+                             Bar strain: {:.2}% to {:.2}%\n\
+                             Slack cables: {}",
+                            joint_count,
+                            push_count,
+                            push_range.0.to_mm(),
+                            push_range.1.to_mm(),
+                            push_total.0,
+                            pull_count,
+                            pull_range.0.to_mm(),
+                            pull_range.1.to_mm(),
+                            pull_total.0,
+                            mass.to_kg(),
+                            height.0,
+                            max_cable_force.to_kilonewtons(),
+                            max_strut_force.to_kilonewtons(),
+                            cable_strain_range.0 * 100.0,
+                            cable_strain_range.1 * 100.0,
+                            strut_strain_range.0 * 100.0,
+                            strut_strain_range.1 * 100.0,
+                            slack_cable_count,
+                        ),
+                    };
                     Normal(text)
                 }
             },

@@ -50,7 +50,7 @@ The fabric builds, pretensions, falls and settles by itself; most buttons appear
 | − Frequency + | Slower / faster animation |
 | Parts | The parts, full screen; Back to return |
 | Background | The starry sky (the default) or white |
-| Fast-forward / Reload fabric | Fast-forward the build, or reload the fabric |
+| Fast-forward / Reload | Fast-forward the build, or reload the fabric |
 | Deselect / Back to joint | Step back out of a selection |
 
 The connector hardware always shows at real scale. A movie is recorded from the command line
