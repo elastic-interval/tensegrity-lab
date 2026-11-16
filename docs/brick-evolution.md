@@ -6,7 +6,7 @@ evolution, so they appear rather than being typed in. The current bricks are
 the measurable goal. Something new (an elliptical compression brick) comes
 only after they can be reproduced.
 
-This is a proposal. Nothing below is built yet.
+This is a proposal. Step 0 is done; its results are below the plan.
 
 ## What the targets are, measured
 
@@ -146,6 +146,84 @@ every build (gotcha 7).
    Success: from a bare founder, Single and Omni found in most seeds;
    Torque, whose middle strut hangs only by pulls, is the hard one.
 4. Only then a visual mode, if wanted (`Stage::Evolving` exists).
+
+## Step 0 results (2026-11-16)
+
+Code: `src/build/evo/brick/` — `measure.rs` (rules and candidate
+measures), `neighbours.rs` (one-step changes, named by joint so a change can
+be carried round a symmetry), `fixed_point.rs` (the reports, ignored tests).
+`equilibrium::settle` is the baker's scale bisection, taken out of
+`bake_brick_pure` so any prototype can be baked; output for the current
+bricks is unchanged.
+
+```bash
+cargo test --release --lib current_bricks_against_their_neighbours -- --ignored --nocapture --test-threads 1
+```
+
+```bash
+cargo test --release --lib current_bricks_with_their_numbers_changed -- --ignored --nocapture
+```
+
+The changes tried: remove a strut, pull or face; add a pull (resting 10%
+short of its span) or a face; move one face vertex to another strut end.
+Each alone, and for Single and Omni also carried round their threefold
+symmetry. Single has 26 single and 21 symmetric neighbours, Omni 394 and
+246, Torque 1137 (it declares no symmetry, so none symmetric).
+
+**The rules work as gates.** Every removal fails: with a member gone the
+baker lets the brick fold until struts pass through each other (the baker
+has no contact), caught by the clearance rule. Most rewiring fails on slack
+members or mechanisms. Additions mostly pass. Two rules were added on the
+way: the face radials must reach the target strain (otherwise the bisection
+found no scale, see below), and struts at least 0.1 face radials apart. The
+mechanism count needed the rigid motions projected out of the stiffness
+matrix: the baker's equilibrium is approximate, so turning the brick was not
+quite free.
+
+**Uniform stress is the one candidate under which all three current bricks
+win.** No viable neighbour, single or symmetric, has a smaller spread of
+strain within a role, for any of the three. Every other candidate is beaten
+somewhere:
+
+| Candidate | Single (1 / sym) | Omni (1 / sym) | Torque (1) |
+|---|---|---|---|
+| uniform stress | 0 / 0 | 0 / 0 | 0 |
+| stiffness per member | 0 / 6 | 0 / 30 | 394 |
+| clearance | 0 / 4 | 0 / 0 | 4 |
+| face regularity | 0 / 3 | 0 / 0 | 0 |
+| joints on a sphere | 0 / 2 | 0 / 0 | 8 |
+
+(viable neighbours that beat the current brick). Stiffness per member is a
+poor fitness: adding three pulls stiffens Omni and Single. Single and Omni
+are uniformly stressed almost exactly (spread 1e-4); Torque is not (0.13),
+yet nothing one step away does better.
+
+**The numbers:**
+
+- **Omni needs none.** Its push length from ×0.8 to ×1.25 changes the
+  shape by at most 0.15% of a face radial. Omni is pure topology.
+- **Single needs one: the ratio of pull to push.** Scaling push by f does
+  close to what scaling pull by 1/f does. The shape moves about 0.3 face
+  radials per 10%, and stress stays uniform throughout, so uniform stress
+  does not pick the ratio. Somewhere between 0.66 and 0.69 (now 0.624) the
+  faces cannot reach 10% strain
+  at any scale and the bisection runs to its clamp at 10: no brick.
+- **Torque's four numbers matter, and they are not optimal.** Struts along
+  x ×1.1 lowers the strain spread from 0.13 to 0.10. Several 20% changes
+  (x ×0.8, pull ×0.8, y or z ×1.25) give it a mechanism. Torque is the
+  fragile one.
+
+What this means for the plan:
+
+- Fitness: uniform stress first, with the rules as gates. Start the
+  evolution with Single and Omni.
+- Specification: Omni drops its number; Single keeps one ratio gene until a
+  rule for it turns up; Torque's numbers become genes, and an evolved
+  Torque will probably not match today's, since today's is not its own
+  optimum.
+- Not yet covered: adding a strut; Torque's symmetry; strut contact in the
+  baker (a removal now ends in struts passing through each other rather
+  than in a mechanism).
 
 ## What was taken from `evo-brick`, and what was not
 

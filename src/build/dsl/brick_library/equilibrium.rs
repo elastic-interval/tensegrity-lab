@@ -28,29 +28,29 @@ const MAX_LBFGS_ITERS: usize = 200;
 const MAX_BISECTION_ROUNDS: usize = 20;
 
 #[derive(Clone, Copy, Debug)]
-struct Spring {
-    alpha: usize,
-    omega: usize,
-    rest_length: f32,
-    k: f32,
+pub(crate) struct Spring {
+    pub(crate) alpha: usize,
+    pub(crate) omega: usize,
+    pub(crate) rest_length: f32,
+    pub(crate) k: f32,
     /// Push: slack when stretched. Pull/radial: slack when compressed.
-    is_push: bool,
+    pub(crate) is_push: bool,
 }
 
 #[derive(Clone, Debug)]
-struct FaceInfo {
-    vertices: [usize; 3],
-    midpoint: usize,
+pub(crate) struct FaceInfo {
+    pub(crate) vertices: [usize; 3],
+    pub(crate) midpoint: usize,
     rest_radial: f32,
     downward_roles: Vec<BrickRole>,
 }
 
-struct Bake {
-    positions: Vec<Vec3>,
-    springs: Vec<Spring>,
-    faces: Vec<FaceInfo>,
+pub(crate) struct Bake {
+    pub(crate) positions: Vec<Vec3>,
+    pub(crate) springs: Vec<Spring>,
+    pub(crate) faces: Vec<FaceInfo>,
     /// First `structural` positions become BakedJoints; the rest are face midpoints.
-    structural: usize,
+    pub(crate) structural: usize,
 }
 
 impl Bake {
@@ -363,6 +363,31 @@ impl ScaleBisector {
     }
 }
 
+/// A prototype at equilibrium, its rest lengths scaled until the face
+/// radials reach `TARGET_FACE_STRAIN`; not yet reoriented or symmetrized.
+/// Returns the bake, the name of each position (face midpoints are named
+/// `AlphaX`), and the scale.
+pub(crate) fn settle(proto: &BrickPrototype, initial_scale: f32) -> (Bake, Vec<JointName>, f32) {
+    let mut bisector = ScaleBisector::new(initial_scale);
+    loop {
+        let (mut bake, names) = Bake::build_from_prototype(proto, bisector.scale);
+        lbfgs(&mut bake);
+        let strain = bake.mean_face_strain();
+        if (strain - BakedBrick::TARGET_FACE_STRAIN).abs() <= STRAIN_TOLERANCE {
+            return (bake, names, bisector.scale);
+        }
+        let next = bisector.next_scale(strain);
+        if (next - bisector.scale).abs() < 1.0e-9
+            || (bisector.low.is_some() && bisector.high.is_some()
+                && (bisector.high.unwrap() - bisector.low.unwrap()).abs() < 1.0e-6)
+        {
+            return (bake, names, bisector.scale);
+        }
+        bisector.scale = next;
+        let _ = MAX_BISECTION_ROUNDS;
+    }
+}
+
 /// Bake a brick by direct equilibrium minimisation. Output is a fully-
 /// formed `BakedBrick` ready for runtime use.
 pub fn bake_brick_pure(
@@ -371,26 +396,7 @@ pub fn bake_brick_pure(
     params: BrickParams,
 ) -> BakedBrick {
     let proto = brick_library::get_prototype(brick_name);
-    let mut bisector = ScaleBisector::new(initial_scale);
-
-    let final_bake = loop {
-        let (mut bake, _names) = Bake::build_from_prototype(&proto, bisector.scale);
-        lbfgs(&mut bake);
-        let strain = bake.mean_face_strain();
-        if (strain - BakedBrick::TARGET_FACE_STRAIN).abs() <= STRAIN_TOLERANCE {
-            break (bake, bisector.scale);
-        }
-        let next = bisector.next_scale(strain);
-        if (next - bisector.scale).abs() < 1.0e-9
-            || (bisector.low.is_some() && bisector.high.is_some()
-                && (bisector.high.unwrap() - bisector.low.unwrap()).abs() < 1.0e-6)
-        {
-            break (bake, bisector.scale);
-        }
-        bisector.scale = next;
-        let _ = MAX_BISECTION_ROUNDS;
-    };
-    let (mut bake, scale) = final_bake;
+    let (mut bake, _names, scale) = settle(&proto, initial_scale);
 
     // Reorient on the brick's max_seed role (matches the Oven's
     // visual-orientation choice).
