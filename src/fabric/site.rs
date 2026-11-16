@@ -109,16 +109,16 @@ impl Fabric {
         self.site = Some(site);
     }
 
-    /// A strut stretched past its length is brought back, its ends no
-    /// longer parting.
+    /// A strut stretched past its length, or past where it has got to while
+    /// it lengthens, is brought back, its ends no longer parting. One being
+    /// drawn in is left to go slack.
     fn pin_struts(&mut self) {
         for interval in self.intervals.values() {
-            let (Role::Pushing, Span::Fixed { length }) = (interval.role, interval.span) else {
-                continue;
-            };
-            if interval.is_out() {
+            let drawn_in = matches!(interval.span, Span::Approaching { start_length, target_length, .. } if target_length < start_length);
+            if interval.role != Role::Pushing || interval.is_out() || drawn_in {
                 continue;
             }
+            let length = interval.ideal();
             let (alpha, omega) = (interval.alpha_key, interval.omega_key);
             let along = self.joints[omega].location - self.joints[alpha].location;
             let spanned = along.length();

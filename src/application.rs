@@ -560,6 +560,9 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             SetTimeScale(scale) => {
                 self.time_scale = scale.clamp(0.1, 100.0);
+                if let ControlState::Assembling { fast } = &mut self.control_state {
+                    *fast = self.time_scale > 1.0;
+                }
             }
             UpdateState(app_change) => {
                 // In Show mode, ignore RestartApproach so the crucible's
@@ -737,17 +740,22 @@ impl ApplicationHandler<LabEvent> for Application {
         }
 
         // The camera's one step per frame. Show mode keeps the growing
-        // structure framed while orbiting it; a plan run follows the build.
+        // structure framed while orbiting it; a plan run, or the assembly,
+        // follows the build.
         // Once the user turns or zooms the view, the camera is theirs until
         // the next run.
         let running_plan = match &self.crucible.stage {
             crate::crucible::Stage::RunningPlan(executor) => Some(executor.stage()),
             _ => None,
         };
+        let assembling = matches!(self.crucible.stage, crate::crucible::Stage::Assembling(_));
         let framing = if self.cycle.is_some() {
             Framing::Show { constructing: running_plan.is_some() }
         } else if let Some(stage) = running_plan {
             Framing::Construction { building: *stage == ExecutorStage::Building }
+        } else if assembling {
+            // Taken apart and put together on the crane: keep it framed, hook and all.
+            Framing::Construction { building: false }
         } else {
             Framing::Still
         };

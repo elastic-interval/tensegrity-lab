@@ -1,6 +1,5 @@
 use crate::build::animator::Animator;
 use crate::build::assembly::Assembly;
-use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
 use crate::build::dsl::FabricPlan;
 use crate::build::evo::articulation::ArticulationVisualRunner;
@@ -16,6 +15,7 @@ use crate::fabric::wind::Wind;
 use crate::fabric::Fabric;
 use glam::Vec3;
 use crate::units::Unit;
+use crate::button_bar::FAST_FORWARD;
 use crate::{ControlState, CrucibleAction, LabEvent, Radio, StateChange};
 use StateChange::*;
 
@@ -67,7 +67,7 @@ impl Crucible {
         ControlState::Viewing {
             animation_available: self.animation_available(),
             physics_testing_available: self.fabric_plan.is_none(),
-            assembly_available: self.fabric_plan.as_ref().is_some_and(|plan| plan.name == FabricName::HeadlessHug),
+            assembly_available: self.fabric_plan.as_ref().is_some_and(|plan| Assembly::suits(plan.name)),
         }
     }
 }
@@ -218,17 +218,17 @@ impl Crucible {
                     assembly.iterate(&mut self.fabric, &self.physics);
                 }
                 self.fabric.refresh_bridle_nodes();
+                self.fabric.update_bounding_radius();
                 let label = assembly.label().map(str::to_string);
                 if label.is_some() && label != self.last_stage_label {
                     self.last_stage_label = label.clone();
                     SetStageLabel(label.unwrap_or_default()).send(&self.radio);
                 }
                 if assembly.is_idle() && !was_idle {
-                    let _ = self.radio.send_event(LabEvent::SetTimeScale(1.0));
                     if assembly.is_apart() {
-                        SetStageLabel("Taken apart".to_string()).send(&self.radio);
-                        ControlState::Assembling { apart: true }.send(&self.radio);
+                        assembly.put_together();
                     } else {
+                        let _ = self.radio.send_event(LabEvent::SetTimeScale(1.0));
                         self.finalize_to_viewing();
                         SetStageLabel("Standing".to_string()).send(&self.radio);
                         self.viewing_state().send(&self.radio);
@@ -411,18 +411,18 @@ impl Crucible {
             }
             Assemble => match &mut self.stage {
                 Viewing => {
-                    let mut assembly = Assembly::of(context.fabric);
+                    let Some(name) = self.fabric_plan.as_ref().map(|plan| plan.name) else {
+                        return;
+                    };
+                    let mut assembly = Assembly::of(context.fabric, name);
                     assembly.take_apart();
                     (context.fabric.wind, context.fabric.quake) = (None, None);
-                    context.send_event(LabEvent::UpdateState(SetControlState(ControlState::Assembling { apart: false })));
+                    context.send_event(LabEvent::UpdateState(SetControlState(ControlState::Assembling { fast: true })));
+                    context.send_event(LabEvent::SetTimeScale(FAST_FORWARD));
                     drop(context);
                     self.physics = Assembly::physics(&self.viewing_physics());
                     self.stage = Assembling(assembly);
                     return;
-                }
-                Assembling(assembly) if assembly.is_apart() => {
-                    assembly.put_together();
-                    context.send_event(LabEvent::UpdateState(SetControlState(ControlState::Assembling { apart: false })));
                 }
                 _ => {}
             },

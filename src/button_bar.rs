@@ -5,6 +5,9 @@ use crate::LabEvent::*;
 use crate::units::Meters;
 use crate::{ControlState, LabEvent, StateChange, TesterAction, TweakFeature};
 
+/// How much faster than real time Fast-forward runs.
+pub const FAST_FORWARD: f32 = 20.0;
+
 /// What pressing sends: one event, or a step down or up either side of the
 /// label.
 enum Press {
@@ -39,7 +42,6 @@ impl ButtonBar {
         bar.once("Wind", |s| matches!(s, Viewing { .. } | Animating), Crucible(CycleWind));
         bar.once("Quake", |s| matches!(s, Viewing { .. } | Animating), Crucible(Quake));
         bar.once("Take apart", |s| matches!(s, Viewing { assembly_available: true, .. }), Crucible(Assemble));
-        bar.once("Put together", |s| matches!(s, Assembling { apart: true }), Crucible(Assemble));
         bar.once(
             "Physics test",
             |s| matches!(s, Viewing { physics_testing_available: true, .. }),
@@ -62,7 +64,8 @@ impl ButtonBar {
             );
         }
         bar.once("Next brick", |s| matches!(s, Baking), NextBrick);
-        bar.once("Fast-forward", |s| matches!(s, Building | Assembling { apart: false }), SetTimeScale(20.0));
+        bar.once("Fast-forward", |s| matches!(s, Building | Assembling { fast: false }), SetTimeScale(FAST_FORWARD));
+        bar.once("Slow", |s| matches!(s, Assembling { fast: true }), SetTimeScale(1.0));
         bar.once("Reload fabric", |s| !matches!(s, Baking | Building), RebuildFabric);
         bar.step(
             "Frequency",

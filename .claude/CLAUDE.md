@@ -163,8 +163,8 @@ build, and not again afterwards: animation keeps them.
 - `Viewing` — settled, idle.
 - `Animating(Animator)` — runs DSL-defined actuators. `Animator` needs only
   a `Fabric` and `Physics`, so animations also run headless, in tests.
-- `Assembling(Assembly)` — Headless Hug taken apart strut by strut on a
-  crane hook, then put together again (`src/build/assembly.rs`,
+- `Assembling(Assembly)` — Headless Hug or Open Claw taken apart strut by
+  strut on a crane hook, then put together again (`src/build/assembly.rs`,
   `docs/crane-lift.md`). While it runs `Fabric::site` is set, `None` in
   every build like the wind and the quake.
 - `PhysicsTesting(PhysicsTester)` — real-time gravity test, offered only for
@@ -309,7 +309,7 @@ src/
 │
 ├── build/
 │   ├── animator.rs     # Animation actuators
-│   ├── assembly.rs     # Headless Hug taken apart and put together strut by strut (Take apart button)
+│   ├── assembly.rs     # Headless Hug and Open Claw taken apart and put together strut by strut (Take apart button)
 │   ├── oven.rs         # Brick baking
 │   ├── settler.rs
 │   ├── algo/           # Algorithmic generators (sphere, klein, mobius)

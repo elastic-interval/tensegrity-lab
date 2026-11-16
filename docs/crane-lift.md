@@ -135,8 +135,11 @@ What it leaves out:
 
 `src/build/assembly.rs` runs the whole sequence with the agreed eyes:
 first taking the standing figure apart, then putting it together again.
-In the app (Headless Hug, once it stands) that is the **Take apart**
-button, then **Put together**; Fast-forward hurries either. The tests in
+In the app (Headless Hug or Open Claw, once it stands) that is the
+**Take apart** button: it is taken apart and then, straight away, put
+together again. It runs fast-forwarded, 20 times real time; **Slow**
+brings it to real time, and the same button, now **Fast-forward**,
+hurries it again. The tests in
 `src/assembly.rs` run the same and print the worst cable and strut at
 every step:
 
@@ -161,10 +164,19 @@ cargo test --release --lib assembly::put_headless_hug_together -- --ignored --no
   length. Fork rods stay rigid. The net alone, hung as chains, weighs
   158 kg.
 - **A strut is drawn in, then taken out.** It shortens, by a tenth of its
-  length at most, until it carries nothing. It goes back in at that
-  length, between the same two caps, and is lengthened to its own. A strut
-  that still carries when drawn in (Z3–Z4 in the pelvis) goes back as it
-  was.
+  length at most, until it carries nothing. Before it goes back in, the
+  net is carried, over 3 s, to where it lay when that strut came out, the
+  hook with it, to where its legs are just taut over the eyes. Then the
+  strut goes in at the length its caps span, never more than its own, and
+  is lengthened to its own over 4 s; the site holds it at its length all
+  the while. A strut that still carries when drawn in (Z3–Z4 in the
+  pelvis) goes back as it was. An arm strut goes in only with both its
+  ends off the ground.
+- **No jolts.** Moved in one tick, as at first, the net jumped: joints up
+  to 260 m/s, most of it the sling legs snapping the eyes when the hook
+  was let go over a net that had moved. Carried, no joint moves faster
+  than 10 m/s while a strut goes in. The test prints any step where a
+  joint is seen to move faster than 2 m/s.
 - **Twins go together**, both drawn in and removed in one step. Struts on
   the mirror plane (L1–R1, L2–R2, Z1–Z2, Z3–Z4) go singly.
 - **The order**, putting together: the pelvis (L1–R1, L2–R2, L3–L4 and
@@ -208,30 +220,33 @@ until no joint touches the ground, it is ready to go into the trailer.
 
 ### Putting together
 
-It starts from that hanging net, which is laid out by four lines from
-stakes in the ground, as it is done on site:
+It starts from that hanging net. Without its struts the net is a rope
+about twice as long as the figure, and dragging it over the ground hardly
+works, so it has to be drawn apart while it hangs and come down where it is
+to lie:
 
-- **The legs are pulled out first, in the air.** A line runs to each foot
-  (L54, R54) from a stake 8 m beyond where that foot lay, on the line out
-  from the middle of the net. For the first 10 s the hook holds still, and
-  both lines are reeled in hard (up to 1.5 m/s, to about 1.4 kN) until
-  8 m of each is left. The legs swing out clear of the ground: after 5 s
-  the feet are nearly 2 m up and within 0.25 m of being over their places.
-- **The hands are only kept taut.** A line runs to the tip of each hand
-  (L62, R62) from a stake 3 m beyond where it lay, and is reeled in at up
-  to 0.5 m/s only while it is barely taut, until 3 m is left.
-- **Then the hook lets the net down**, over 30 s. Nothing touches the
-  ground until the feet land, 10 s into that, within 0.15 m of their
-  places; the net then settles from the feet inwards without being
-  dragged.
+- **The legs are drawn apart while it is let down.** A line runs to each
+  foot (L54, R54) from a stake 4 m beyond where that foot lay, out from
+  the middle of the net along the leg. It is reeled in at up to 1.5 m/s
+  while it pulls less than about 3.8 kN, and stops with the foot 0.75 m
+  past its mark: without its struts a leg is longer than it lay, and drawn
+  that far it lies straight where it lay. Stopped on the mark, the feet
+  arrived in 3 s and the legs between them fell in towards the middle,
+  the knees 0.7 to 1.0 m from their places; drawn 0.75 m past, the knees
+  land within 0.3 m.
+- **The hook travels forward as it comes down**, over 30 s, to where it
+  held the shoulders, so the net is laid from the feet towards the hands:
+  legs, pelvis, chest. A line to the tip of each hand (L62, R62) from a
+  stake 3 m beyond where it lay is reeled in at up to 0.5 m/s only while
+  barely taut. The feet come down about 15 s in, the knees after them,
+  and the joints slide 0.04 m over the ground on average, 0.3 m at worst.
+- **The crew does the rest.** Every cap not yet where it lay is lifted and
+  carried there, over 8 s, which is not physics.
 
 So the hand tips want an eye each, as L25 and R25 have: **eyes on L62 and
 R62** for the laying-out lines. The feet have their rod ends.
 
-Then the lines come off and the net is eased the rest of the way, over 5 s,
-to where it lay when the last strut came out. That last easing is not
-physics: every joint is moved in a straight line, standing in for people
-straightening the net. Then the struts go in, the same stages backwards
+Then the struts go in, the same stages backwards
 with the same forces, up to the arms:
 
 | Step | Struts | Leans | Worst cable | Worst strut margin |
@@ -280,6 +295,65 @@ with the same forces, up to the arms:
   behind the feet: there the legs are shortest when the figure is upright
   and hold it both ways. Guy lines go on while it hangs like that, drawn
   in over 10 s; then the hook comes off.
+
+## Open Claw the same way
+
+The Take apart button works on Open Claw too, on the same machinery
+(`Assembly::of(fabric, FabricName::OpenClaw)`). Open Claw is built hanging,
+so its sequence is the arms' part of Headless Hug's and nothing else:
+
+```bash
+cargo test --release --lib assembly::open_claw_apart_and_together -- --ignored --nocapture
+```
+
+- **One eye, on the top: Z2**, the upper end of the strut on the axis, on a
+  4 m sling leg. The feet are A30, B30 and C30. There are no guy lines.
+- **Taking apart:** hook on, feet let go, lifted until nothing touches the
+  ground, then for each set of three: let down until the strut's lower end
+  is 0.15 m from the ground, drawn in until it carries nothing, taken out.
+  The feet struts A29–A30, B29–B30, C29–C30 come out first and Z1–Z2 last,
+  16 steps for 46 struts. Then the net is lifted clear.
+- **Putting together starts from the net hanging with no struts.** As it
+  is let down, a line to each foot from a stake 4 m beyond where that foot
+  stood is reeled in, at up to 1.5 m/s while it pulls less than about
+  3.8 kN. The legs come apart in the air: 4 s in, the feet are 5.4 m from
+  the middle and 1.5 m up, and hardly anything touches the ground for
+  12 s. Let down, the feet lie 6.3 m from the middle, wider than the 3.7 m
+  they stood at, and the legs lie out straight along the lines. Nothing
+  pulls during the take-down.
+- **With the net on the ground the lines come off.** Z1–Z2 goes in, and
+  the hook is raised step by step as each three go in, down to the feet,
+  drawing the legs in as their struts go back. Then it is stood on the
+  ground, the feet drawn to where they stood, the hook taken off.
+- **A strut goes in only with both its ends off the ground.** Before each
+  three the hook raises the net until they are clear, and their caps are
+  carried, over 3 s, to where the pose they came out in has them, fitted
+  to the part already in. Drawn apart, the legs are not where they were
+  when the struts came out, and the part already in hangs shifted and
+  turned, so the old pose is moved and turned about the upright to lie
+  best on it and the eye. While only Z1–Z2 is in, its caps are on the
+  axis and show no turn, so none is taken.
+- **Why the caps are carried.** Left where they hang, the first ring of
+  three after Z1–Z2 can twist the figure either way: once it was built as
+  Open Claw's mirror image, which fits the standing figure mirrored to
+  0.02 m, and tangled when its feet were drawn to their mounts (435 kN).
+  Moved there in one tick the caps jumped up to 1.6 m and the fabric blew
+  up. Carried over 3 s the cables they hang on stretch on the way: at two
+  steps the worst reaches 46–50 kN, against 37 kN standing, in simulation
+  forces. Headless Hug's net, laid on the ground, still goes all the way
+  back to its pose.
+- **The order is by joint number**, which follows the build outwards from
+  the top, so the same order holds if the shape changes. Strut heights
+  would give nearly the same order.
+- **It ends where it began:** Z2 within 1 mm and the feet on their marks,
+  no member more than 0.2 kN from the figure as the plan builds it.
+
+The forces the test prints for Open Claw are not to be read as loads. Its
+plan has no hardware masses and its stiffness is the simulation's default,
+so it stands at 37 kN in its tightest cable where the real one carried far
+less; the working load and buckling margins in the listing are Headless
+Hug's tubes and cables. Only the comparisons hold: the forces fall as
+struts come out and return to what they were.
 
 ## Next: the movie
 

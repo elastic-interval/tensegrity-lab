@@ -45,7 +45,7 @@ The fabric builds, pretensions, falls and settles by itself; most buttons appear
 |---|---|
 | Wind | Cycling: from the front, the side, behind, then off (`src/fabric/wind.rs`) |
 | Quake | Start / stop the ground shaking, up to half of g (`src/fabric/quake.rs`) |
-| Take apart / Put together | Headless Hug only: taken apart strut by strut on a crane hook, then put together again; Fast-forward hurries it (`src/build/assembly.rs`) |
+| Take apart | Headless Hug and Open Claw: taken apart strut by strut on a crane hook, then straight away put together again, fast-forwarded; one button switches it Slow / Fast-forward (`src/build/assembly.rs`) |
 | Start / Stop animation | The animation |
 | − Frequency + | Slower / faster animation |
 | Parts | The parts, full screen; Back to return |
