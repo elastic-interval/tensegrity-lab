@@ -219,9 +219,18 @@ mod tests {
     #[test]
     #[ignore]
     fn greedy_headless_hug_flat_omissions() {
+        greedy_flat_omissions(FabricName::HeadlessHug);
+    }
+
+    #[test]
+    #[ignore]
+    fn greedy_quadruped_flat_omissions() {
+        greedy_flat_omissions(FabricName::Quadruped);
+    }
+
+    fn greedy_flat_omissions(name: FabricName) {
         const FLAT_APEX: f32 = 120.0;
         const HEIGHT_TOLERANCE: f32 = 0.05;
-        let name = FabricName::HeadlessHug;
         let mut chosen: Vec<Link> = Vec::new();
         loop {
             let (fabric, current) = run(name, &chosen);
@@ -327,8 +336,17 @@ mod tests {
     #[test]
     #[ignore]
     fn greedy_headless_hug_bridles() {
+        greedy_bridles(FabricName::HeadlessHug);
+    }
+
+    #[test]
+    #[ignore]
+    fn greedy_quadruped_bridles() {
+        greedy_bridles(FabricName::Quadruped);
+    }
+
+    fn greedy_bridles(name: FabricName) {
         const HEIGHT_TOLERANCE: f32 = 0.05;
-        let name = FabricName::HeadlessHug;
         let mut chosen: Vec<Bridle> = Vec::new();
         loop {
             let (fabric, current) = run_plan(name, &[], &chosen);

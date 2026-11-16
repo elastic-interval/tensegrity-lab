@@ -6,7 +6,8 @@ use crate::fabric::dimensions::Hardware;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
-static PLANS: [OnceLock<FabricPlan>; 6] = [
+static PLANS: [OnceLock<FabricPlan>; 7] = [
+    OnceLock::new(),
     OnceLock::new(),
     OnceLock::new(),
     OnceLock::new(),
@@ -19,6 +20,7 @@ static PLANS: [OnceLock<FabricPlan>; 6] = [
 pub enum FabricName {
     #[strum(serialize = "Headless Hug")]
     HeadlessHug,
+    Quadruped,
     #[strum(serialize = "Open Claw")]
     OpenClaw,
     #[strum(serialize = "Halo by Crane")]
@@ -101,6 +103,8 @@ impl FabricName {
                 .surface_frozen(),
 
             HeadlessHug => headless_hug_plan(HeadlessHugShape::default()),
+
+            Quadruped => quadruped_plan(),
 
             Diamond => self
                 .build(FabricDimensions::default())
@@ -373,6 +377,49 @@ pub fn headless_hug_plan(shape: HeadlessHugShape) -> FabricPlan {
             phase(Pct(0.0)).interval(LR(14) - LR(63)),
             phase(Pct(50.0)).interval(LR(14) - LR(64)),
         ])
+}
+
+/// A four-legged pet for Headless Hug, on Headless Hug's seed: a leg off
+/// each of the four faces that look fore and aft, bent down by pulling each
+/// foot toward the lower face on its side.
+pub fn quadruped_plan() -> FabricPlan {
+    let leg = |face, label| on(face).column(2).shrink_by(Pct(13.0)).prism(Pct(400.0)).label(label);
+    FabricName::Quadruped
+        .build(
+            FabricDimensions::default()
+                .with_altitude(M(4.0))
+                .with_scale(M(0.75))
+                .with_connector()
+                .with_tube_sets(HEADLESS_HUG_TUBES)
+                .with_connectors_shown()
+                .with_hardware(Hardware::OPEN_CLAW),
+        )
+        .seed(OmniSymmetrical, Seed(2))
+        .faces([
+            leg(ForeLeft, Foot(Side::Left)).into(),
+            leg(ForeRight, Foot(Side::Right)).into(),
+            leg(AftLeft, HindFoot(Side::Left)).into(),
+            leg(AftRight, HindFoot(Side::Right)).into(),
+            on(LowerLeft).label(ChestLower(Side::Left)),
+            on(LowerRight).label(ChestLower(Side::Right)),
+        ])
+        .prepare_vulcanize(0.5, VulcanizeMode::Linear)
+        .space_parallel(
+            Sec(2.8),
+            [
+                spacer([Foot(Side::Left), ChestLower(Side::Left)], Pct(40.0)),
+                spacer([Foot(Side::Right), ChestLower(Side::Right)], Pct(40.0)),
+                spacer([HindFoot(Side::Left), ChestLower(Side::Left)], Pct(40.0)),
+                spacer([HindFoot(Side::Right), ChestLower(Side::Right)], Pct(40.0)),
+                spacer([Foot(Side::Left), HindFoot(Side::Left)], Pct(80.0)),
+                spacer([Foot(Side::Right), HindFoot(Side::Right)], Pct(80.0)),
+            ],
+        )
+        .vulcanize(Sec(2.1))
+        .pretense(Sec(0.3), Pct(0.5))
+        .surface_frozen()
+        .fall(Sec(1.5))
+        .settle(Sec(10.0))
 }
 
 pub fn get_fabric_plan(fabric_name: FabricName) -> FabricPlan {

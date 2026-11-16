@@ -132,10 +132,10 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
     // to its mirror-paired "left" face. Lets the labeller produce
     // mirror-partner joint labels that share their numeric suffix.
     // Empirically determined to make HeadlessHug's mirror partners line
-    // up; left faces stay at twist 0 by default.
+    // up, and Quadruped's fore and aft legs; left faces stay at twist 0 by default.
     .face_twist(LowerRight, 2)
     .face_twist(UpperRight, 1)
-    .face_twist(ForeRight, 1)
-    .face_twist(AftRight, 2)
+    .face_twist(ForeRight, 2)
+    .face_twist(AftRight, 1)
     .build()
 }

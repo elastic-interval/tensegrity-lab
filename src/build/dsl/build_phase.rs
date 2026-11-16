@@ -470,7 +470,8 @@ impl BuildPhase {
     }
 
     /// For each seed face_node, return its assigned letter (A, B, C, ...)
-    /// if it contains a Label anywhere in its subtree, otherwise None.
+    /// if it grows a limb with a Label anywhere in its subtree, otherwise
+    /// None. A face that only carries a label grows no limb.
     fn seed_face_letters(face_nodes: &[BuildNode]) -> Vec<Option<char>> {
         let mut next_letter: u8 = b'A';
         face_nodes
@@ -488,13 +489,13 @@ impl BuildPhase {
     }
 
     fn face_node_is_labeled(face_node: &BuildNode) -> bool {
-        let mut found = false;
-        face_node.traverse(&mut |n| {
-            if matches!(n, Label { .. }) {
-                found = true;
-            }
+        let (mut labeled, mut grows) = (false, false);
+        face_node.traverse(&mut |n| match n {
+            Label { .. } => labeled = true,
+            Column { .. } | Hub { .. } => grows = true,
+            _ => {}
         });
-        found
+        labeled && grows
     }
 
     /// For each seed face_node, look up the twist (0/1/2) declared on
@@ -591,7 +592,7 @@ impl BuildPhase {
     /// Each limb letter's role and member (see `docs/joint-naming.md`). Under
     /// a cyclic symmetry the limbs are legs; their members are settled by
     /// `name_limbs` once the legs exist. Under a mirror symmetry the role comes from the limb's face
-    /// labels (a hand makes an arm, a foot a leg) and the member from their
+    /// labels (a hand makes an arm, a foot a leg, a hind foot a hind leg) and the member from their
     /// side: the figure's own left or right. Empty without a symmetry.
     fn limb_names(
         face_nodes: &[BuildNode],
@@ -611,11 +612,14 @@ impl BuildPhase {
                         'A'
                     } else if labels.iter().any(|l| matches!(l, FaceLabel::Foot(_))) {
                         'L'
+                    } else if labels.iter().any(|l| matches!(l, FaceLabel::HindFoot(_))) {
+                        'H'
                     } else {
                         return None;
                     };
                     let member = labels.iter().find_map(|label| match label {
                         FaceLabel::Foot(side)
+                        | FaceLabel::HindFoot(side)
                         | FaceLabel::Hand(side)
                         | FaceLabel::ChestUpper(side)
                         | FaceLabel::ChestLower(side) => Some(match side {
@@ -653,6 +657,7 @@ fn mirrored_face_label(label: FaceLabel) -> Option<FaceLabel> {
     };
     match label {
         Foot(side) => Some(Foot(flip(side))),
+        HindFoot(side) => Some(HindFoot(flip(side))),
         Hand(side) => Some(Hand(flip(side))),
         ChestUpper(side) => Some(ChestUpper(flip(side))),
         ChestLower(side) => Some(ChestLower(flip(side))),

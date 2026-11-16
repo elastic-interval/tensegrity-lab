@@ -108,6 +108,8 @@ pub enum FaceLabel {
     // HeadlessHug: feet, hands, chest hubs — left/right mirror pairs.
     #[strum(to_string = "Foot({0})")]
     Foot(Side),
+    #[strum(to_string = "HindFoot({0})")]
+    HindFoot(Side),
     #[strum(to_string = "Hand({0})")]
     Hand(Side),
     #[strum(to_string = "ChestUpper({0})")]
