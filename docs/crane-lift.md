@@ -164,9 +164,14 @@ cargo test --release --lib assembly::put_headless_hug_together -- --ignored --no
   length. Fork rods stay rigid. The net alone, hung as chains, weighs
   158 kg.
 - **A strut is drawn in, then taken out.** It shortens, by a tenth of its
-  length at most, until it carries nothing. Before it goes back in, the
-  net is carried, over 3 s, to where it lay when that strut came out, the
-  hook with it, to where its legs are just taut over the eyes. Then the
+  length at most, until it carries nothing. Before it goes back in, its
+  two caps are drawn, over 3 s, to where they were when it came out,
+  over the ground as a crew would, the rest of the net left as it lies.
+  A hanging arm is brought whole, the hook going along to where its legs
+  are just taut over the eyes: its caps alone, moved where the arm cannot
+  follow, stretched its cables to 40 kN. Brought whole, the cables L55–L50
+  and R55–R50 still reach 13.9 kN at the end of one carry, held there
+  until L55–L56 and R55–R56 go in. Then the
   strut goes in at the length its caps span, never more than its own, and
   is lengthened to its own over 4 s; the site holds it at its length all
   the while. A strut that still carries when drawn in (Z3–Z4 in the
@@ -174,9 +179,9 @@ cargo test --release --lib assembly::put_headless_hug_together -- --ignored --no
   ends off the ground.
 - **No jolts.** Moved in one tick, as at first, the net jumped: joints up
   to 260 m/s, most of it the sling legs snapping the eyes when the hook
-  was let go over a net that had moved. Carried, no joint moves faster
-  than 10 m/s while a strut goes in. The test prints any step where a
-  joint is seen to move faster than 2 m/s.
+  was let go over a net that had moved. Drawn over 3 s, no joint moves
+  faster than 8 m/s while a strut goes in. The test prints any step where
+  a joint is seen to move faster than 2 m/s.
 - **Twins go together**, both drawn in and removed in one step. Struts on
   the mirror plane (L1–R1, L2–R2, Z1–Z2, Z3–Z4) go singly.
 - **The order**, putting together: the pelvis (L1–R1, L2–R2, L3–L4 and
@@ -189,15 +194,18 @@ cargo test --release --lib assembly::put_headless_hug_together -- --ignored --no
 - **The ground is slippery.** Nothing on it is held but the feet, and
   those only while they are on their mounts (base plates, or truss
   towers).
-- **Arm struts are handled within reach of the ground.** The hook lets
-  the figure down until the lower end of the next arm strut is 15 cm up,
-  or the legs go slack.
+- **An arm strut comes off within reach, 1 m from the ground.** The hook
+  only lowers, as a crane would, from 7.6 m to 4.9 m over the arms, until
+  the lower end of the next arm strut is 1 m up, or the legs go slack;
+  the crew can reach a strut there. Lowered until the struts were within
+  15 cm of the ground, every arm strut from the hands in lay almost flat
+  before it came out; holding one end just touching took the hook up and
+  down between pairs, which a crane would not do.
 - **A strut goes back in where it came out.** Lengthening struts in the
   net as it happens to lie does not work in the simulation: nothing there
   says which side of a cable a strut goes, and it tangles (cables at
-  hundreds of kN). So each stage of putting together starts from where
-  taking apart had the net when those struts came out. On site that is
-  the numbers written on the caps.
+  hundreds of kN). So each strut's caps are drawn to where they were when
+  it came out. On site that is the numbers written on the caps.
 
 ### Taking apart
 
@@ -236,12 +244,21 @@ to lie:
   land within 0.3 m.
 - **The hook travels forward as it comes down**, over 30 s, to where it
   held the shoulders, so the net is laid from the feet towards the hands:
-  legs, pelvis, chest. A line to the tip of each hand (L62, R62) from a
-  stake 3 m beyond where it lay is reeled in at up to 0.5 m/s only while
-  barely taut. The feet come down about 15 s in, the knees after them,
-  and the joints slide 0.04 m over the ground on average, 0.3 m at worst.
-- **The crew does the rest.** Every cap not yet where it lay is lifted and
-  carried there, over 8 s, which is not physics.
+  legs, pelvis, chest. The feet come down about 15 s in, the knees after
+  them, and the joints slide 0.03 m over the ground on average.
+- **The arms are drawn apart the same way.** A line to the tip of each
+  hand (L62, R62) runs from a stake 6 m beyond where the hand lay, out
+  along the arm from the shoulders, and is reeled in as hard as the foot
+  lines, stopping with the hand 0.75 m past its mark. The arms then land
+  0.53 m from where they lay on average, 0.83 m at worst. With the stake
+  3 m out from the middle of the net, kept barely taut, they landed
+  1.13 m off: the line pulled the hands forward as well as out, and ran
+  in to its length and went slack. Aimed from the middle of the net, not
+  the shoulders, a harder pull still left them about 1 m off.
+- **No net-wide carry.** The net used to be lifted and carried, every cap
+  at once over 8 s, to where it lay: a jump that is not physics. Splayed
+  as it now is, the net is left where it lands, and only each strut's
+  two caps are drawn over the ground into place as the strut goes in.
 
 So the hand tips want an eye each, as L25 and R25 have: **eyes on L62 and
 R62** for the laying-out lines. The feet have their rod ends.
