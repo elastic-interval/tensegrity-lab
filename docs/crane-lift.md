@@ -137,7 +137,8 @@ What it leaves out:
 first taking the standing figure apart, then putting it together again.
 In the app (Headless Hug or Open Claw, once it stands) that is the
 **Take apart** button: it is taken apart and then, straight away, put
-together again. It runs fast-forwarded, 20 times real time; **Slow**
+together again. It runs fast-forwarded, up to 10 times real time, as
+fast as the physics allows while the picture keeps moving; **Slow**
 brings it to real time, and the same button, now **Fast-forward**,
 hurries it again. The tests in
 `src/assembly.rs` run the same and print the worst cable and strut at
@@ -159,7 +160,7 @@ cargo test --release --lib assembly::put_headless_hug_together -- --ignored --no
   is at its final length.
 - **Slack cables drape.** A cable stays a straight, stiff cable while
   either of its caps holds a strut. With both struts out it hangs as a
-  chain of segments about 35 cm long, as in Open Claw's take-down, and
+  chain of segments about 60 cm long, as in Open Claw's take-down, and
   with a strut back at either end it is a cable again, drawn to its
   length. Fork rods stay rigid. The net alone, hung as chains, weighs
   158 kg.

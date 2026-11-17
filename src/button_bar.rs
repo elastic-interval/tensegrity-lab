@@ -6,7 +6,7 @@ use crate::units::Meters;
 use crate::{ControlState, LabEvent, StateChange, TesterAction, TweakFeature};
 
 /// How much faster than real time Fast-forward runs.
-pub const FAST_FORWARD: f32 = 20.0;
+pub const FAST_FORWARD: f32 = 10.0;
 
 /// What pressing sends: one event, or a step down or up either side of the
 /// label.

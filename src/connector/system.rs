@@ -19,6 +19,13 @@ use glam::Vec3;
 use slotmap::SecondaryMap;
 use std::collections::{HashMap, HashSet};
 
+/// The cables and struts that end at a joint.
+#[derive(Default)]
+struct JointEnds {
+    cables: Vec<IntervalKey>,
+    struts: Vec<IntervalKey>,
+}
+
 #[derive(Clone, Debug)]
 pub struct ConnectorSystem {
     pub dimensions: ConnectorDimensions,
@@ -453,12 +460,27 @@ impl ConnectorSystem {
     }
 
     fn build_nodes(&mut self, fabric: &Fabric) {
+        // Each joint's cables and struts, found once rather than for every
+        // cable of every plate: draped cables make a thousand intervals. A
+        // cable out of the fabric, its chain hanging instead, has no part in a
+        // plate.
+        let mut ends: SecondaryMap<JointKey, JointEnds> = SecondaryMap::new();
+        for (key, interval) in fabric.intervals.iter().filter(|(_, interval)| !interval.is_out()) {
+            for joint in [interval.alpha_key, interval.omega_key] {
+                let at = ends.entry(joint).expect("a joint").or_default();
+                if interval.role.is_pull_like() {
+                    at.cables.push(key);
+                } else if interval.has_role(Role::Pushing) {
+                    at.struts.push(key);
+                }
+            }
+        }
         // Twice: a plate aims at a hinge cable's plate where that has settled.
         for _ in 0..2 {
             self.plates = fabric
                 .bridle_nodes
                 .keys()
-                .map(|&node| (node, self.build_plate(fabric, node)))
+                .map(|&node| (node, self.build_plate(fabric, node, &ends)))
                 .collect();
         }
     }
@@ -466,18 +488,17 @@ impl ConnectorSystem {
     /// A bridle node's plate, each of its three cables aimed at its far end:
     /// the far pivot on a strut's stack, or the far joint itself where that
     /// is another node. A hanger aims at the pivot it hangs from.
-    fn build_plate(&self, fabric: &Fabric, node: JointKey) -> NodePlate {
-        let cables: Vec<(IntervalKey, Vec3, bool)> = fabric
-            .intervals
+    fn build_plate(&self, fabric: &Fabric, node: JointKey, ends: &SecondaryMap<JointKey, JointEnds>) -> NodePlate {
+        let cables: Vec<(IntervalKey, Vec3, bool)> = ends[node]
+            .cables
             .iter()
-            .filter(|(_, i)| i.role.is_pull_like() && i.touches(node))
-            .map(|(key, i)| {
-                let far = i.other_joint(node);
+            .map(|&key| {
+                let far = fabric.intervals[key].other_joint(node);
                 let at_far = fabric.joints[far].location;
                 let aim = if fabric.bridle_nodes.contains_key(&far) {
                     self.plates.get(&far).map_or(at_far, |plate| plate.center)
                 } else {
-                    self.pull_end_pivot(fabric, key, far).unwrap_or(at_far)
+                    self.pivot_on(fabric, key, far, ends[far].struts.iter().copied()).unwrap_or(at_far)
                 };
                 (key, aim, is_hanger(fabric, key))
             })
@@ -503,6 +524,11 @@ impl ConnectorSystem {
         let legs: Vec<IntervalKey> = cables.iter().map(|c| c.0).filter(|key| *key != far).collect();
         let pivot = |key: IntervalKey| cables.iter().find(|c| c.0 == key).map(|c| c.1);
         let middle = (pivot(legs[0])? + pivot(legs[1])?) / 2.0;
+        // A plate whose triangle cannot be made, as in a slack net, has no
+        // balance to find.
+        if NodePlate::new(middle.lerp(aim, 0.5), cables).jammed {
+            return None;
+        }
         let excess = |along: f32| {
             let plate = NodePlate::new(middle.lerp(aim, along), cables);
             let span = |key: IntervalKey| Some(plate.hole(key)?.distance(pivot(key)?));
@@ -865,10 +891,14 @@ impl ConnectorSystem {
         if fabric.bridle_nodes.contains_key(&near) {
             return self.plates.get(&near).and_then(|plate| plate.hole(pull_key));
         }
-        for (push_key, push) in fabric.intervals.iter() {
-            if !push.has_role(Role::Pushing) {
-                continue;
-            }
+        let struts = fabric.intervals.iter().filter(|(_, push)| push.has_role(Role::Pushing)).map(|(key, _)| key);
+        self.pivot_on(fabric, pull_key, near, struts)
+    }
+
+    /// Where `pull_key` pivots on the stack at `near` of one of `struts`.
+    fn pivot_on(&self, fabric: &Fabric, pull_key: IntervalKey, near: JointKey, struts: impl Iterator<Item = IntervalKey>) -> Option<Vec3> {
+        for push_key in struts {
+            let push = &fabric.intervals[push_key];
             for end in [IntervalEnd::Alpha, IntervalEnd::Omega] {
                 let end_joint = match end {
                     IntervalEnd::Alpha => push.alpha_key,

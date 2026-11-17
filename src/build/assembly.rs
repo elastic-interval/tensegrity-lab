@@ -85,7 +85,7 @@ const TURN_SHOWN: f32 = 0.05;
 const BRINGING: Seconds = Seconds(3.0);
 const FOOT_REELING: f32 = 1.5;
 /// A slack cable hangs as a chain of segments about this long.
-const CHAIN_SEGMENT: Meters = Meters(0.35);
+const CHAIN_SEGMENT: Meters = Meters(0.6);
 const RESTING: Seconds = Seconds(10.0);
 const SWINGING: Seconds = Seconds(30.0);
 /// A hanging strut comes off with its lower end this near the ground:

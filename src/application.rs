@@ -55,6 +55,9 @@ const CYCLE_DWELL: Duration = Duration::from_secs(5);
 /// How often the moving stats are read: each reading holds the extremes
 /// since the one before.
 const MOTION_INTERVAL: Duration = Duration::from_secs(1);
+/// The most time a frame spends on physics beyond its first update, so a
+/// frame comes about thirty times a second however much is asked of it.
+const PHYSICS_BUDGET: Duration = Duration::from_millis(25);
 
 pub struct Application {
     run_style: RunStyle,
@@ -824,12 +827,19 @@ impl ApplicationHandler<LabEvent> for Application {
             ControlState::Waiting | ControlState::Baking
         ) || camera_animating;
 
-        // Limit updates per frame
+        // Limit updates per frame, and the time they take: fast-forward runs
+        // as fast as the physics allows, and the picture keeps moving.
         let mut updates_this_frame = 0;
         let max_updates_per_frame = 3;
+        let physics_started = Instant::now();
 
         while self.accumulated_time >= update_interval && updates_this_frame < max_updates_per_frame
         {
+            if updates_this_frame > 0 && physics_started.elapsed() > PHYSICS_BUDGET {
+                // What there was no time for is dropped, not caught up later.
+                self.accumulated_time = Duration::ZERO;
+                break;
+            }
             self.accumulated_time -= update_interval;
             updates_this_frame += 1;
 
