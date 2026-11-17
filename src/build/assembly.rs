@@ -58,10 +58,6 @@ const SETTLING: Seconds = Seconds(6.0);
 const SHORTENED: f32 = 0.9;
 const SHORTENING: Seconds = Seconds(4.0);
 const LAYING: Seconds = Seconds(30.0);
-/// What the lines cannot do the crew does: every cap not yet where it lay
-/// is carried there, lifted this high at most, in this long.
-const EASING: Seconds = Seconds(8.0);
-const CARRIED: Meters = Meters(0.4);
 /// Without its struts the net is far longer than the figure, and dragging
 /// it over the ground hardly works, so it is drawn apart while it is let
 /// down, by lines from stakes this far beyond where each foot lay, out
@@ -71,28 +67,33 @@ const CARRIED: Meters = Meters(0.4);
 /// where the shoulders lay as it comes down, and its foot lines stop with
 /// the feet `FEET_PAST` beyond their marks: without its struts a leg is
 /// longer than it lay, and drawn that far it lies straight where it lay,
-/// so the net is laid from the feet forwards;
-/// lines to its hand tips are kept barely taut. Open Claw's legs go three
+/// so the net is laid from the feet forwards. Its hand lines, from stakes
+/// `HAND_STAKE` beyond the hand tips out along the arms from the shoulders,
+/// pull as hard and stop with the hands `HANDS_PAST` beyond their marks:
+/// spread eagle, the shoulders drawn out wider than they lay, since lines
+/// to the hands alone leave the shoulders fallen in towards the middle. Open Claw's legs go three
 /// ways and are drawn out wider than they stood, to `STAKE_REACHED`. With
 /// the net on the ground the lines come off.
 const NEAR_STAKE: Meters = Meters(4.0);
 const STAKE_TAUT: f32 = 0.001;
 const STAKE_REACHED: Meters = Meters(0.5);
 const FEET_PAST: Meters = Meters(0.75);
+const HAND_STAKE: Meters = Meters(10.0);
+const HANDS_PAST: Meters = Meters(3.0);
 /// In square metres: caps further from the upright than this show how the
 /// figure has turned.
 const TURN_SHOWN: f32 = 0.05;
 const BRINGING: Seconds = Seconds(3.0);
-const HAND_LINE: Meters = Meters(3.0);
 const FOOT_REELING: f32 = 1.5;
-const HAND_REELING: f32 = 0.5;
-const JUST_TAUT: f32 = 0.0005;
 /// A slack cable hangs as a chain of segments about this long.
-const CHAIN_SEGMENT: Meters = Meters(0.35);
+const CHAIN_SEGMENT: Meters = Meters(0.6);
 const RESTING: Seconds = Seconds(10.0);
 const SWINGING: Seconds = Seconds(30.0);
-/// An arm strut goes on or comes off with its lower end this near the ground.
-const WITHIN_REACH: Meters = Meters(0.15);
+/// A hanging strut comes off with its lower end this near the ground:
+/// Headless Hug's crew can reach a strut 1 m up; Open Claw's within reach
+/// of the ground, as before.
+const HEADLESS_HUG_REACH: Meters = Meters(1.0);
+const OPEN_CLAW_REACH: Meters = Meters(0.15);
 const HEADLESS_HUG_STANDING: Meters = Meters(7.0);
 /// A joint this high is off the ground.
 const CLEAR: Meters = Meters(0.05);
@@ -268,9 +269,6 @@ enum Change {
     /// The hook taken to where it held the eyes when the last strut came
     /// out, lines to the hands reeled in: the net laid down.
     LayDown,
-    /// The net eased the rest of the way to where it lay when the last
-    /// strut came out.
-    LaidOut,
     /// Up to this many struts.
     Add(usize),
     /// The guy lines on and drawn in, still on the hook.
@@ -285,7 +283,7 @@ enum Until {
     /// The eyes this high above the ground.
     EyesAt(Meters),
     /// The hook has let this strut down to where its lower end is
-    /// `WITHIN_REACH` of the ground, or has gone slack.
+    /// `reach` of the ground, or has gone slack.
     InReach(usize),
     LegsSlack,
     /// These struts carry nothing.
@@ -325,8 +323,6 @@ struct Running {
     slack_ticks: usize,
     /// The hook's way from where it was to where it is going.
     sweep: Option<(Vec3, Vec3)>,
-    /// The net eased from here to where it lay.
-    spread: Option<Pose>,
     /// The feet drawn from here to their mounts.
     mounting: Option<Vec<(JointKey, Vec3)>>,
     /// Caps carried from here to there.
@@ -349,6 +345,8 @@ pub struct Assembly {
     hands: Vec<JointKey>,
     /// How high the eyes are when it is stood up.
     standing: Meters,
+    /// A hanging strut comes off with its lower end this near the ground.
+    reach: Meters,
     order: Vec<IntervalKey>,
     /// How many struts go in on the ground, before the hook raises the rest.
     before_arms: usize,
@@ -388,11 +386,13 @@ impl Assembly {
             whole.remove_joint(anchor);
         }
         let named = |names: &[&str]| names.iter().map(|name| joint(&whole, name)).collect::<Vec<JointKey>>();
-        let (eyes, feet, standing, (order, before_arms, stops)) = match name {
-            FabricName::HeadlessHug => (named(&["L25", "R25"]), named(&["L54", "R54"]), HEADLESS_HUG_STANDING, build_order(&whole)),
+        let (eyes, feet, standing, reach, (order, before_arms, stops)) = match name {
+            FabricName::HeadlessHug => {
+                (named(&["L25", "R25"]), named(&["L54", "R54"]), HEADLESS_HUG_STANDING, HEADLESS_HUG_REACH, build_order(&whole))
+            }
             FabricName::OpenClaw => {
                 let top = joint(&whole, "Z2");
-                (vec![top], named(&["A30", "B30", "C30"]), Meters(whole.location(top).y), hung_order(&whole))
+                (vec![top], named(&["A30", "B30", "C30"]), Meters(whole.location(top).y), OPEN_CLAW_REACH, hung_order(&whole))
             }
             _ => panic!("{name} is not taken apart"),
         };
@@ -406,6 +406,7 @@ impl Assembly {
             feet,
             hands: Vec::new(),
             standing,
+            reach,
             order,
             before_arms,
             stops,
@@ -568,10 +569,21 @@ impl Assembly {
 
     fn pose_brought(&self, fabric: &Fabric, count: usize) -> Vec<(JointKey, Vec3, Vec3)> {
         let pose = &self.poses[count - 1];
+        let ends = |strut: IntervalKey| [self.whole.intervals[strut].alpha_key, self.whole.intervals[strut].omega_key];
+        if count <= self.before_arms {
+            // On the ground the caps are drawn over it to where they lay.
+            return self.order[..count]
+                .iter()
+                .filter(|&&strut| fabric.intervals[strut].is_out())
+                .flat_map(|&strut| ends(strut))
+                .map(|cap| (cap, fabric.location(cap), pose[cap]))
+                .collect();
+        }
         if self.before_arms > 0 {
+            // A hanging arm is brought whole: its caps alone, moved where the
+            // arm cannot follow, stretch its cables far past their load.
             return pose.iter().map(|(joint, &to)| (joint, fabric.location(joint), to)).collect();
         }
-        let ends = |strut: IntervalKey| [self.whole.intervals[strut].alpha_key, self.whole.intervals[strut].omega_key];
         let (going_in, already): (Vec<IntervalKey>, Vec<IntervalKey>) =
             self.order[..count].iter().partition(|&&strut| fabric.intervals[strut].is_out());
         let fitted: Vec<JointKey> = already.into_iter().flat_map(ends).chain(self.eyes.iter().copied()).collect();
@@ -653,13 +665,13 @@ impl Assembly {
         let (groups, before_arms, guyed) = (self.groups(), self.before_arms, !self.anchors.is_empty());
         if before_arms > 0 {
             self.step("let down, legs drawn apart", Change::LayDown, After(LAYING));
-            self.step("net laid out", Change::LaidOut, After(EASING));
+            self.step("lines off", Change::LinesOff, After(SETTLING));
         } else {
             self.hoist("let down, legs drawn apart", Change::LinesOn, -HOOK_SPEED, InReach(0));
             self.step("lines off", Change::LinesOff, After(SETTLING));
         }
         for &(from, to) in groups.iter().filter(|group| group.0 < before_arms) {
-            self.step("net brought into place", Change::Bring(to), After(BRINGING));
+            self.step("caps drawn into place", Change::Bring(to), After(BRINGING));
             self.step(self.strut_label('+', from, to), Change::Add(to), After(SETTLING));
         }
         if before_arms > 0 {
@@ -672,8 +684,7 @@ impl Assembly {
                 self.hoist("raised", Change::Nothing, HOOK_SPEED, EyesAt(Meters(eyes)));
             }
             self.hoist("raised clear", Change::Nothing, HOOK_SPEED, StrutsClear(from, to));
-            let brought = if before_arms > 0 { "net brought into place" } else { "caps brought into place" };
-            self.step(brought, Change::Bring(to), After(BRINGING));
+            self.step("caps brought into place", Change::Bring(to), After(BRINGING));
             self.step(self.strut_label('+', from, to), Change::Add(to), After(SETTLING));
         }
         self.step("every strut in", Change::Nothing, After(RESTING));
@@ -699,7 +710,6 @@ impl Assembly {
 
     fn begin(&mut self, step: Step, fabric: &mut Fabric) {
         let mut sweep = None;
-        let mut spread = None;
         let mut mounting = None;
         let mut bringing = None;
         let kept = match step.change {
@@ -793,17 +803,13 @@ impl Assembly {
                     let stake = Vec3::new(mark.x, 0.0, mark.z) + outwards * NEAR_STAKE.f32();
                     self.line(fabric, foot, stake, Meters(NEAR_STAKE.f32() - FEET_PAST.f32()), FOOT_REELING, STAKE_TAUT, true);
                 }
+                // A hand is drawn out along its arm, from the shoulders.
+                let shoulders = eyes.iter().sum::<Vec3>() / eyes.len() as f32;
                 for (hand, mark) in marks {
-                    let outwards = Vec3::new(mark.x - middle.x, 0.0, mark.z - middle.z).normalize();
-                    let stake = Vec3::new(mark.x, 0.0, mark.z) + outwards * HAND_LINE.f32();
-                    self.line(fabric, hand, stake, HAND_LINE, HAND_REELING, JUST_TAUT, false);
+                    let outwards = Vec3::new(mark.x - shoulders.x, 0.0, mark.z - shoulders.z).normalize();
+                    let stake = Vec3::new(mark.x, 0.0, mark.z) + outwards * HAND_STAKE.f32();
+                    self.line(fabric, hand, stake, Meters(HAND_STAKE.f32() - HANDS_PAST.f32()), FOOT_REELING, STAKE_TAUT, true);
                 }
-            }
-            Change::LaidOut => {
-                if self.before_arms > 0 {
-                    self.lines_off(fabric);
-                }
-                spread = Some(pose_of(fabric));
             }
             Change::Add(count) => {
                 let going_in: Vec<IntervalKey> =
@@ -859,7 +865,7 @@ impl Assembly {
             hook.climb = step.climb;
         }
         fabric.unfreeze();
-        self.running = Some(Running { label: step.label, until: step.until, ticks: 0, slack_ticks: 0, sweep, spread, mounting, bringing, kept });
+        self.running = Some(Running { label: step.label, until: step.until, ticks: 0, slack_ticks: 0, sweep, mounting, bringing, kept });
     }
 
     /// One tick. Gives the label of a step that ended with it.
@@ -897,16 +903,6 @@ impl Assembly {
             };
             interval.span = Span::Fixed { length: Meters(length) };
         }
-        if let (Some(hung), Until::After(seconds)) = (&running.spread, &running.until) {
-            let along = (running.ticks + 1) as f32 / ticks(*seconds) as f32;
-            for (key, joint) in fabric.joints.iter_mut() {
-                if let (Some(&from), Some(&to)) = (hung.get(key), self.poses[self.stops[0] - 1].get(key)) {
-                    let lifted = from.distance(to).min(CARRIED.f32()) * (along * std::f32::consts::PI).sin();
-                    joint.location = from.lerp(to, along) + Vec3::Y * lifted;
-                    joint.velocity = Vec3::ZERO;
-                }
-            }
-        }
         fabric.iterate(physics);
         running.ticks += 1;
         let hook = fabric.site.as_ref().and_then(|site| site.hook.as_ref());
@@ -923,7 +919,7 @@ impl Assembly {
             }
             Until::InReach(index) => {
                 running.slack_ticks = if slack(hook) { running.slack_ticks + 1 } else { 0 };
-                lower_end(fabric, self.order[index]) <= WITHIN_REACH.f32()
+                lower_end(fabric, self.order[index]) <= self.reach.f32()
                     || running.slack_ticks >= ticks(SLACK)
                     || running.ticks >= ticks(HOOK_TRAVEL)
             }

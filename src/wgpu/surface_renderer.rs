@@ -6,6 +6,9 @@ use glam::Vec3;
 use wgpu::util::DeviceExt;
 use wgpu::RenderPass;
 
+/// In metres: the surface a fabric starts on.
+const MIN_RADIUS: f32 = 0.5;
+
 pub struct SurfaceRenderer {
     pub vertices: Vec<SurfaceVertex>,
     pub pipeline: wgpu::RenderPipeline,
@@ -72,7 +75,7 @@ impl SurfaceRenderer {
                 immediate_size: 0,
             });
 
-        let surface_vertices = SurfaceVertex::for_radius(10.0).to_vec();
+        let surface_vertices = SurfaceVertex::for_radius(MIN_RADIUS).to_vec();
         let surface_pipeline =
             wgpu.device
                 .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -116,23 +119,27 @@ impl SurfaceRenderer {
             buffer: surface_buffer,
             ground_buffer,
             ground_bind_group,
-            current_radius: 10.0,
+            current_radius: MIN_RADIUS,
         }
     }
 
-    /// Update the surface radius based on fabric bounding radius.
-    /// Surface should be about 1.5x the fabric size for good visualization.
+    /// Grow the surface to about 1.5x the fabric's bounding radius when the
+    /// fabric outgrows it, by more than 5%. It never shrinks while the same
+    /// fabric is shown: the ground does not change size as the figure moves.
     pub fn update_radius(&mut self, queue: &wgpu::Queue, fabric_bounding_radius: f32) {
-        // Surface radius = 1.5x fabric bounding radius, with a minimum of 0.5m
-        let new_radius = (fabric_bounding_radius * 1.5).max(0.5);
-
-        // Only update if radius changed significantly (>5% change)
-        let radius_change = (new_radius - self.current_radius).abs() / self.current_radius;
-        if radius_change > 0.05 {
+        let new_radius = (fabric_bounding_radius * 1.5).max(MIN_RADIUS);
+        if new_radius > self.current_radius * 1.05 {
             self.current_radius = new_radius;
             self.vertices = SurfaceVertex::for_radius(new_radius).to_vec();
             queue.write_buffer(&self.buffer, 0, cast_slice(&self.vertices));
         }
+    }
+
+    /// Back to the smallest surface, for a fabric being built anew.
+    pub fn reset_radius(&mut self, queue: &wgpu::Queue) {
+        self.current_radius = MIN_RADIUS;
+        self.vertices = SurfaceVertex::for_radius(MIN_RADIUS).to_vec();
+        queue.write_buffer(&self.buffer, 0, cast_slice(&self.vertices));
     }
 
     /// The colours for the white background, or the starry sky's.

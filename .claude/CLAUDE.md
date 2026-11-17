@@ -153,7 +153,9 @@ build, and not again afterwards: animation keeps them.
   frame rate; the frame rate is only displayed. `time_scale` is 1 except
   while Fast-forward hurries a build (it goes back to 1 when the build ends).
   There is no speed control. A frame over 100 ms drops that time rather than
-  catching up.
+  catching up, and a frame spends at most about 25 ms on physics beyond its
+  first update (`PHYSICS_BUDGET`), so fast-forward goes only as fast as the
+  physics allows.
 - Don't introduce hardcoded iteration counts.
 
 ### Crucible — lifecycle manager
