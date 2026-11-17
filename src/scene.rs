@@ -134,6 +134,7 @@ impl Scene {
                 Waiting | Building => {
                     self.parts_view = None;
                     self.reset();
+                    self.surface_renderer.reset_radius(&self.wgpu.queue);
                 }
                 Animating => {
                     self.reset();
