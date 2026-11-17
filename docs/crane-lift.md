@@ -247,15 +247,19 @@ to lie:
   held the shoulders, so the net is laid from the feet towards the hands:
   legs, pelvis, chest. The feet come down about 15 s in, the knees after
   them, and the joints slide 0.03 m over the ground on average.
-- **The arms are drawn apart the same way.** A line to the tip of each
-  hand (L62, R62) runs from a stake 6 m beyond where the hand lay, out
-  along the arm from the shoulders, and is reeled in as hard as the foot
-  lines, stopping with the hand 0.75 m past its mark. The arms then land
-  0.53 m from where they lay on average, 0.83 m at worst. With the stake
-  3 m out from the middle of the net, kept barely taut, they landed
-  1.13 m off: the line pulled the hands forward as well as out, and ran
-  in to its length and went slack. Aimed from the middle of the net, not
-  the shoulders, a harder pull still left them about 1 m off.
+- **The arms are drawn apart the same way, spread eagle.** A line to the
+  tip of each hand (L62, R62) runs from a stake 10 m beyond where the hand
+  lay, out along the arm from the shoulders, and is reeled in as hard as
+  the foot lines, stopping with the hand 3 m past its mark. Drawn only
+  0.75 m past, the arms lay near their places but the shoulders between
+  them fell in towards the middle, where the hook holds the eyes: the
+  upper body landed 0.48 m inward of where it lay on average, 0.9 m at
+  worst. Drawn 3 m past, it lands 1.25 m wider than it lay on average;
+  only L4 (0.77 m) and Z6 (0.64 m) still land inward. Only how far past
+  the mark matters: stakes 6 m or 10 m out, pulling 3.8 kN or three times
+  that, give the same. The struts' caps are then drawn in to their places
+  as the struts go in. Aimed from the middle of the net rather than the
+  shoulders, the lines pulled the hands forward as well as out.
 - **No net-wide carry.** The net used to be lifted and carried, every cap
   at once over 8 s, to where it lay: a jump that is not physics. Splayed
   as it now is, the net is left where it lands, and only each strut's

@@ -69,16 +69,17 @@ const LAYING: Seconds = Seconds(30.0);
 /// longer than it lay, and drawn that far it lies straight where it lay,
 /// so the net is laid from the feet forwards. Its hand lines, from stakes
 /// `HAND_STAKE` beyond the hand tips out along the arms from the shoulders,
-/// pull as hard and stop with the hands `HANDS_PAST` beyond their marks,
-/// so the arms lie splayed where they lay. Open Claw's legs go three
+/// pull as hard and stop with the hands `HANDS_PAST` beyond their marks:
+/// spread eagle, the shoulders drawn out wider than they lay, since lines
+/// to the hands alone leave the shoulders fallen in towards the middle. Open Claw's legs go three
 /// ways and are drawn out wider than they stood, to `STAKE_REACHED`. With
 /// the net on the ground the lines come off.
 const NEAR_STAKE: Meters = Meters(4.0);
 const STAKE_TAUT: f32 = 0.001;
 const STAKE_REACHED: Meters = Meters(0.5);
 const FEET_PAST: Meters = Meters(0.75);
-const HAND_STAKE: Meters = Meters(6.0);
-const HANDS_PAST: Meters = Meters(0.75);
+const HAND_STAKE: Meters = Meters(10.0);
+const HANDS_PAST: Meters = Meters(3.0);
 /// In square metres: caps further from the upright than this show how the
 /// figure has turned.
 const TURN_SHOWN: f32 = 0.05;
