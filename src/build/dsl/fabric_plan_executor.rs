@@ -9,13 +9,22 @@ use crate::fabric::physics::Physics;
 use crate::fabric::interval::Role;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::fabric::{Fabric, JointKey};
-use crate::units::{Seconds, Unit};
+use crate::units::{Meters, Seconds, Unit};
 
 #[derive(Debug, PartialEq)]
 pub enum IterateResult {
     Continue,
     Complete,
 }
+
+/// How far through the settle the plates are tensioned again: a plate with
+/// four cables or more shares its load by where it hangs, which moves as
+/// the fabric finds its feet.
+const RETENSION_AT: [f32; 3] = [0.25, 0.5, 0.75];
+
+/// How far through the settle its cables go on: once the fabric has found
+/// its feet, with time left to come to rest with them.
+const CABLES_AT: f32 = 0.5;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ExecutorStage {
@@ -148,6 +157,11 @@ pub struct FabricPlanExecutor {
     stored_scale: f32,
     fall_start_age: Option<crate::Age>,
     settle_phase_start_age: Option<crate::Age>,
+    /// How many times the plates have been tensioned again during the
+    /// settle, as the fabric finds its feet (`RETENSION_AT`).
+    plates_retensioned: usize,
+    /// Whether the settle's cables are on (`CABLES_AT`).
+    settle_cables_added: bool,
 }
 
 impl FabricPlanExecutor {
@@ -170,6 +184,8 @@ impl FabricPlanExecutor {
             stored_scale: 1.0,
             fall_start_age: None,
             settle_phase_start_age: None,
+            plates_retensioned: 0,
+            settle_cables_added: false,
         };
 
         executor.log_event(ExecutionEvent::Started { iteration: 0 });
@@ -333,6 +349,14 @@ impl FabricPlanExecutor {
                             (completion, completion >= 1.0)
                         });
                     self.physics.update_settling_multipliers(progress);
+                    if RETENSION_AT.get(self.plates_retensioned).is_some_and(|&at| progress >= at) {
+                        self.plates_retensioned += 1;
+                        self.fabric.tension_plates(self.plan.pretense_phase.pretenst);
+                    }
+                    if progress >= CABLES_AT && !self.settle_cables_added {
+                        self.settle_cables_added = true;
+                        self.add_settle_cables();
+                    }
                     if done {
                         self.complete();
                     }
@@ -616,6 +640,40 @@ impl FabricPlanExecutor {
         self.fabric.tension_plates(self.plan.pretense_phase.pretenst);
         self.settle_phase_start_age = Some(self.fabric.age);
         self.stage = ExecutorStage::Settling;
+    }
+
+    /// The settle's cables, each along its link with its images, cut to its
+    /// percentage of the span it has now.
+    fn add_settle_cables(&mut self) {
+        let cables = self.plan.settle_phase.as_ref().map(|p| p.cables.clone()).unwrap_or_default();
+        for (link, length) in cables {
+            let pairs = match link.pairs(self.fabric.label_symmetry.as_ref()) {
+                Ok(pairs) => pairs,
+                Err(failure) => {
+                    self.plan_step_failed(failure);
+                    continue;
+                }
+            };
+            // Twins are cut the same, to their mean span: halfway through the
+            // settle the fabric is not yet exactly symmetric.
+            let keys: Vec<Option<(JointKey, JointKey)>> = pairs
+                .iter()
+                .map(|&(alpha, omega)| Some((self.fabric.joint_key(alpha)?, self.fabric.joint_key(omega)?)))
+                .collect();
+            let spans: Vec<Meters> = keys.iter().flatten().map(|&pair| self.fabric.distance(pair.0, pair.1)).collect();
+            let mean = Meters(spans.iter().map(|span| span.f32()).sum::<f32>() / spans.len().max(1) as f32);
+            for (alpha_label, omega_label) in pairs {
+                match (self.fabric.joint_key(alpha_label), self.fabric.joint_key(omega_label)) {
+                    (Some(alpha), Some(omega)) if self.fabric.joining((alpha, omega)).is_none() => {
+                        self.fabric.create_fixed_interval(alpha, omega, Role::Pulling, mean * length.as_factor());
+                    }
+                    (Some(_), Some(_)) => {
+                        self.plan_step_failed(format!("a cable is already there ({alpha_label}, {omega_label})"))
+                    }
+                    _ => self.plan_step_failed(format!("no joints for cable ({alpha_label}, {omega_label})")),
+                }
+            }
+        }
     }
 
     /// A pretense step's links as joint pairs, with their images, in the

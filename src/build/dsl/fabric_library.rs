@@ -448,13 +448,21 @@ pub fn quadruped_plan(shape: QuadrupedShape) -> FabricPlan {
         .surface_grippy()
         .fall(Sec(1.5))
         .settle(Sec(10.0))
+        // Diagonals across the top and the bottom of the body, each from one
+        // of Tork's upright struts to the opposite side, added once it stands,
+        // for the animation.
+        .cables(Pct(99.0), [LR(7) | LR(5), LR(6) | LR(4)])
         .animate()
         .actuator_frequency(Hz(0.5))
-        .amplitude(Pct(3.0))
+        .amplitude(Pct(11.0))
         .sine()
-        // Each cable from a body joint to the opposite side, the two half a
-        // cycle apart: R7–L5 pulls as L7–R5 lets go.
-        .actuators([phase(Pct(0.0)).between(LR(7) | LR(5)).alternating()])
+        // Each pair half a cycle apart, R7–L5 pulling as L7–R5 lets go, and
+        // each bottom diagonal against the top one on its struts: L6–R4
+        // pulls as L7–R5 lets go.
+        .actuators([
+            phase(Pct(0.0)).interval(LR(7) | LR(5)).alternating(),
+            phase(Pct(50.0)).interval(LR(6) | LR(4)).alternating(),
+        ])
 }
 
 pub fn get_fabric_plan(fabric_name: FabricName) -> FabricPlan {

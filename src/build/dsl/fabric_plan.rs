@@ -4,6 +4,7 @@ use crate::build::dsl::animate_phase::{Actuator, AnimatePhase, Waveform};
 use crate::build::dsl::build_phase::BuildPhase;
 use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::fall_phase::FallPhase;
+use crate::build::dsl::joint_names::Link;
 use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::settle_phase::{GuyLine, SettlePhase};
 use crate::build::dsl::shape_phase::ShapePhase;
@@ -30,7 +31,7 @@ impl FabricPlan {
     }
 
     pub fn settle(mut self, seconds: Seconds) -> Self {
-        self.settle_phase = Some(SettlePhase { seconds, guy_lines: Vec::new() });
+        self.settle_phase = Some(SettlePhase { seconds, guy_lines: Vec::new(), cables: Vec::new() });
         self
     }
 
@@ -40,6 +41,18 @@ impl FabricPlan {
             .as_mut()
             .expect("guy_lines requires settle()")
             .guy_lines = guy_lines.to_vec();
+        self
+    }
+
+    /// Cables added halfway through the settle, along each link with its
+    /// images, each cut to `length` of its span then, so they need a settle
+    /// phase.
+    pub fn cables<const N: usize>(mut self, length: Percent, links: [Link; N]) -> Self {
+        self.settle_phase
+            .as_mut()
+            .expect("cables requires settle()")
+            .cables
+            .extend(links.map(|link| (link, length)));
         self
     }
 

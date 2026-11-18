@@ -121,7 +121,9 @@ impl Surface {
                     velocity.y += antigravity * s.dt;
                 }
                 SurfaceCharacter::Grippy => {
-                    clamp_y = Some(0.0);
+                    if s.altitude < 0.0 {
+                        clamp_y = Some(0.0);
+                    }
                     velocity.y = velocity.y.max(0.0);
                     velocity.x = 0.0;
                     velocity.z = 0.0;

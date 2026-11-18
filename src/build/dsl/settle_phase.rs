@@ -1,10 +1,14 @@
-use crate::build::dsl::joint_names::Erased;
+use crate::build::dsl::joint_names::{Erased, Link};
 use crate::units::{Meters, Percent, Seconds};
 
 #[derive(Debug, Clone)]
 pub struct SettlePhase {
     pub seconds: Seconds,
     pub guy_lines: Vec<GuyLine>,
+    /// Cables added halfway through the settle along each link, with its
+    /// images, each cut to a percentage of its span then: an animation can
+    /// then drive them (`phase(..).interval(..)`).
+    pub cables: Vec<(Link, Percent)>,
 }
 
 /// A cable from named joints to fixed ground points, created on landing, one

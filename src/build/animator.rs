@@ -12,6 +12,9 @@ use std::f32::consts::PI;
 struct Oscillator {
     phase: f32, // Current phase [0.0, 1.0)
     phase_per_tick: f32,
+    /// How far into the first cycle, from 0 to 1, after which it stays 1:
+    /// the stroke grows over it, so no actuator starts with a jerk.
+    ease_in: f32,
 }
 
 impl Oscillator {
@@ -20,10 +23,12 @@ impl Oscillator {
         Self {
             phase: 0.0,
             phase_per_tick: 1.0 / ticks_per_cycle,
+            ease_in: 0.0,
         }
     }
 
     fn tick(&mut self) {
+        self.ease_in = (self.ease_in + self.phase_per_tick).min(1.0);
         self.phase += self.phase_per_tick;
         if self.phase >= 1.0 {
             self.phase -= 1.0;
@@ -200,9 +205,7 @@ impl Animator {
             if let Some(interval) = fabric.intervals.get_mut(actuator.id) {
                 // Apply phase offset to get actuator-specific phase
                 let phase_with_offset = (self.oscillator.phase + actuator.phase_offset) % 1.0;
-                let contraction = self
-                    .oscillator
-                    .value_at_phase(phase_with_offset, self.waveform);
+                let contraction = self.oscillator.value_at_phase(phase_with_offset, self.waveform) * self.oscillator.ease_in;
                 let length = actuator.rest_length * (1.0 - contraction)
                     + actuator.contracted_length * contraction;
                 interval.span = Span::Fixed { length };
@@ -233,7 +236,7 @@ mod tests {
     #[test]
     fn animations_run_headless() {
         use crate::fabric::physics::presets::ANIMATING;
-        for (name, count) in [(FabricName::HeadlessHug, 4), (FabricName::OpenClaw, 3), (FabricName::Quadruped, 2)] {
+        for (name, count) in [(FabricName::HeadlessHug, 4), (FabricName::OpenClaw, 3), (FabricName::Quadruped, 4)] {
             let plan = fabric_library::get_fabric_plan(name);
             let animate = plan.animate_phase.clone().expect("the plan animates");
             let mut executor = FabricPlanExecutor::new(plan);

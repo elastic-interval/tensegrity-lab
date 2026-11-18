@@ -731,9 +731,9 @@ impl ConnectorSystem {
             .count()
     }
 
-    /// A stack whose forks collide, its order kept, may lift units clear of
-    /// the ones below with extra washers (`GAP_WASHERS`), as many as clear
-    /// most collisions and no more. A stack with no collisions is left as it
+    /// A stack whose forks collide may be re-ordered and lift units clear of
+    /// the ones below with extra washers (`LIFT_WASHERS`): what clears most
+    /// collisions, with the fewest washers, keeping its order if it can. A stack with no collisions is left as it
     /// is, as are the mirror plane's, which `plane_assignments` places.
     fn lift_assignments(&mut self, fabric: &Fabric) {
         let standard = self.dimensions.pivot_radius;
@@ -758,37 +758,52 @@ impl ConnectorSystem {
                     .stack_aims(fabric, joint, units.iter().map(|(_, c)| c.pull_interval_key))
                     .into_iter()
                     .collect();
-                let placed = |gaps: &[u8]| -> Vec<Placed> {
+                let heights: Vec<usize> = units.iter().map(|(_, c)| c.attachment_index).collect();
+                // `order[k]` is the unit at the k-th height up.
+                let placed = |order: &[usize], gaps: &[u8]| -> Vec<Placed> {
                     let mut lift = 0;
-                    units
+                    order
                         .iter()
                         .enumerate()
-                        .map(|(rank, (_, c))| {
+                        .map(|(rank, &unit)| {
                             if rank > 0 {
                                 lift += gaps[rank - 1];
                             }
-                            let cable = c.pull_interval_key;
-                            (cable, aims[&cable], c.attachment_index, standard, lift)
+                            let cable = units[unit].1.pull_interval_key;
+                            (cable, aims[&cable], heights[rank], standard, lift)
                         })
                         .collect()
                 };
                 let stack = (push_key, end, joint);
+                let kept: Vec<usize> = (0..units.len()).collect();
                 let flat = vec![0; units.len() - 1];
-                let colliding = self.stack_collisions(fabric, stack, &placed(&flat));
+                let colliding = self.stack_collisions(fabric, stack, &placed(&kept, &flat));
                 if colliding == 0 {
                     continue;
                 }
-                let mut best = (colliding, 0u8, flat);
-                for gaps in gap_choices(units.len() - 1) {
-                    let score = (self.stack_collisions(fabric, stack, &placed(&gaps)), gaps.iter().sum::<u8>());
-                    if score < (best.0, best.1) {
-                        best = (score.0, score.1, gaps);
+                // Fewest collisions, then fewest washers, then the order kept.
+                let orders = if units.len() <= MAX_REORDERED { permutations(units.len()) } else { vec![kept.clone()] };
+                let mut best = ((colliding, 0u8, false), kept.clone(), flat);
+                for order in &orders {
+                    for gaps in washer_choices(&LIFT_WASHERS, units.len() - 1) {
+                        let score = (
+                            self.stack_collisions(fabric, stack, &placed(order, &gaps)),
+                            gaps.iter().sum::<u8>(),
+                            *order != kept,
+                        );
+                        if score < best.0 {
+                            best = (score, order.clone(), gaps);
+                        }
                     }
                 }
-                let lifts: Vec<u8> = placed(&best.2).iter().map(|&(.., lift)| lift).collect();
+                let (_, order, gaps) = best;
                 let target = self.connections.get_mut(push_key).expect("stack assigned");
-                for ((slot, connection), lift) in units.into_iter().zip(lifts) {
-                    target.set_connection(end, slot, Some(PullConnection { lift, ..connection }));
+                for &(slot, _) in &units {
+                    target.set_connection(end, slot, None);
+                }
+                for (cable, _, height, _, lift) in placed(&order, &gaps) {
+                    let connection = units.iter().find(|(_, c)| c.pull_interval_key == cable).expect("a unit").1;
+                    target.set_connection(end, height, Some(PullConnection { attachment_index: height, lift, ..connection }));
                 }
             }
         }
@@ -1148,13 +1163,25 @@ const DISC_REACHES: [Meters; 2] = [Meters(0.030), Meters(0.040)];
 /// Extra washers that may go into one gap on a mirror-plane stack.
 const GAP_WASHERS: [u8; 5] = [0, 2, 4, 6, 8];
 
+/// Most units a colliding stack is re-ordered among, beyond which its order
+/// is kept: every order is tried with every lift.
+const MAX_REORDERED: usize = 5;
+
+/// Extra washers that may go into one gap on any other stack that collides.
+const LIFT_WASHERS: [u8; 7] = [0, 2, 4, 6, 8, 10, 12];
+
 /// Every combination of `GAP_WASHERS` for `gaps` gaps.
 fn gap_choices(gaps: usize) -> Vec<Vec<u8>> {
+    washer_choices(&GAP_WASHERS, gaps)
+}
+
+/// Every combination of `choices` for `gaps` gaps.
+fn washer_choices(choices: &[u8], gaps: usize) -> Vec<Vec<u8>> {
     (0..gaps).fold(vec![Vec::new()], |combos, _| {
         combos
             .iter()
             .flat_map(|combo| {
-                GAP_WASHERS.iter().map(move |&washers| {
+                choices.iter().map(move |&washers| {
                     let mut next = combo.clone();
                     next.push(washers);
                     next

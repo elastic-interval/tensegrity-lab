@@ -252,6 +252,8 @@ mod tests {
         }
         let physics = Physics { surface: executor.physics.surface, ..ANIMATING };
         let fabric = &mut executor.fabric;
+        fabric.update_all_attachment_connections();
+        fabric.unfreeze();
         let period = animate.period;
         let before: Vec<Vec3> = fabric.joints.values().map(|j| j.location).collect();
         let feet: Vec<(crate::fabric::JointKey, Vec3)> = fabric
@@ -265,7 +267,7 @@ mod tests {
         let (mut slid, mut lifted) = (0.0f32, 0.0f32);
         let mut animator = Animator::new(animate, fabric);
         let joint = |fabric: &Fabric, name: &str| fabric.joints.keys().find(|&j| fabric.joint_label(j) == name).expect(name);
-        let pairs = [("R7", "L5"), ("L7", "R5")];
+        let pairs = [("R7", "L5"), ("L7", "R5"), ("R6", "L4"), ("L6", "R4")];
         let hardware = fabric.dimensions.hardware.expect("real parts");
         let mut peak = 0.0f32;
         let steps = 20;
@@ -295,6 +297,120 @@ mod tests {
         eprintln!("feet slid up to {:.1} mm and lifted up to {:.1} mm", slid * 1000.0, lifted * 1000.0);
     }
 
+    /// How far a foot lifts, how far one slides, how far the figure sways
+    /// and the peak cable, with the Quadruped's animation at this strength,
+    /// over three cycles from standing.
+    fn animated(standing: &Fabric, surface: Option<crate::fabric::physics::Surface>, animate: crate::build::dsl::animate_phase::AnimatePhase) -> (f32, f32, f32, f32) {
+        use crate::build::animator::Animator;
+        use crate::fabric::physics::presets::ANIMATING;
+        use crate::fabric::physics::Physics;
+        let mut fabric = standing.clone();
+        fabric.unfreeze();
+        let physics = Physics { surface, ..ANIMATING };
+        let feet: Vec<(crate::fabric::JointKey, Vec3)> =
+            fabric.connector.as_ref().expect("connector").feet.iter().map(|&foot| (foot, fabric.joints[foot].location)).collect();
+        assert_eq!(feet.len(), 4, "watching four feet");
+        let before: Vec<Vec3> = fabric.joints.values().map(|j| j.location).collect();
+        let hardware = fabric.dimensions.hardware.expect("real parts");
+        let steps = 40;
+        let per_step = (animate.period / Age::iteration_duration()) as usize / steps;
+        let mut animator = Animator::new(animate, &mut fabric);
+        let (mut lifted, mut slid, mut swayed, mut peak) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+        for _ in 0..steps * 3 {
+            animator.iterate(&mut fabric, &physics, per_step);
+            for &(foot, at) in &feet {
+                let now = fabric.joints[foot].location;
+                lifted = lifted.max(now.y - at.y);
+                slid = slid.max(Vec3::new(now.x - at.x, 0.0, now.z - at.z).length());
+            }
+            swayed = before.iter().zip(fabric.joints.values()).map(|(a, j)| a.distance(j.location)).fold(swayed, f32::max);
+            peak = fabric
+                .intervals
+                .values()
+                .filter(|i| i.role.is_pull_like())
+                .map(|i| (hardware.cable_stiffness * (i.stiffness.as_factor() * i.strain)).f32() / 1000.0)
+                .fold(peak, f32::max);
+        }
+        (lifted, slid, swayed, peak)
+    }
+
+    /// Just for fun: the animation stronger and stronger until a foot leaves
+    /// the ground.
+    ///
+    /// ```
+    /// cargo test --release --lib quadruped_until_it_jumps -- --ignored --nocapture
+    /// ```
+    #[test]
+    #[ignore]
+    fn quadruped_until_it_jumps() {
+        let plan = quadruped_plan(QuadrupedShape::default());
+        let animate = plan.animate_phase.clone().expect("the plan animates");
+        let mut executor = FabricPlanExecutor::new(plan);
+        while !executor.is_complete() {
+            let _ = executor.iterate();
+        }
+        let surface = executor.physics.surface;
+        executor.fabric.update_all_attachment_connections();
+        let standing = executor.fabric;
+        let mut trials = Vec::new();
+        for hertz in [0.5, 1.0] {
+            for stiffness in [100.0] {
+                for amplitude in [10.0, 10.5, 11.0, 11.5, 12.0, 12.5] {
+                    trials.push((hertz, stiffness, amplitude));
+                }
+            }
+        }
+        let results: Vec<(f32, f32, f32, f32)> = std::thread::scope(|scope| {
+            let handles: Vec<_> = trials
+                .iter()
+                .map(|&(hertz, stiffness, amplitude)| {
+                    let animate = crate::build::dsl::animate_phase::AnimatePhase {
+                        period: Seconds(1.0 / hertz),
+                        amplitude: crate::units::Percent(amplitude),
+                        stiffness: crate::units::Percent(stiffness),
+                        ..animate.clone()
+                    };
+                    let standing = &standing;
+                    scope.spawn(move || animated(standing, surface, animate))
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        for ((hertz, _, amplitude), (lifted, slid, swayed, peak)) in trials.iter().zip(results) {
+            eprintln!(
+                "{hertz} Hz, stroke {amplitude:>4}%: foot lifts {:5.1} mm, slides {:5.1} mm, sway {:4.0} mm, peak cable {peak:5.1} kN",
+                lifted * 1000.0,
+                slid * 1000.0,
+                swayed * 1000.0
+            );
+        }
+    }
+
+    /// A grippy floor holds a foot pressing on it, sideways too, and lets
+    /// one rising from it go, never pulling it back down.
+    #[test]
+    fn grippy_floor_holds_and_lets_go() {
+        use crate::fabric::physics::{Surface, SurfaceCharacter, SurfaceInteraction};
+        let floor = Surface::new(SurfaceCharacter::Grippy, 1.0);
+        let touching = |altitude: f32, velocity: Vec3| {
+            floor.interact(SurfaceInteraction {
+                altitude,
+                velocity,
+                force_velocity: Vec3::ZERO,
+                drag: 0.0,
+                viscosity: 0.0,
+                mass: 1.0,
+                dt: Age::iteration_duration().f32(),
+            })
+        };
+        let pressing = touching(0.002, Vec3::new(0.3, -0.5, 0.2));
+        assert_eq!(pressing.velocity, Vec3::ZERO, "a foot pressing on the floor stays put");
+        let rising = touching(0.002, Vec3::new(0.3, 0.5, 0.2));
+        assert_eq!(rising.velocity.y, 0.5, "a rising foot keeps rising");
+        assert_eq!(rising.clamp_y, None, "a rising foot is left where it is");
+        assert_eq!(touching(-0.001, Vec3::ZERO).clamp_y, Some(0.0), "a foot below the floor comes up to it");
+    }
+
     /// The Quadruped must stay buildable, with standard parts but its tube
     /// plates and custom discs: no colliding connectors, no cable too short
     /// for its terminals, none slack, and none past a 6 mm cable's working
@@ -305,7 +421,9 @@ mod tests {
         while !executor.is_complete() {
             let _ = executor.iterate();
         }
+        let started = std::time::Instant::now();
         executor.fabric.update_all_attachment_connections();
+        eprintln!("connectors worked out in {:.2} s", started.elapsed().as_secs_f32());
         let fabric = &executor.fabric;
         let connector = fabric.connector.as_ref().expect("connector");
         assert_eq!(
@@ -320,7 +438,13 @@ mod tests {
             .filter(|i| i.role.is_pull_like())
             .map(|i| (hardware.cable_stiffness * (i.stiffness.as_factor() * i.strain)).f32() / 1000.0)
             .collect();
-        assert!(forces.iter().all(|&force| force > 0.0), "a cable hangs slack");
+        let slack: Vec<String> = fabric
+            .intervals
+            .values()
+            .filter(|i| i.role.is_pull_like() && i.strain <= 0.0)
+            .map(|i| format!("{}:{}", fabric.joint_label(i.alpha_key), fabric.joint_label(i.omega_key)))
+            .collect();
+        assert!(slack.is_empty(), "slack: {slack:?}");
         let peak = forces.iter().copied().fold(0.0, f32::max);
         assert!(peak <= 5.1, "a cable carries {peak:.1} kN");
     }
@@ -597,11 +721,12 @@ mod tests {
                 let force = (stiffness * (i.stiffness.as_factor() * i.strain)).f32() / 1000.0;
                 let hanger = crate::connector::system::is_hanger(fabric, key);
                 eprintln!(
-                    "  to {:>6}: {:?}{} {:.2} m, {force:.1} kN",
+                    "  to {:>6}: {:?}{} {:.3} m (rest {:.3}), {force:.1} kN",
                     fabric.joint_label(i.other_joint(joint)),
                     i.role,
                     if hanger { " (hanger)" } else { "" },
-                    i.length(&fabric.joints).f32()
+                    i.length(&fabric.joints).f32(),
+                    i.ideal().f32()
                 );
             }
         }
