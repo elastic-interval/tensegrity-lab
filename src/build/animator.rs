@@ -107,6 +107,16 @@ impl Animator {
         pairs.into_iter().map(|(alpha, omega)| (joint(alpha), joint(omega))).collect()
     }
 
+    /// An image's phase: the actuator's own, or spread evenly over the cycle
+    /// when it alternates.
+    fn image_phase(actuator: &Actuator, phase_offset: f32, image: usize, count: f32) -> f32 {
+        if actuator.alternating {
+            (phase_offset + image as f32 / count) % 1.0
+        } else {
+            phase_offset
+        }
+    }
+
     fn create_actuators(
         fabric: &mut Fabric,
         actuators: &[Actuator],
@@ -119,7 +129,10 @@ impl Animator {
             let phase_offset = actuator.phase_offset.as_factor();
             match &actuator.attachment {
                 ActuatorAttachment::Between { link } => {
-                    for (alpha_key, omega_key) in Self::link_joints(fabric, link) {
+                    let images = Self::link_joints(fabric, link);
+                    let count = images.len() as f32;
+                    for (image, (alpha_key, omega_key)) in images.into_iter().enumerate() {
+                        let phase_offset = Self::image_phase(actuator, phase_offset, image, count);
                         let rest_length = fabric.distance(alpha_key, omega_key);
                         let id = fabric.create_slack_interval(alpha_key, omega_key, Role::Pulling);
                         if let Some(interval) = fabric.intervals.get_mut(id) {
@@ -136,7 +149,10 @@ impl Animator {
                     }
                 }
                 ActuatorAttachment::Existing { link } => {
-                    for (alpha_key, omega_key) in Self::link_joints(fabric, link) {
+                    let images = Self::link_joints(fabric, link);
+                    let count = images.len() as f32;
+                    for (image, (alpha_key, omega_key)) in images.into_iter().enumerate() {
+                        let phase_offset = Self::image_phase(actuator, phase_offset, image, count);
                         let id = fabric
                             .joining((alpha_key, omega_key))
                             .unwrap_or_else(|| panic!("no interval along {link}"));
@@ -232,7 +248,7 @@ mod tests {
     #[test]
     fn animations_run_headless() {
         use crate::fabric::physics::presets::ANIMATING;
-        for (name, count) in [(FabricName::HeadlessHug, 4), (FabricName::OpenClaw, 3)] {
+        for (name, count) in [(FabricName::HeadlessHug, 4), (FabricName::OpenClaw, 3), (FabricName::Quadruped, 2)] {
             let plan = fabric_library::get_fabric_plan(name);
             let animate = plan.animate_phase.clone().expect("the plan animates");
             let mut executor = FabricPlanExecutor::new(plan);

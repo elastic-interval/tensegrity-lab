@@ -26,14 +26,14 @@ impl PhaseBuilder {
     /// New actuators along a link, one for each of its images, all at this
     /// phase.
     pub fn between(self, link: Link) -> Actuator {
-        Actuator { phase_offset: self.phase_offset, attachment: ActuatorAttachment::Between { link } }
+        Actuator { phase_offset: self.phase_offset, attachment: ActuatorAttachment::Between { link }, alternating: false }
     }
 
     /// Drive the intervals already along a link (e.g. guy lines), one for
     /// each of its images, all at this phase; they are restored when the
     /// animation stops.
     pub fn interval(self, link: Link) -> Actuator {
-        Actuator { phase_offset: self.phase_offset, attachment: ActuatorAttachment::Existing { link } }
+        Actuator { phase_offset: self.phase_offset, attachment: ActuatorAttachment::Existing { link }, alternating: false }
     }
 
     /// Create an actuator from a joint to a surface point (accepts &str or JointPath)
@@ -44,6 +44,7 @@ impl PhaseBuilder {
                 joint: joint.into(),
                 point,
             },
+            alternating: false,
         }
     }
 }
@@ -73,6 +74,18 @@ pub enum ActuatorAttachment {
 pub struct Actuator {
     pub phase_offset: Percent,
     pub attachment: ActuatorAttachment,
+    /// The link's images spread evenly over the cycle rather than together:
+    /// a mirror's two pull in exactly opposite phase.
+    pub alternating: bool,
+}
+
+impl Actuator {
+    /// Spread this actuator's images evenly over the cycle, starting at its
+    /// phase: `phase(Pct(0.0)).between(LR(7) | LR(5)).alternating()` pulls
+    /// L7–R5 and R7–L5 half a cycle apart.
+    pub fn alternating(self) -> Self {
+        Actuator { alternating: true, ..self }
+    }
 }
 
 #[derive(Debug, Clone)]

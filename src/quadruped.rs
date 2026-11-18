@@ -232,6 +232,54 @@ mod tests {
         figure::write_figures(fabric, &folder.join(name));
     }
 
+    /// The Quadruped walking on the spot: its two actuator cables' lengths
+    /// through a cycle, how far it moves, and its highest cable force.
+    ///
+    /// ```
+    /// cargo test --release --lib quadruped_animation -- --ignored --nocapture
+    /// ```
+    #[test]
+    #[ignore]
+    fn quadruped_animation() {
+        use crate::build::animator::Animator;
+        use crate::fabric::physics::presets::ANIMATING;
+        use crate::fabric::physics::Physics;
+        let plan = quadruped_plan(QuadrupedShape::default());
+        let animate = plan.animate_phase.clone().expect("the plan animates");
+        let mut executor = FabricPlanExecutor::new(plan);
+        while !executor.is_complete() {
+            let _ = executor.iterate();
+        }
+        let physics = Physics { surface: executor.physics.surface, ..ANIMATING };
+        let fabric = &mut executor.fabric;
+        let period = animate.period;
+        let before: Vec<Vec3> = fabric.joints.values().map(|j| j.location).collect();
+        let mut animator = Animator::new(animate, fabric);
+        let joint = |fabric: &Fabric, name: &str| fabric.joints.keys().find(|&j| fabric.joint_label(j) == name).expect(name);
+        let pairs = [("R7", "L5"), ("L7", "R5")];
+        let hardware = fabric.dimensions.hardware.expect("real parts");
+        let mut peak = 0.0f32;
+        let steps = 20;
+        for step in 0..steps * 2 {
+            animator.iterate(fabric, &physics, (period / Age::iteration_duration()) as usize / steps);
+            let lengths: Vec<String> = pairs
+                .iter()
+                .map(|(a, b)| format!("{}–{} {:.3} m", a, b, fabric.distance(joint(fabric, a), joint(fabric, b)).f32()))
+                .collect();
+            peak = fabric
+                .intervals
+                .values()
+                .filter(|i| i.role.is_pull_like())
+                .map(|i| (hardware.cable_stiffness * (i.stiffness.as_factor() * i.strain)).f32() / 1000.0)
+                .fold(peak, f32::max);
+            if step >= steps {
+                eprintln!("{:>3}%: {}", (step - steps) * 100 / steps, lengths.join(", "));
+            }
+        }
+        let moved = before.iter().zip(fabric.joints.values()).map(|(a, j)| a.distance(j.location)).fold(0.0, f32::max);
+        eprintln!("moved up to {:.0} mm from standing; peak cable {peak:.1} kN", moved * 1000.0);
+    }
+
     /// The Quadruped must stay buildable, with standard parts but its tube
     /// plates and custom discs: no colliding connectors, no cable too short
     /// for its terminals, none slack, and none past a 6 mm cable's working

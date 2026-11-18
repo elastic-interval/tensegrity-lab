@@ -448,6 +448,13 @@ pub fn quadruped_plan(shape: QuadrupedShape) -> FabricPlan {
         .surface_frozen()
         .fall(Sec(1.5))
         .settle(Sec(10.0))
+        .animate()
+        .actuator_frequency(Hz(0.5))
+        .amplitude(Pct(1.5))
+        .sine()
+        // Each cable from a body joint to the opposite side, the two half a
+        // cycle apart: R7–L5 pulls as L7–R5 lets go.
+        .actuators([phase(Pct(0.0)).between(LR(7) | LR(5)).alternating()])
 }
 
 pub fn get_fabric_plan(fabric_name: FabricName) -> FabricPlan {
