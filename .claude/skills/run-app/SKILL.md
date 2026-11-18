@@ -33,8 +33,9 @@ launch it and tell him which buttons do what.
    `app.log` holds no panic. When the background task finishes, the window was closed (exit 0) or
    it crashed (read the log).
 
-4. **Tell him the buttons that matter for what he asked**, from the table below. There are no
-   key bindings: the buttons along the bottom are the controls, each shown only where it applies.
+4. **Tell him the buttons that matter for what he asked**, from the table below. The buttons
+   along the bottom are the controls, each shown only where it applies; the one key is Esc, which
+   steps back out of the parts view or a selection.
 
 ## Buttons
 

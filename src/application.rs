@@ -86,6 +86,22 @@ pub struct Application {
 }
 
 impl Application {
+    /// What Esc does: leave the parts view, or step out of a selection as
+    /// the Back to joint and Deselect buttons do.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn step_back(&self) {
+        if self.scene.as_ref().is_some_and(|scene| scene.parts_view_showing()) {
+            LabEvent::UpdateState(StateChange::TogglePartsView).send(&self.radio);
+            return;
+        }
+        let event = match self.control_state {
+            ControlState::ShowingInterval(_) => LabEvent::UpdateState(StateChange::BackToJoint),
+            ControlState::ShowingJoint(_) => LabEvent::Crucible(CrucibleAction::ClearSelection),
+            _ => return,
+        };
+        event.send(&self.radio);
+    }
+
     //==================================================
     // Construction and Initialization
     //==================================================
@@ -679,6 +695,17 @@ impl ApplicationHandler<LabEvent> for Application {
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
+                return;
+            }
+            // Esc steps back: out of the parts view, or out of a selection,
+            // a cable to its joint and a joint to nothing. Every other
+            // control is a button; the web build and the show cycle take no keys.
+            #[cfg(not(target_arch = "wasm32"))]
+            WindowEvent::KeyboardInput { event: key, .. } => {
+                let escape = key.physical_key == winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::Escape);
+                if escape && key.state.is_pressed() && !key.repeat && self.cycle.is_none() {
+                    self.step_back();
+                }
                 return;
             }
             _ => {}

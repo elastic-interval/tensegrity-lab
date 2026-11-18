@@ -246,9 +246,10 @@ need to adjust mass or rigidity multipliers at runtime.
   pointer from the scene.
 - `button.rs` — on-screen buttons for mouse and touch: `Buttons` lays a row
   of labelled ones out and draws them, or takes any rect its owner draws
-  (the parts view's strip); a button acts on release over it. There are no
-  key bindings: `ButtonBar` (`src/button_bar.rs`) registers every button
-  with its label, the stages it shows in and the event it sends.
+  (the parts view's strip); a button acts on release over it. The one key
+  is Esc (native only), stepping back out of the parts view or a selection
+  (`Application::step_back`): `ButtonBar` (`src/button_bar.rs`) registers
+  every button with its label, the stages it shows in and the event it sends.
 - `sky_renderer.rs`, `surface_renderer.rs`, `text_renderer.rs` — chrome.
 - `shader.wgsl` — shared WGSL for fabric pipelines.
 
