@@ -28,96 +28,19 @@ mod tests {
     const FEET: [crate::build::dsl::brick_dsl::FaceLabel; 4] =
         [Foot(Side::Left), Foot(Side::Right), HindFoot(Side::Left), HindFoot(Side::Right)];
 
-    /// Seed(4), four faces down, a leg on each, its feet pulled toward each
+    /// The Torque seed with four corner faces down, its long struts nose to
+    /// tail, a leg on each corner, the feet optionally drawn toward each
     /// other to `feet` of their distance.
-    fn four_down(legs: usize, feet: Pct) -> FabricPlan {
+    fn torque(legs: usize, feet: Option<Pct>) -> FabricPlan {
         let leg = |face: FaceName, label| on(face).column(legs).shrink_by(Pct(13.0)).prism(Pct(400.0)).label(label);
-        FabricName::Quadruped
-            .build(dimensions())
-            .seed(OmniSymmetrical, Seed(4))
-            .faces([
-                leg(LeftFrontBottom, Foot(Side::Left)),
-                leg(RightFrontBottom, Foot(Side::Right)),
-                leg(LeftBackBottom, HindFoot(Side::Left)),
-                leg(RightBackBottom, HindFoot(Side::Right)),
-            ])
-            .prepare_vulcanize(0.5, VulcanizeMode::Linear)
-            .space(Sec(2.8), FEET, feet)
-            .vulcanize(Sec(2.1))
-            .down(Sec(1.0), FEET)
-            .pretense(Sec(0.3), Pct(0.5))
-            .surface_frozen()
-            .fall(Sec(1.5))
-            .settle(Sec(10.0))
-    }
-
-    /// Seed(2), Headless Hug's seed: legs off the four side faces, which
-    /// face fore and aft, front and hind legs of their own lengths, bent down
-    /// by pulling each foot toward the lower face on its side, and the feet
-    /// of each pair optionally pulled toward each other, `across`.
-    fn legs_apart(front: usize, hind: usize, under: Pct, feet: Pct, across: Option<Pct>) -> FabricPlan {
-        let leg = |face: FaceName, legs: usize, label| {
-            on(face).column(legs).shrink_by(Pct(13.0)).prism(Pct(400.0)).label(label)
-        };
-        let builder = FabricName::Quadruped
-            .build(dimensions())
-            .seed(OmniSymmetrical, Seed(2))
-            .faces([
-                leg(ForeLeft, front, Foot(Side::Left)).into(),
-                leg(ForeRight, front, Foot(Side::Right)).into(),
-                leg(AftLeft, hind, HindFoot(Side::Left)).into(),
-                leg(AftRight, hind, HindFoot(Side::Right)).into(),
-                on(LowerLeft).label(ChestLower(Side::Left)),
-                on(LowerRight).label(ChestLower(Side::Right)),
-            ])
-            .prepare_vulcanize(0.5, VulcanizeMode::Linear)
-            .space_parallel(
-                Sec(2.8),
-                [
-                    spacer([Foot(Side::Left), ChestLower(Side::Left)], under),
-                    spacer([Foot(Side::Right), ChestLower(Side::Right)], under),
-                    spacer([HindFoot(Side::Left), ChestLower(Side::Left)], under),
-                    spacer([HindFoot(Side::Right), ChestLower(Side::Right)], under),
-                    spacer([Foot(Side::Left), HindFoot(Side::Left)], feet),
-                    spacer([Foot(Side::Right), HindFoot(Side::Right)], feet),
-                ],
-            );
-        let builder = match across {
-            Some(across) => builder.space_parallel(
-                Sec(2.0),
-                [
-                    spacer([Foot(Side::Left), Foot(Side::Right)], across),
-                    spacer([HindFoot(Side::Left), HindFoot(Side::Right)], across),
-                ],
-            ),
-            None => builder,
-        };
-        builder
-            .vulcanize(Sec(2.1))
-            .pretense(Sec(0.3), Pct(0.5))
-            .surface_frozen()
-            .fall(Sec(1.5))
-            .settle(Sec(10.0))
-    }
-
-    /// The Torque seed with four corner faces down, a leg on each. `along`
-    /// runs the figure along the brick's long struts (its Left and Right
-    /// ends become front and back); otherwise across them.
-    fn torque(legs: usize, along: bool, feet: Option<Pct>) -> FabricPlan {
-        let leg = |face: FaceName, label| on(face).column(legs).shrink_by(Pct(13.0)).prism(Pct(400.0)).label(label);
-        let (fore_left, fore_right, hind_left, hind_right) = if along {
-            (LeftFrontBottom, LeftBackBottom, RightFrontBottom, RightBackBottom)
-        } else {
-            (LeftFrontBottom, RightFrontBottom, LeftBackBottom, RightBackBottom)
-        };
         let builder = FabricName::Quadruped
             .build(dimensions())
             .seed(TorqueSymmetrical, Seed(4))
             .faces([
-                leg(fore_left, Foot(Side::Left)),
-                leg(fore_right, Foot(Side::Right)),
-                leg(hind_left, HindFoot(Side::Left)),
-                leg(hind_right, HindFoot(Side::Right)),
+                leg(LeftFrontBottom, Foot(Side::Left)),
+                leg(LeftBackBottom, Foot(Side::Right)),
+                leg(RightFrontBottom, HindFoot(Side::Left)),
+                leg(RightBackBottom, HindFoot(Side::Right)),
             ])
             .prepare_vulcanize(0.5, VulcanizeMode::Linear);
         let builder = match feet {
@@ -239,11 +162,8 @@ mod tests {
         let folder = std::env::var("QUADRUPED_FIGURES").expect("QUADRUPED_FIGURES");
         let folder = Path::new(&folder);
         report("quadruped", quadruped_plan(), folder);
-        report("omni", legs_apart(2, 2, Pct(40.0), Pct(80.0), None), folder);
-        report("omni-four-down", four_down(2, Pct(60.0)), folder);
-        report("torque-along-2", torque(2, true, None), folder);
-        report("torque-along-2-55", torque(2, true, Some(Pct(55.0))), folder);
-        report("torque-along-3-70", torque(3, true, Some(Pct(70.0))), folder);
-        report("torque-along-2-gathered", torque(2, true, Some(Pct(70.0))), folder);
+        report("legs-free", torque(2, None), folder);
+        report("feet-70", torque(2, Some(Pct(70.0))), folder);
+        report("legs-3", torque(3, Some(Pct(50.0))), folder);
     }
 }
