@@ -379,11 +379,12 @@ pub fn headless_hug_plan(shape: HeadlessHugShape) -> FabricPlan {
         ])
 }
 
-/// A four-legged pet for Headless Hug, on Headless Hug's seed: a leg off
-/// each of the four faces that look fore and aft, bent down by pulling each
-/// foot toward the lower face on its side.
+/// A four-legged pet for Headless Hug, on the Torque seed with its four
+/// corner faces down: its long struts run nose to tail, a leg grows off each
+/// corner, and the feet are drawn halfway toward each other.
 pub fn quadruped_plan() -> FabricPlan {
     let leg = |face, label| on(face).column(2).shrink_by(Pct(13.0)).prism(Pct(400.0)).label(label);
+    let feet = [Foot(Side::Left), Foot(Side::Right), HindFoot(Side::Left), HindFoot(Side::Right)];
     FabricName::Quadruped
         .build(
             FabricDimensions::default()
@@ -394,28 +395,17 @@ pub fn quadruped_plan() -> FabricPlan {
                 .with_connectors_shown()
                 .with_hardware(Hardware::OPEN_CLAW),
         )
-        .seed(OmniSymmetrical, Seed(2))
+        .seed(TorqueSymmetrical, Seed(4))
         .faces([
-            leg(ForeLeft, Foot(Side::Left)).into(),
-            leg(ForeRight, Foot(Side::Right)).into(),
-            leg(AftLeft, HindFoot(Side::Left)).into(),
-            leg(AftRight, HindFoot(Side::Right)).into(),
-            on(LowerLeft).label(ChestLower(Side::Left)),
-            on(LowerRight).label(ChestLower(Side::Right)),
+            leg(LeftFrontBottom, Foot(Side::Left)),
+            leg(LeftBackBottom, Foot(Side::Right)),
+            leg(RightFrontBottom, HindFoot(Side::Left)),
+            leg(RightBackBottom, HindFoot(Side::Right)),
         ])
         .prepare_vulcanize(0.5, VulcanizeMode::Linear)
-        .space_parallel(
-            Sec(2.8),
-            [
-                spacer([Foot(Side::Left), ChestLower(Side::Left)], Pct(40.0)),
-                spacer([Foot(Side::Right), ChestLower(Side::Right)], Pct(40.0)),
-                spacer([HindFoot(Side::Left), ChestLower(Side::Left)], Pct(40.0)),
-                spacer([HindFoot(Side::Right), ChestLower(Side::Right)], Pct(40.0)),
-                spacer([Foot(Side::Left), HindFoot(Side::Left)], Pct(80.0)),
-                spacer([Foot(Side::Right), HindFoot(Side::Right)], Pct(80.0)),
-            ],
-        )
+        .space(Sec(2.8), feet, Pct(50.0))
         .vulcanize(Sec(2.1))
+        .down(Sec(1.0), feet)
         .pretense(Sec(0.3), Pct(0.5))
         .surface_frozen()
         .fall(Sec(1.5))

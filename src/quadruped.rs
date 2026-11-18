@@ -52,18 +52,21 @@ mod tests {
     }
 
     /// Seed(2), Headless Hug's seed: legs off the four side faces, which
-    /// face fore and aft, bent down by pulling each foot toward the lower
-    /// face on its side.
-    fn sideways(legs: usize, under: Pct, feet: Pct) -> FabricPlan {
-        let leg = |face: FaceName, label| on(face).column(legs).shrink_by(Pct(13.0)).prism(Pct(400.0)).label(label);
-        FabricName::Quadruped
+    /// face fore and aft, front and hind legs of their own lengths, bent down
+    /// by pulling each foot toward the lower face on its side, and the feet
+    /// of each pair optionally pulled toward each other, `across`.
+    fn legs_apart(front: usize, hind: usize, under: Pct, feet: Pct, across: Option<Pct>) -> FabricPlan {
+        let leg = |face: FaceName, legs: usize, label| {
+            on(face).column(legs).shrink_by(Pct(13.0)).prism(Pct(400.0)).label(label)
+        };
+        let builder = FabricName::Quadruped
             .build(dimensions())
             .seed(OmniSymmetrical, Seed(2))
             .faces([
-                leg(ForeLeft, Foot(Side::Left)).into(),
-                leg(ForeRight, Foot(Side::Right)).into(),
-                leg(AftLeft, HindFoot(Side::Left)).into(),
-                leg(AftRight, HindFoot(Side::Right)).into(),
+                leg(ForeLeft, front, Foot(Side::Left)).into(),
+                leg(ForeRight, front, Foot(Side::Right)).into(),
+                leg(AftLeft, hind, HindFoot(Side::Left)).into(),
+                leg(AftRight, hind, HindFoot(Side::Right)).into(),
                 on(LowerLeft).label(ChestLower(Side::Left)),
                 on(LowerRight).label(ChestLower(Side::Right)),
             ])
@@ -78,8 +81,52 @@ mod tests {
                     spacer([Foot(Side::Left), HindFoot(Side::Left)], feet),
                     spacer([Foot(Side::Right), HindFoot(Side::Right)], feet),
                 ],
-            )
+            );
+        let builder = match across {
+            Some(across) => builder.space_parallel(
+                Sec(2.0),
+                [
+                    spacer([Foot(Side::Left), Foot(Side::Right)], across),
+                    spacer([HindFoot(Side::Left), HindFoot(Side::Right)], across),
+                ],
+            ),
+            None => builder,
+        };
+        builder
             .vulcanize(Sec(2.1))
+            .pretense(Sec(0.3), Pct(0.5))
+            .surface_frozen()
+            .fall(Sec(1.5))
+            .settle(Sec(10.0))
+    }
+
+    /// The Torque seed with four corner faces down, a leg on each. `along`
+    /// runs the figure along the brick's long struts (its Left and Right
+    /// ends become front and back); otherwise across them.
+    fn torque(legs: usize, along: bool, feet: Option<Pct>) -> FabricPlan {
+        let leg = |face: FaceName, label| on(face).column(legs).shrink_by(Pct(13.0)).prism(Pct(400.0)).label(label);
+        let (fore_left, fore_right, hind_left, hind_right) = if along {
+            (LeftFrontBottom, LeftBackBottom, RightFrontBottom, RightBackBottom)
+        } else {
+            (LeftFrontBottom, RightFrontBottom, LeftBackBottom, RightBackBottom)
+        };
+        let builder = FabricName::Quadruped
+            .build(dimensions())
+            .seed(TorqueSymmetrical, Seed(4))
+            .faces([
+                leg(fore_left, Foot(Side::Left)),
+                leg(fore_right, Foot(Side::Right)),
+                leg(hind_left, HindFoot(Side::Left)),
+                leg(hind_right, HindFoot(Side::Right)),
+            ])
+            .prepare_vulcanize(0.5, VulcanizeMode::Linear);
+        let builder = match feet {
+            Some(feet) => builder.space(Sec(2.8), FEET, feet),
+            None => builder.vulcanize(Sec(0.0)),
+        };
+        builder
+            .vulcanize(Sec(2.1))
+            .down(Sec(1.0), FEET)
             .pretense(Sec(0.3), Pct(0.5))
             .surface_frozen()
             .fall(Sec(1.5))
@@ -93,8 +140,24 @@ mod tests {
             let _ = executor.iterate();
             iterations += 1;
         }
+        let unsymmetric: Vec<Vec3> = executor.fabric.joints.values().map(|j| j.location).collect();
         executor.fabric.update_all_attachment_connections();
         let fabric: &Fabric = &executor.fabric;
+        let connector = fabric.connector.as_ref().expect("connector");
+        let mut unfit: Vec<String> = fabric
+            .intervals
+            .iter()
+            .filter(|(_, i)| i.has_role(Role::Pushing))
+            .filter_map(|(key, _)| {
+                let [(alpha, _), (omega, _)] = connector.stack_ends(fabric, key);
+                let length = alpha.distance(omega);
+                let (_, _, fits) = crate::connector::strut::tube_set(connector.dimensions.tube_sets, crate::units::Meters(length));
+                (!fits).then(|| format!("{length:.2}"))
+            })
+            .collect();
+        unfit.sort();
+        eprintln!("{name}: struts no tube fits {unfit:?}");
+        let off_mirror = unsymmetric.iter().zip(fabric.joints.values()).map(|(a, j)| a.distance(j.location)).fold(0.0, f32::max);
         let struts = fabric.intervals.values().filter(|i| i.has_role(Role::Pushing)).count();
         let tube: f32 = fabric
             .intervals
@@ -119,8 +182,9 @@ mod tests {
             |(a, b, c, d), p| (a.min(p.x), b.max(p.x), c.min(p.z), d.max(p.z)),
         );
         eprintln!(
-            "{name}: complete {} failures {:?}, {struts} struts {tube:.1} m, mass {:.0} kg, height {:.2} m, feet {feet:?}, \
+            "{name}: off mirror {:.0} mm, complete {} failures {:?}, {struts} struts {tube:.1} m, mass {:.0} kg, height {:.2} m, feet {feet:?}, \
              footprint x {:.2}..{:.2} z {:.2}..{:.2}, CoG ({:.2}, {:.2}, {:.2})",
+            off_mirror * 1000.0,
             executor.is_complete(),
             executor.plan_failures(),
             mass / 1000.0,
@@ -174,10 +238,12 @@ mod tests {
     fn quadruped_candidates() {
         let folder = std::env::var("QUADRUPED_FIGURES").expect("QUADRUPED_FIGURES");
         let folder = Path::new(&folder);
-        report("hh", crate::build::dsl::fabric_library::get_fabric_plan(FabricName::HeadlessHug), folder);
-        report("a3-four-down-short", four_down(2, Pct(60.0)), folder);
-        report("f1-sideways", sideways(2, Pct(60.0), Pct(100.0)), folder);
         report("quadruped", quadruped_plan(), folder);
-        report("f3-sideways", sideways(3, Pct(50.0), Pct(80.0)), folder);
+        report("omni", legs_apart(2, 2, Pct(40.0), Pct(80.0), None), folder);
+        report("omni-four-down", four_down(2, Pct(60.0)), folder);
+        report("torque-along-2", torque(2, true, None), folder);
+        report("torque-along-2-55", torque(2, true, Some(Pct(55.0))), folder);
+        report("torque-along-3-70", torque(3, true, Some(Pct(70.0))), folder);
+        report("torque-along-2-gathered", torque(2, true, Some(Pct(70.0))), folder);
     }
 }
