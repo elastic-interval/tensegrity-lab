@@ -18,21 +18,30 @@ const PADDING: Vec2 = Vec2::new(22.0, 16.0);
 const GAP: f32 = 14.0;
 
 /// A button to show: what it says and what pressing it does, or no action
-/// for a caption between buttons.
+/// for a caption between buttons. A disabled one is drawn dimmed and does
+/// nothing, keeping its place.
 pub struct Button<T> {
     pub label: String,
     pub action: Option<T>,
+    pub enabled: bool,
 }
 
 impl<T> Button<T> {
     pub fn new(label: impl Into<String>, action: T) -> Self {
-        Self { label: label.into(), action: Some(action) }
+        Self { label: label.into(), action: Some(action), enabled: true }
     }
 
     pub fn caption(label: impl Into<String>) -> Self {
-        Self { label: label.into(), action: None }
+        Self { label: label.into(), action: None, enabled: true }
+    }
+
+    pub fn disabled(self) -> Self {
+        Self { enabled: false, ..self }
     }
 }
+
+/// How much of its colour a disabled button keeps.
+const DISABLED: f32 = 0.35;
 
 /// What a pointer change did to the buttons.
 pub enum Press<T> {
@@ -72,12 +81,17 @@ impl<T: Clone> Buttons<T> {
         white: bool,
     ) -> Vec<OwnedSection> {
         let palette = if white { &ON_LIGHT } else { &ON_DARK };
-        let text = |label: &str, center: Vec2| {
+        let text_in = |label: &str, center: Vec2, enabled: bool| {
+            let mut color = palette.text;
+            if !enabled {
+                color[3] *= DISABLED;
+            }
             OwnedSection::default()
                 .with_layout(Layout::default().h_align(HorizontalAlign::Center).v_align(VerticalAlign::Center))
                 .with_screen_position((center.x, center.y))
-                .add_text(OwnedText::new(label).with_scale(FONT_SIZE).with_color(palette.text))
+                .add_text(OwnedText::new(label).with_scale(FONT_SIZE).with_color(color))
         };
+        let text = |label: &str, center: Vec2| text_in(label, center, true);
         let border = Vec2::splat(BORDER_WIDTH);
         let mut rows: Vec<Vec<(Button<T>, Vec2)>> = vec![Vec::new()];
         let mut row_width = 0.0;
@@ -110,13 +124,19 @@ impl<T: Clone> Buttons<T> {
             for (button, half) in row {
                 let center = Vec2::new(x + half.x, middle);
                 x += 2.0 * half.x + GAP;
-                sections.push(text(&button.label, center));
+                sections.push(text_in(&button.label, center, button.enabled));
                 let Some(action) = button.action else {
                     continue;
                 };
-                push_box(&mut vertices, center, half, CORNER_RADIUS + BORDER_WIDTH, palette.leader, width, height);
+                let mut leader = palette.leader;
+                if !button.enabled {
+                    leader[3] *= DISABLED;
+                }
+                push_box(&mut vertices, center, half, CORNER_RADIUS + BORDER_WIDTH, leader, width, height);
                 push_box(&mut vertices, center, half - border, CORNER_RADIUS, palette.background, width, height);
-                self.hits.push((center, half, action));
+                if button.enabled {
+                    self.hits.push((center, half, action));
+                }
             }
             middle += row_height;
         }

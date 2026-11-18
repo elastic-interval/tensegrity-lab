@@ -34,13 +34,13 @@ launch it and tell him which buttons do what.
    it crashed (read the log).
 
 4. **Tell him the buttons that matter for what he asked**, from the table below. The buttons
-   along the bottom are the controls, each shown only where it applies; the one key is Esc, which
-   steps back out of the parts view or a selection.
+   along the bottom are the controls, all there all the time and greyed where they don't apply;
+   the one key is Esc, which steps back out of the parts view or a selection.
 
 ## Buttons
 
-The fabric builds, pretensions, falls and settles by itself; most buttons appear once it stands
-(Viewing).
+The fabric builds, pretensions, falls and settles by itself; most buttons come alive once it
+stands (Viewing).
 
 | Button | Does |
 |---|---|
@@ -48,10 +48,10 @@ The fabric builds, pretensions, falls and settles by itself; most buttons appear
 | Quake | Start / stop the ground shaking, up to half of g (`src/fabric/quake.rs`) |
 | Take apart | Headless Hug and Open Claw: taken apart strut by strut on a crane hook, then straight away put together again, fast-forwarded; one button switches it Slow / Fast-forward (`src/build/assembly.rs`) |
 | Start / Stop animation | The animation |
-| − Frequency + | Slower / faster animation |
 | Parts | The parts, full screen; Back to return |
 | Background | The starry sky (the default) or white |
-| Fast-forward / Reload | Fast-forward the build, or reload the fabric |
+| Fast-forward / Slow | Ten times real time, or back to real time: the build, the animation, the assembly |
+| Reload | Reload the fabric |
 | Deselect / Back to joint | Step back out of a selection |
 
 The connector hardware always shows at real scale. A movie is recorded from the command line

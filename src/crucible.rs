@@ -438,29 +438,12 @@ impl Crucible {
                 // Clear UI selection without changing crucible stage
                 let control_state = match &self.stage {
                     Viewing => viewing_state.clone(),
-                    Animating(_) => ControlState::Animating,
+                    Animating(_) => ControlState::Animating { fast: false },
                     _ => return,
                 };
                 context.send_event(LabEvent::UpdateState(SetControlState(control_state)));
             }
-            AdjustAnimationFrequency(factor) => {
-                if let Animating(animator) = &mut self.stage {
-                    animator.adjust_period(1.0 / factor);
-                    let period = animator.period();
-                    let frequency = period.to_hertz();
-                    println!("actuator_frequency(Hz({:.4}))", frequency.0);
-                    // Also update the fabric_plan so the period persists across animation toggles
-                    if let Some(ref mut plan) = self.fabric_plan {
-                        if let Some(ref mut animate_phase) = plan.animate_phase {
-                            animate_phase.period = period;
-                        }
-                    }
-                    context.send_event(LabEvent::UpdateState(SetStageLabel(format!(
-                        "Frequency: {:.2} Hz",
-                        frequency.0
-                    ))));
-                }
-            }
+
             ToViewing => match &mut self.stage {
                 Viewing => {
                     context.send_event(LabEvent::UpdateState(SetControlState(
@@ -506,7 +489,7 @@ impl Crucible {
                         self.stage = Animating(animator);
 
                         context.send_event(LabEvent::UpdateState(SetControlState(
-                            ControlState::Animating,
+                            ControlState::Animating { fast: false },
                         )));
                         drop(context);
                         // Switch to animation physics (slow time)

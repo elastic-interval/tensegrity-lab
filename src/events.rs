@@ -33,7 +33,6 @@ pub enum CrucibleAction {
     /// Take the standing figure apart strut by strut, or put it together again.
     Assemble,
     ClearSelection,
-    AdjustAnimationFrequency(f32),
     ToViewing,
     ToAnimating,
     ToPhysicsTesting,

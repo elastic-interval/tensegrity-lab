@@ -212,7 +212,7 @@ impl TextState {
             self.update_section(
                 SectionName::Right,
                 match control_state {
-                    Animating => Normal("2025\nGerald de Jong\npretenst.com".to_string()),
+                    Animating { .. } => Normal("2025\nGerald de Jong\npretenst.com".to_string()),
                     _ => Nothing,
                 },
             );

@@ -249,7 +249,9 @@ need to adjust mass or rigidity multipliers at runtime.
   (the parts view's strip); a button acts on release over it. The one key
   is Esc (native only), stepping back out of the parts view or a selection
   (`Application::step_back`): `ButtonBar` (`src/button_bar.rs`) registers
-  every button with its label, the stages it shows in and the event it sends.
+  every button with its label, the stages it's enabled in and the event it
+  sends. The bar holds still, disabled buttons greyed; only physics
+  testing's and brick baking's buttons come and go with their tools.
 - `sky_renderer.rs`, `surface_renderer.rs`, `text_renderer.rs` — chrome.
 - `shader.wgsl` — shared WGSL for fabric pipelines.
 

@@ -136,7 +136,7 @@ impl Scene {
                     self.reset();
                     self.surface_renderer.reset_radius(&self.wgpu.queue);
                 }
-                Animating => {
+                Animating { .. } => {
                     self.reset();
                     self.pick_allowed = true;
                 }

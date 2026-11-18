@@ -584,7 +584,7 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             SetTimeScale(scale) => {
                 self.time_scale = scale.clamp(0.1, 100.0);
-                if let ControlState::Assembling { fast } = &mut self.control_state {
+                if let ControlState::Assembling { fast } | ControlState::Animating { fast } = &mut self.control_state {
                     *fast = self.time_scale > 1.0;
                 }
             }
@@ -600,6 +600,13 @@ impl ApplicationHandler<LabEvent> for Application {
                 match &app_change {
                     StateChange::SetControlState(control_state) => {
                         self.control_state = control_state.clone();
+                        // Viewing never runs fast; an animation keeps the
+                        // speed it had, a selection in it notwithstanding.
+                        match &mut self.control_state {
+                            ControlState::Viewing { .. } => self.time_scale = 1.0,
+                            ControlState::Animating { fast } => *fast = self.time_scale > 1.0,
+                            _ => {}
+                        }
                     }
                     _ => {}
                 }

@@ -247,7 +247,8 @@ pub enum ControlState {
     /// the Klein bottle and the Möbius strip.
     /// Taking apart is for Headless Hug and Open Claw.
     Viewing { animation_available: bool, physics_testing_available: bool, assembly_available: bool },
-    Animating,
+    /// Animating, `fast` while fast-forwarded.
+    Animating { fast: bool },
     /// Being taken apart and put together again, `fast` while fast-forwarded.
     Assembling { fast: bool },
     ShowingJoint(JointDetails),

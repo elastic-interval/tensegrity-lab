@@ -23,11 +23,6 @@ impl Oscillator {
         }
     }
 
-    fn set_period(&mut self, period: Seconds) {
-        let ticks_per_cycle = period / Age::iteration_duration();
-        self.phase_per_tick = 1.0 / ticks_per_cycle;
-    }
-
     fn tick(&mut self) {
         self.phase += self.phase_per_tick;
         if self.phase >= 1.0 {
@@ -66,7 +61,6 @@ struct ActuatorInterval {
 
 pub struct Animator {
     oscillator: Oscillator,
-    period: Seconds,
     waveform: Waveform,
     actuators: Vec<ActuatorInterval>,
 }
@@ -85,20 +79,11 @@ impl Animator {
 
         Self {
             oscillator: Oscillator::new(period),
-            period,
             waveform: animate_phase.waveform,
             actuators,
         }
     }
 
-    pub fn period(&self) -> Seconds {
-        self.period
-    }
-
-    pub fn adjust_period(&mut self, factor: f32) {
-        self.period = self.period * factor;
-        self.oscillator.set_period(self.period);
-    }
 
     /// The joints at each end of each of a link's images.
     fn link_joints(fabric: &Fabric, link: &Link) -> Vec<(JointKey, JointKey)> {
