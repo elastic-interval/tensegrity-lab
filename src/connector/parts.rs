@@ -68,6 +68,12 @@ pub enum Part {
     /// centred at the origin, `y` square to the plate, its holes at the
     /// angles of its `PlateShape`, measured from `x`.
     NodePlate(PlateShape),
+    /// A tube plate at a bridle node taking more than three cables (see
+    /// `connector::node_plate`): centred at the origin, `y` square to the
+    /// plate. Its `PlateShape`'s first hole, at 0° along `x`, is the
+    /// hanger's; each of the others is a boss's pivot, where a cross-tube
+    /// lies across the boss for a cable's fork.
+    TubePlate(PlateShape),
     /// A strut's outer tube (see `connector::strut`), this many millimetres
     /// long: from the origin along `x`.
     OuterTube(u16),
@@ -170,6 +176,11 @@ impl Part {
                 let holes: Vec<String> = shape.holes().iter().map(|(degrees, mm)| format!("{degrees}°/{mm}mm")).collect();
                 format!("node plate {}", holes.join(" "))
             }
+            Part::TubePlate(shape) => {
+                let (hole, tubes) = shape.holes().split_first().expect("a hanger's hole");
+                let tubes: Vec<String> = tubes.iter().map(|(degrees, mm)| format!("{degrees}°/{mm}mm")).collect();
+                format!("tube plate hole {}mm, tubes {}", hole.1, tubes.join(" "))
+            }
             Part::OuterTube(mm) => format!("outer tube 40×3 × {mm} mm"),
             Part::InnerTube(mm) => format!("inner tube 33×3 × {mm} mm"),
             part => part.base_name().to_string(),
@@ -188,6 +199,7 @@ impl Part {
             Part::RodFork => "rod fork",
             Part::ForkNuts => "rod fork's nuts",
             Part::NodePlate(_) => "node plate",
+            Part::TubePlate(_) => "tube plate",
             Part::OuterTube(_) => "outer tube",
             Part::InnerTube(_) => "inner tube",
         }
@@ -248,6 +260,27 @@ impl Part {
                     - 3.0 * PI * (PLATE_HOLE_DIAMETER.f32() / 2.0).powi(2);
                 steel(area * PLATE_THICKNESS.f32())
             }
+            Part::TubePlate(shape) => {
+                // The polygon through the hanger's hole and the bosses' ends,
+                // widened by the hole's rounded corner, less the hole; a
+                // cross-tube on each boss.
+                let at: Vec<(f32, f32)> = shape
+                    .holes()
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &(degrees, mm))| {
+                        let reach = if i == 0 { mm as f32 / 1000.0 } else { mm as f32 / 1000.0 - BOSS_SHORT_OF_PIVOT.f32() };
+                        let (sin, cos) = (degrees as f32).to_radians().sin_cos();
+                        (cos * reach, sin * reach)
+                    })
+                    .collect();
+                let n = at.len();
+                let next = |i: usize| at[(i + 1) % n];
+                let polygon = (0..n).map(|i| at[i].0 * next(i).1 - next(i).0 * at[i].1).sum::<f32>().abs() / 2.0;
+                let corner = PLATE_CORNER_RADIUS.f32();
+                let area = polygon + PI * corner.powi(2) - PI * (PLATE_HOLE_DIAMETER.f32() / 2.0).powi(2);
+                steel(area * PLATE_THICKNESS.f32()) + tube * (n - 1) as f32
+            }
             Part::NodePlate(shape) => {
                 // The polygon through the holes, its edges widened by the
                 // rounded corners, less the holes.
@@ -275,7 +308,7 @@ impl Part {
 
     pub fn material(self) -> Material {
         match self {
-            Part::Ring | Part::CustomDisc(_) | Part::NodePlate(_) | Part::RodFork => {
+            Part::Ring | Part::CustomDisc(_) | Part::NodePlate(_) | Part::TubePlate(_) | Part::RodFork => {
                 Material::Galvanized
             }
             Part::Clevis
@@ -444,7 +477,10 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
             let far = fabric.intervals[cable].other_joint(node);
             let aim = connector.pull_end_pivot(fabric, cable, far).unwrap_or(fabric.joints[far].location);
             let cable_dir = (aim - hole).normalize();
-            let pin_axis = plate.normal.reject_from(cable_dir).normalize_or(plate.normal);
+            let pin_axis = match plate.pin(cable) {
+                Some(pin) if plate.tubed => pin,
+                _ => plate.normal.reject_from(cable_dir).normalize_or(plate.normal),
+            };
             let culprit = connector.culprits.contains(&(cable, node));
             if connector.link_length(cable).is_some() {
                 place(Part::RodFork, hole, cable_dir, pin_axis, culprit);
@@ -458,6 +494,19 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
         if plate.holes.len() == 3 {
             let x = (plate.holes[0].1 - middle).normalize();
             place(Part::NodePlate(PlateShape::equilateral()), middle, x, plate.normal, culprit);
+        } else if plate.tubed {
+            // About the point its bosses point out from, the hanger's hole
+            // first, at 0° along `x`.
+            let middle = plate.center;
+            let hanger = plate.holes.iter().find(|(cable, _)| is_hanger(fabric, *cable)).map(|(_, hole)| *hole);
+            let mut outline: Vec<Vec3> = hanger.into_iter().collect();
+            outline.extend(plate.outline().into_iter().filter(|hole| Some(*hole) != hanger));
+            let x = (outline[0] - middle).normalize();
+            let shape = match frozen(index.get()) {
+                Some(Part::TubePlate(kept)) => kept,
+                _ => PlateShape::measured(&outline, middle, plate.normal),
+            };
+            place(Part::TubePlate(shape), middle, x, plate.normal, culprit);
         } else {
             let outline = plate.outline();
             let x = (outline[0] - middle).normalize();
@@ -559,7 +608,7 @@ mod tests {
             .sum();
         let plates: usize = list
             .iter()
-            .filter_map(|(part, n)| matches!(part, Part::NodePlate(_)).then_some(*n))
+            .filter_map(|(part, n)| matches!(part, Part::NodePlate(_) | Part::TubePlate(_)).then_some(*n))
             .sum();
         let bosses = count(Part::Ring) + disc_bosses;
         let connector = executor.fabric.connector.as_ref().expect("fabric has connectors");

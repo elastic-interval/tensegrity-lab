@@ -123,7 +123,10 @@ angles or per-position variants:
   (`Fabric::bridle`, DSL `.bridle(...)`) hung on a fork rod, which two whole
   cables' terminals pin to, taking two cables off a crowded stack.
   Every plate is one equilateral part; a plate cable too short to make
-  is a fork rod (`ConnectorSystem::link_length`). At a hinge pin
+  is a fork rod (`ConnectorSystem::link_length`). A plate taking more
+  than three cables (`Z(n).bridle_across(..)`) is a tube plate: the
+  hanger through a hole, each cable's fork on a cross-tube welded on a
+  boss (`Part::TubePlate`). At a hinge pin
   (`.hinge`) a clevis and a rod end screw onto the two struts' bolts, pinned
   where their axes meet. No cable may end on a hinge: one with no strut of
   its own there is split by a plate half-way along it, a leg to each strut's
@@ -363,6 +366,10 @@ Important integration tests:
   ground shaking at up to half of g, 0.5–2 Hz, then stopped; it stays whole
   and stands again within 50 mm. The Quake button starts and stops it.
   `Fabric::quake`, like the wind, is `None` in every build.
+- `src/quadruped.rs` — `quadruped_is_buildable`: Quadruped's connectors
+  have no collisions or short cables, none slack, none past 5.1 kN;
+  `quadruped_stands_on_four_feet`. Ignored tools: load path, cable forces,
+  spacer sweep, connector problems, design candidates.
 - `src/physics_gpu/parity_test.rs` — CPU vs GPU numeric parity.
 - `src/connector/dimensions.rs` (inline `pivot_geometry_tests`) — derived dimension formulas.
 

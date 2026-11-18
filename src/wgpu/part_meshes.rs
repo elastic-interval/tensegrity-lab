@@ -3,7 +3,7 @@
 //! instanced at every placement.
 
 use crate::connector::fork::{
-    ClevisDimensions, BOSS_SHORT_OF_PIVOT, FOOT_BALL_WIDTH, FOOT_EYE_RADIUS, FOOT_EYE_WIDTH, FOOT_LENGTH,
+    ClevisDimensions, BOSS_ARM_RADIUS, BOSS_SHORT_OF_PIVOT, FOOT_BALL_WIDTH, FOOT_EYE_RADIUS, FOOT_EYE_WIDTH, FOOT_LENGTH,
     FOOT_SHANK_RADIUS, FOOT_THREAD_DEPTH, CLEVIS, CLEVIS_LENGTH, CLEVIS_SLOT_DEPTH, CLEVIS_THREAD_DEPTH, EYE_LENGTH,
     EYE_THREAD_DEPTH, HINGE_EYE_RADIUS, HINGE_EYE_WIDTH, HINGE_JAW_GAP, HINGE_JAW_THICKNESS, HINGE_PIN_RADIUS,
     HINGE_SHANK_RADIUS, HINGE_THREAD_RADIUS,
@@ -367,6 +367,22 @@ impl Wgpu {
                 let (web, height) = (ROD_FORK.pin_to_jaw_base.f32(), FORK_NUT_HEIGHT.f32());
                 mesh.nut(web - height, web);
                 mesh.nut(FORK_WEB_OUTSIDE.f32(), FORK_WEB_OUTSIDE.f32() + height);
+            }
+            Part::TubePlate(shape) => {
+                let at = |degrees: i16, reach: f32| Vec2::from_angle((degrees as f32).to_radians()) * reach;
+                let (hole, tubes) = shape.holes().split_first().expect("a hanger's hole");
+                let hole_center = at(hole.0, hole.1 as f32 / 1000.0);
+                let arm = BOSS_ARM_RADIUS.f32();
+                let mut circles = vec![(hole_center, PLATE_CORNER_RADIUS.f32())];
+                for &(degrees, mm) in tubes {
+                    circles.push((at(degrees, mm as f32 / 1000.0 - BOSS_SHORT_OF_PIVOT.f32() - arm), arm));
+                }
+                let half = PLATE_THICKNESS.f32() / 2.0;
+                let holes = [(hole_center, PLATE_HOLE_DIAMETER.f32() / 2.0)];
+                mesh.extrude_with_holes(&hull_of_circles(&circles), &holes, -half, half);
+                for &(degrees, mm) in tubes {
+                    cross_tube(&mut mesh, (degrees as f32).to_radians(), mm as f32 / 1000.0);
+                }
             }
             Part::NodePlate(shape) => {
                 let centers: Vec<Vec2> = shape

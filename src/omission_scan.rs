@@ -489,7 +489,7 @@ mod tests {
         let spacers = count(|part| part == Part::Washer)
             .saturating_sub(count(|part| matches!(part, Part::Ring | Part::CustomDisc(_))));
         let special_parts =
-            spacers + count(|part| matches!(part, Part::CustomDisc(_) | Part::NodePlate(_) | Part::RodFork));
+            spacers + count(|part| matches!(part, Part::CustomDisc(_) | Part::NodePlate(_) | Part::TubePlate(_) | Part::RodFork));
         Verdict {
             culprits: connector.culprits.len(),
             short_cables: connector.short_cables.len(),

@@ -70,6 +70,11 @@ pub fn drawing(part: Part, index: usize, dimensions: &ConnectorDimensions, ring_
             thickness_mm: (PLATE_THICKNESS.f32() * MM).round() as u16,
             entities: polygon_plate_entities(shape.holes()),
         }),
+        Part::TubePlate(shape) => Some(Drawing {
+            name: format!("tube-plate-{index}"),
+            thickness_mm: (PLATE_THICKNESS.f32() * MM).round() as u16,
+            entities: tube_plate_entities(shape.holes()),
+        }),
         _ => None,
     }
 }
@@ -147,6 +152,59 @@ fn polygon_plate_entities(holes: &[(i16, u16)]) -> Vec<Entity> {
             from: at(centers[i], corner, outward[i]),
             to: at(centers[(i + 1) % n], corner, outward[i]),
         });
+    }
+    entities
+}
+
+/// A tube plate: the hanger's hole at `holes[0]`, rounded round it by
+/// `PLATE_CORNER_RADIUS`, and a boss toward each other entry (angle in
+/// degrees, ascending; pivot's distance from the centre in millimetres),
+/// `BOSS_ARM_RADIUS` either side of its line, ending square where its
+/// cross-tube sits, `BOSS_SHORT_OF_PIVOT` short of the pivot.
+fn tube_plate_entities(holes: &[(i16, u16)]) -> Vec<Entity> {
+    let corner = PLATE_CORNER_RADIUS.f32() * MM;
+    let arm = BOSS_ARM_RADIUS.f32() * MM;
+    let short = BOSS_SHORT_OF_PIVOT.f32() * MM;
+    // Each vertex: (centre, radius, flat end). A boss's flat end is the
+    // chord across its rounded end, a radius in from where it stops.
+    let vertices: Vec<([f32; 2], f32, bool)> = holes
+        .iter()
+        .enumerate()
+        .map(|(i, &(degrees, mm))| {
+            let angle = (degrees as f32).to_radians();
+            if i == 0 {
+                (at([0.0, 0.0], mm as f32, angle), corner, false)
+            } else {
+                (at([0.0, 0.0], mm as f32 - short - arm, angle), arm, true)
+            }
+        })
+        .collect();
+    let n = vertices.len();
+    // Each edge's outward direction, square to the tangent of its two circles.
+    let outward: Vec<f32> = (0..n)
+        .map(|i| {
+            let ((a, ra, _), (b, rb, _)) = (vertices[i], vertices[(i + 1) % n]);
+            let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+            let length = dx.hypot(dy);
+            dy.atan2(dx) - TAU / 4.0 + ((ra - rb) / length).asin()
+        })
+        .collect();
+    let hole = PLATE_HOLE_DIAMETER.f32() * MM / 2.0;
+    let mut entities = vec![Entity::Circle { center: vertices[0].0, radius: hole }];
+    for i in 0..n {
+        let (center, radius, flat) = vertices[i];
+        let before = outward[(i + n - 1) % n];
+        let mut after = outward[i];
+        while after < before {
+            after += TAU;
+        }
+        if flat {
+            entities.push(Entity::Line { from: at(center, radius, before), to: at(center, radius, after) });
+        } else {
+            entities.push(Entity::Arc { center, radius, start: before, end: after });
+        }
+        let (next, next_radius, _) = vertices[(i + 1) % n];
+        entities.push(Entity::Line { from: at(center, radius, outward[i]), to: at(next, next_radius, outward[i]) });
     }
     entities
 }

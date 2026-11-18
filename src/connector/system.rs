@@ -318,8 +318,16 @@ impl ConnectorSystem {
                     .or_else(|| stack_pivots.get(&(cable, far)).copied())
                     .unwrap_or(fabric.joints[far].location);
                 let cable_dir = (aim - hole).normalize();
-                let pin_axis = plate.normal.reject_from(cable_dir).normalize_or(plate.normal);
-                frames.push(((cable, node), hole, fork::capsules(hole, pin_axis, cable_dir)));
+                let body = match plate.pin(cable) {
+                    // On a tube plate the fork turns on its cross-tube, at
+                    // the end of its boss.
+                    Some(pin) if plate.tubed => fork::capsules(hole, pin, cable_dir).with_arm(plate.center, hole, 0.0),
+                    _ => {
+                        let pin_axis = plate.normal.reject_from(cable_dir).normalize_or(plate.normal);
+                        fork::capsules(hole, pin_axis, cable_dir)
+                    }
+                };
+                frames.push(((cable, node), hole, body));
             }
         }
 

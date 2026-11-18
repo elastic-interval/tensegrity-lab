@@ -8,10 +8,17 @@
 //! Every three-cable plate is the same part: an equilateral triangle
 //! `PLATE_SIDE` on a side, a hole in each corner. Where the cables' lines
 //! meet depends on their directions, so it is the triangle's centre only
-//! when they are 120° apart. A plate taking more (`Bridle::bridle_across`)
-//! lies in the plane its cables come closest to, a hole on each one's line,
-//! all at one distance from the centre, as close as `PLATE_HOLE_SPACING`
-//! allows; how far a cable leaves that plane is its `tilt`.
+//! when they are 120° apart.
+//!
+//! A plate taking more (`Bridle::bridle_across`) is a tube plate: its hanger
+//! pins through a hole as on any plate, and each cable's fork pins through a
+//! cross-tube welded on a boss, as on a ring. The plate lies in a plane
+//! holding the hanger's line, the one its cables come closest to; each boss
+//! points along its cable's line in that plane and its tube lies across it,
+//! so the fork turns on its pin to follow the cable out of the plane. The
+//! pivots are all at one distance from the centre, as close as
+//! `PLATE_HOLE_SPACING` allows. How far the hanger leaves the plane is its
+//! `tilt`, nil by construction.
 //!
 //! The simulation knows the plate only as the joint where the three cables'
 //! lines meet.
@@ -28,16 +35,23 @@ pub struct NodePlate {
     pub center: Vec3,
     /// Square to the plate, along its pins.
     pub normal: Vec3,
-    /// Each cable with its hole, where its terminal's or fork's pin passes.
+    /// Each cable with its hole, where its terminal's or fork's pin passes:
+    /// on a tube plate, the cross-tube's centre for each cable but the
+    /// hanger.
     pub holes: Vec<(IntervalKey, Vec3)>,
+    /// Each hole's pin axis, in the order of `holes`: square to the plate
+    /// through a hole, along the tube through a cross-tube.
+    pub pins: Vec<Vec3>,
+    /// The cables but the hanger pin through cross-tubes.
+    pub tubed: bool,
     /// How far the plate is moved to hang its hanger's hole a hanger's
     /// length from the pivot, which a link of the right length makes nil.
     pub slide: Vec3,
     /// No equilateral plate has a corner on each cable's line, or a plate
     /// with more holes leaves a cable more than `MAX_PLATE_TILT` out of it.
     pub jammed: bool,
-    /// The most any cable leaves the plate's plane, in degrees: nil with
-    /// three cables.
+    /// The most any cable through a hole leaves the plate's plane, in
+    /// degrees: nil with three cables, and for a tube plate's hanger.
     pub tilt: f32,
 }
 
@@ -67,13 +81,33 @@ impl NodePlate {
             holes = holes.map(|hole| hole + slide);
         }
         let holes = [0, 1, 2].map(|i| (cables[i].0, holes[i])).to_vec();
-        NodePlate { center, normal, holes, slide, jammed: solved.is_none(), tilt: 0.0 }
+        NodePlate { center, normal, holes, pins: vec![normal; 3], tubed: false, slide, jammed: solved.is_none(), tilt: 0.0 }
     }
 
+    /// A tube plate laid out about where it hangs: the hanger slides it, so
+    /// it is laid out again about its new place until the slide is spent,
+    /// each boss then pointing along its cable.
     fn polygon(center: Vec3, cables: &[(IntervalKey, Vec3, bool)]) -> NodePlate {
+        let mut at = center;
+        let mut plate = Self::laid_out(at, cables);
+        for _ in 0..8 {
+            if plate.slide.length() < 1e-5 {
+                break;
+            }
+            at += plate.slide;
+            plate = Self::laid_out(at, cables);
+        }
+        NodePlate { slide: at - center + plate.slide, ..plate }
+    }
+
+    fn laid_out(center: Vec3, cables: &[(IntervalKey, Vec3, bool)]) -> NodePlate {
         let directions: Vec<Vec3> = cables.iter().map(|&(_, aim, _)| (aim - center).normalize()).collect();
-        let normal = least_plane_normal(&directions);
-        let tilt = directions.iter().map(|d| d.dot(normal).abs().asin().to_degrees()).fold(0.0, f32::max);
+        let hanger = cables.iter().position(|&(_, _, hanger)| hanger);
+        let normal = match hanger {
+            Some(h) => plane_holding(directions[h], &directions),
+            None => least_plane_normal(&directions),
+        };
+        let tilt = hanger.map_or(0.0, |h| directions[h].dot(normal).abs().asin().to_degrees());
         let toward: Vec<Vec3> = directions.iter().map(|d| d.reject_from(normal).normalize_or(*d)).collect();
         let u = toward[0];
         let w = normal.cross(u);
@@ -95,8 +129,25 @@ impl NodePlate {
             holes = holes.iter().map(|hole| *hole + slide).collect();
         }
         let jammed = tilt > MAX_PLATE_TILT || radius > 3.0 * triangle;
+        // Each tube square to its cable as it leaves the tube, where the
+        // plate hangs, not as it would leave the centre.
+        let pins = (0..cables.len())
+            .map(|i| {
+                if Some(i) == hanger {
+                    return normal;
+                }
+                let leaving = (cables[i].1 - holes[i]).reject_from(normal).normalize_or(toward[i]);
+                normal.cross(leaving).normalize()
+            })
+            .collect();
         let holes = cables.iter().zip(holes).map(|(&(key, _, _), hole)| (key, hole)).collect();
-        NodePlate { center, normal, holes, slide, jammed, tilt }
+        NodePlate { center, normal, holes, pins, tubed: true, slide, jammed, tilt }
+    }
+
+    /// The pin axis `cable`'s terminal or fork turns on, if it is one of
+    /// this plate's.
+    pub fn pin(&self, cable: IntervalKey) -> Option<Vec3> {
+        self.holes.iter().position(|(key, _)| *key == cable).map(|i| self.pins[i])
     }
 
     /// The holes in order round the plate, for its outline.
@@ -118,6 +169,23 @@ impl NodePlate {
     pub fn hole(&self, cable: IntervalKey) -> Option<Vec3> {
         self.holes.iter().find(|(key, _)| *key == cable).map(|(_, hole)| *hole)
     }
+}
+
+/// The normal of the plane holding `line` that the `directions` come
+/// closest to: of the planes turning about the line, the one with least
+/// spread out of it.
+fn plane_holding(line: Vec3, directions: &[Vec3]) -> Vec3 {
+    let e1 = line.any_orthonormal_vector();
+    let e2 = line.cross(e1).normalize();
+    let (mut a, mut b, mut c) = (0.0, 0.0, 0.0);
+    for d in directions {
+        let (p, q) = (d.dot(e1), d.dot(e2));
+        a += p * p;
+        b += p * q;
+        c += q * q;
+    }
+    let theta = 0.5 * (2.0 * b).atan2(a - c) + std::f32::consts::FRAC_PI_2;
+    (e1 * theta.cos() + e2 * theta.sin()).normalize()
 }
 
 /// The normal of the plane the `directions` come closest to: the axis of

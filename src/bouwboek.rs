@@ -122,6 +122,7 @@ fn onderdeel(part: Part) -> Option<(&'static str, &'static str)> {
         Part::Hinge => ("Scharnier GN 751 / GN 752 M12", "staal"),
         Part::FootRodEnd => ("Stangkop INA GIKR12-PW, voet", "staal"),
         Part::NodePlate(_) => ("Knoopplaat", "staal, verzinkt"),
+        Part::TubePlate(_) => ("Knoopplaat met kruisbuizen, op maat", "staal, verzinkt"),
         Part::ForkNuts | Part::HingeEye => return None,
     })
 }

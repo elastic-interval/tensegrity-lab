@@ -64,15 +64,18 @@ pub fn document(fabric: &Fabric) -> String {
     let ring_radius = fabric.dimensions.push_radius.f32();
     let list = parts_list(&placements(fabric));
     let rings = list.get(&Part::Ring).copied().unwrap_or(0);
-    let discs: Vec<(Part, usize)> =
-        list.iter().filter(|(part, _)| matches!(part, Part::CustomDisc(_))).map(|(p, n)| (*p, *n)).collect();
-    let disc_tubes: usize = discs
+    let discs: Vec<(Part, usize)> = list
         .iter()
-        .map(|(part, n)| match part {
-            Part::CustomDisc(shape) => shape.count as usize * n,
-            _ => 0,
-        })
-        .sum();
+        .filter(|(part, _)| matches!(part, Part::CustomDisc(_) | Part::TubePlate(_)))
+        .map(|(p, n)| (*p, *n))
+        .collect();
+    // A tube plate's first hole is its hanger's, with no tube.
+    let tubes_on = |part: &Part| match part {
+        Part::CustomDisc(shape) => shape.count as usize,
+        Part::TubePlate(shape) => shape.count as usize - 1,
+        _ => 0,
+    };
+    let disc_tubes: usize = discs.iter().map(|(part, n)| tubes_on(part) * n).sum();
     let caps = 2 * fabric.intervals.values().filter(|i| i.has_role(Role::Pushing)).count();
 
     let boss_width = 2.0 * BOSS_ARM_RADIUS.f32() * MM;
@@ -104,18 +107,16 @@ pub fn document(fabric: &Fabric) -> String {
     )
     .unwrap();
     for (part, n) in &discs {
-        if let Part::CustomDisc(shape) = part {
-            let count = shape.count as f32;
-            writeln!(
-                w,
-                "| {n} | {} | {} cross-tubes, one per boss | {:.0} mm | {:.1} m |",
-                part.name(),
-                shape.count,
-                count * tube_seam,
-                *n as f32 * count * tube_seam / MM
-            )
-            .unwrap();
-        }
+        let tubes = tubes_on(part);
+        let count = tubes as f32;
+        writeln!(
+            w,
+            "| {n} | {} | {tubes} cross-tubes, one per boss | {:.0} mm | {:.1} m |",
+            part.name(),
+            count * tube_seam,
+            *n as f32 * count * tube_seam / MM
+        )
+        .unwrap();
     }
     writeln!(
         w,

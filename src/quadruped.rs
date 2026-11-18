@@ -232,6 +232,36 @@ mod tests {
         figure::write_figures(fabric, &folder.join(name));
     }
 
+    /// The Quadruped must stay buildable, with standard parts but its tube
+    /// plates and custom discs: no colliding connectors, no cable too short
+    /// for its terminals, none slack, and none past a 6 mm cable's working
+    /// load.
+    #[test]
+    fn quadruped_is_buildable() {
+        let mut executor = FabricPlanExecutor::new(quadruped_plan(QuadrupedShape::default()));
+        while !executor.is_complete() {
+            let _ = executor.iterate();
+        }
+        executor.fabric.update_all_attachment_connections();
+        let fabric = &executor.fabric;
+        let connector = fabric.connector.as_ref().expect("connector");
+        assert_eq!(
+            (connector.culprits.len(), connector.short_cables.len()),
+            (0, 0),
+            "Quadruped has build problems (culprit ends, short cables): rerun quadruped_connector_problems"
+        );
+        let hardware = fabric.dimensions.hardware.expect("real parts");
+        let forces: Vec<f32> = fabric
+            .intervals
+            .values()
+            .filter(|i| i.role.is_pull_like())
+            .map(|i| (hardware.cable_stiffness * (i.stiffness.as_factor() * i.strain)).f32() / 1000.0)
+            .collect();
+        assert!(forces.iter().all(|&force| force > 0.0), "a cable hangs slack");
+        let peak = forces.iter().copied().fold(0.0, f32::max);
+        assert!(peak <= 5.1, "a cable carries {peak:.1} kN");
+    }
+
     /// Quadruped stands on its four feet: four strut ends on the ground,
     /// its centre of gravity inside them, and at rest.
     #[test]
@@ -347,6 +377,23 @@ mod tests {
         for (&node, _) in &fabric.bridle_nodes {
             if let Some(plate) = connector.node_plate(node) {
                 eprintln!("plate {}: {} holes, tilt {:.1}°, jammed {}", fabric.joint_label(node), plate.holes.len(), plate.tilt, plate.jammed);
+                if plate.tubed {
+                    for &(cable, hole) in &plate.holes {
+                        if crate::connector::system::is_hanger(fabric, cable) {
+                            continue;
+                        }
+                        let far = fabric.intervals[cable].other_joint(node);
+                        let aim = connector.pull_end_pivot(fabric, cable, far).unwrap_or(fabric.joints[far].location);
+                        let direction = (aim - hole).normalize();
+                        let pin = plate.pin(cable).expect("a pin");
+                        eprintln!(
+                            "  {}: {:.1}° out of the plate, {:.2}° off square to its tube",
+                            fabric.joint_label(far),
+                            direction.dot(plate.normal).abs().asin().to_degrees(),
+                            direction.dot(pin).abs().asin().to_degrees()
+                        );
+                    }
+                }
             }
         }
         let mut culprits: Vec<String> = connector.culprits.iter().map(|&(k, j)| format!("{} at {}", cable(k), fabric.joint_label(j))).collect();
@@ -357,7 +404,11 @@ mod tests {
             eprintln!("  {count} × {}", part.name());
         }
         for placement in &placements {
-            if let crate::connector::parts::Part::NodePlate(shape) = placement.part {
+            let shape = match placement.part {
+                crate::connector::parts::Part::NodePlate(shape) | crate::connector::parts::Part::TubePlate(shape) => Some(shape),
+                _ => None,
+            };
+            if let Some(shape) = shape {
                 let z = placement.x.cross(placement.y);
                 let drawn: Vec<Vec3> = shape
                     .holes()
@@ -370,7 +421,7 @@ mod tests {
                 let node = fabric.bridle_nodes.keys().copied().find(|&n| {
                     connector.node_plate(n).is_some_and(|p| {
                         let m = p.holes.iter().map(|(_, h)| *h).sum::<Vec3>() / p.holes.len() as f32;
-                        m.distance(placement.origin) < 1e-4
+                        m.distance(placement.origin) < 1e-4 || (p.tubed && p.center.distance(placement.origin) < 1e-4)
                     })
                 });
                 if let Some(plate) = node.and_then(|n| connector.node_plate(n)) {
@@ -380,6 +431,16 @@ mod tests {
                         .map(|(_, pin)| drawn.iter().map(|d| d.distance(*pin)).fold(f32::MAX, f32::min))
                         .fold(0.0, f32::max);
                     eprintln!("plate with {} holes: worst pin {:.1} mm from a drawn hole", shape.count, worst * 1000.0);
+                    if plate.tubed {
+                        let square = plate
+                            .holes
+                            .iter()
+                            .zip(&plate.pins)
+                            .filter(|((cable, _), _)| !crate::connector::system::is_hanger(fabric, *cable))
+                            .map(|((_, hole), pin)| (*hole - plate.center).normalize().dot(*pin).abs().asin().to_degrees())
+                            .fold(0.0, f32::max);
+                        eprintln!("  tubes at most {square:.2}° off square to their bosses");
+                    }
                 }
             }
         }
