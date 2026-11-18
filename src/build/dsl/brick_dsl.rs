@@ -19,6 +19,9 @@ pub struct SingleParams {
 #[derive(Clone, Debug, PartialEq)]
 pub struct TorqueParams {
     pub push_lengths: Vec3,
+    /// The two outer struts of the three along x; the middle one is
+    /// `push_lengths.x`.
+    pub outer_push_length: f32,
     pub pull_length: f32,
 }
 
@@ -45,6 +48,9 @@ pub enum BrickName {
     OmniSymmetrical,
     OmniTetrahedral,
     TorqueSymmetrical,
+    /// Torque with the two outer struts of its three along x as long as its
+    /// two longest.
+    Tork,
 }
 
 impl BrickName {

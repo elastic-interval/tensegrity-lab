@@ -7,14 +7,11 @@
 
 use crate::connector::fork::BRIDLE_LINK;
 use crate::connector::system::{hinge_struts, ConnectorSystem};
-use crate::units::{Meters, Unit};
+use crate::units::{Meters, Percent, Unit};
 use crate::fabric::interval::Role;
+use crate::fabric::joint::JointLabel;
 use crate::fabric::interval::Span::Fixed;
 use crate::fabric::{Fabric, IntervalKey, JointKey};
-
-/// How much shorter than their span `tighten_bridles` makes a bridle's
-/// cables.
-const BRIDLE_PRETENSION: f32 = 0.005;
 
 impl Fabric {
     /// Replace the cables `joint`–`a` and `joint`–`b` with a bridle hung on a
@@ -22,18 +19,31 @@ impl Fabric {
     /// bisector, close enough to keep the forces much as they were. The
     /// physics then finds where it settles. At a hinge pin the link stays on the stack that carried
     /// the first cable. The node is labelled after `joint` (see
-    /// `JointLabel::bridle`), so each joint can host one bridle. `None`,
-    /// changing nothing, when either cable is missing, the two run in
-    /// opposite directions, or `joint` already has a bridle.
+    /// `JointLabel::bridle`), so each joint can host one bridle, except
+    /// that a joint on the mirror plane can host one on each side, its
+    /// cables both to one side's twins (`Z2bL`, `Z2bR`). `None`, changing
+    /// nothing, when either cable is missing, the two run in opposite
+    /// directions, or `joint` already has a bridle with that label.
     pub fn bridle(&mut self, joint: JointKey, a: JointKey, b: JointKey) -> Option<JointKey> {
         let cable = |far: JointKey| {
             self.joining((joint, far))
                 .filter(|key| self.intervals[*key].role.is_pull_like())
         };
         let (cable_a, cable_b) = (cable(a)?, cable(b)?);
-        let host = self.joints[joint].label;
-        let hosting = |&link: &IntervalKey| self.intervals[link].touches(joint);
-        if self.bridle_nodes.values().any(hosting) {
+        let side = |far: JointKey| match self.joints[far].label {
+            Some(JointLabel::Twin { letter, .. }) => Some(letter),
+            _ => None,
+        };
+        let label = match (self.joints[joint].label, side(a), side(b)) {
+            (Some(JointLabel::Axial { index }), Some(a), Some(b)) if a == b => {
+                Some(JointLabel::BridleAxialTwin { index, letter: a })
+            }
+            (host, _, _) => host.map(|label| label.bridle()),
+        };
+        let hosted = |(&node, &link): (&JointKey, &IntervalKey)| {
+            self.intervals[link].touches(joint) && self.joints[node].label == label
+        };
+        if self.bridle_nodes.iter().any(hosted) {
             return None;
         }
         let at = self.location(joint);
@@ -42,7 +52,7 @@ impl Fabric {
             return None;
         }
         let node = self.create_joint(at + bisector.normalize() * BRIDLE_LINK.f32());
-        self.joints[node].label = host.map(|label| label.bridle());
+        self.joints[node].label = label;
         let strut = self.hinge_strut.remove(&(cable_a, joint));
         self.hinge_strut.remove(&(cable_b, joint));
         let role_a = self.remove_interval(cable_a).role;
@@ -121,12 +131,14 @@ impl Fabric {
         }
     }
 
-    pub fn tighten_bridles(&mut self) {
+    /// Shorten each bridle's cables by `pretenst` of their span, as tight as
+    /// the struts' extension makes the rest of the fabric.
+    pub fn tighten_bridles(&mut self, pretenst: Percent) {
         let nodes: Vec<JointKey> = self.bridle_nodes.keys().copied().collect();
         for node in nodes {
             for interval in self.intervals.values_mut().filter(|i| i.touches(node)) {
                 if let Fixed { length } = interval.span {
-                    interval.span = Fixed { length: length * (1.0 - BRIDLE_PRETENSION) };
+                    interval.span = Fixed { length: length * (1.0 - pretenst.as_factor()) };
                 }
             }
         }

@@ -2,23 +2,17 @@ use crate::build::dsl::brick::BrickPrototype;
 use crate::build::dsl::brick_dsl::*;
 use crate::build::dsl::Spin;
 
-/// Build the Torque brick prototype (left-handed).
+/// Build the Torque brick prototype (left-handed), or Tork's, as `name`.
 /// The right-handed baked brick is derived via BakedBrick::mirror().
-pub fn torque(params: &TorqueParams) -> BrickPrototype {
-    use BrickName::*;
+pub fn torque(name: BrickName, params: &TorqueParams) -> BrickPrototype {
     use BrickRole::*;
     use FaceName::*;
     use JointName::*;
 
-    proto(TorqueSymmetrical, [OnSpin(Spin::Right), Seed(4), Seed(2)])
-        .pushes_x(
-            params.push_lengths.x,
-            [
-                (LeftFront, LeftBack),
-                (MiddleFront, MiddleBack),
-                (RightFront, RightBack),
-            ],
-        )
+    proto(name, [OnSpin(Spin::Right), Seed(4), Seed(2)])
+        .pushes_x(params.outer_push_length, [(LeftFront, LeftBack)])
+        .pushes_x(params.push_lengths.x, [(MiddleFront, MiddleBack)])
+        .pushes_x(params.outer_push_length, [(RightFront, RightBack)])
         .pushes_y(
             params.push_lengths.y,
             [

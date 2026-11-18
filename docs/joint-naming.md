@@ -89,6 +89,7 @@ pins. A Z name says "on the centre line".
 | Cable end | `<joint>.<slot>`: the joint, then its connector slot | `L12.2` |
 | Cable | its two ends, smaller name first | `L12:R30` |
 | Bridle node (plate) | `<host>b`, the joint its hanger hangs from | `L48b` |
+| A pair of plates on a `Z` joint, one each side | `<host>b<member>` | `Z2bL`, `Z2bR` |
 | Custom disc | named for its host joint | disc at `Z1` |
 | Hinge | the name it keeps, or a Z if it lands on the centre line | `Z2` |
 

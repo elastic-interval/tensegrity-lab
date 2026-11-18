@@ -464,11 +464,11 @@ impl FabricPlanExecutor {
 
         self.fabric.place_hardware_masses();
         self.fabric.slacken();
-        self.fabric.tighten_bridles();
+        let phase = &self.plan.pretense_phase;
+        self.fabric.tighten_bridles(phase.pretenst);
 
         // Start the percentage-based pretensing: push rest lengths approach
         // `length × (1 + pretenst)` over the phase's configured duration.
-        let phase = &self.plan.pretense_phase;
         let seconds = phase.seconds.unwrap_or(Seconds(0.1));
         self.fabric.set_pretenst(phase.pretenst, seconds);
 

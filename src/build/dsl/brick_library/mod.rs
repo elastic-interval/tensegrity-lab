@@ -17,6 +17,7 @@ use std::sync::OnceLock;
 static SINGLE_LEFT_PROTO: OnceLock<BrickPrototype> = OnceLock::new();
 static OMNI_PROTO: OnceLock<BrickPrototype> = OnceLock::new();
 static TORQUE_PROTO: OnceLock<BrickPrototype> = OnceLock::new();
+static TORK_PROTO: OnceLock<BrickPrototype> = OnceLock::new();
 
 pub fn get_prototype(brick_name: BrickName) -> BrickPrototype {
     match brick_name {
@@ -37,10 +38,26 @@ pub fn get_prototype(brick_name: BrickName) -> BrickPrototype {
             .clone(),
         BrickName::TorqueSymmetrical => TORQUE_PROTO
             .get_or_init(|| {
-                torque(&TorqueParams {
-                    push_lengths: Vec3::new(3.0, 3.0, 6.0),
-                    pull_length: 1.86,
-                })
+                torque(
+                    brick_name,
+                    &TorqueParams {
+                        push_lengths: Vec3::new(3.0, 3.0, 6.0),
+                        outer_push_length: 3.0,
+                        pull_length: 1.86,
+                    },
+                )
+            })
+            .clone(),
+        BrickName::Tork => TORK_PROTO
+            .get_or_init(|| {
+                torque(
+                    brick_name,
+                    &TorqueParams {
+                        push_lengths: Vec3::new(3.0, 3.0, 6.0),
+                        outer_push_length: 6.0,
+                        pull_length: 1.86,
+                    },
+                )
             })
             .clone(),
     }

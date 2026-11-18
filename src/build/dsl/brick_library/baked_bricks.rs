@@ -30,6 +30,7 @@ fn populate_cache() -> HashMap<BrickName, BakedBrick> {
         OmniTetrahedral,
         SingleTwistLeft,
         TorqueSymmetrical,
+        Tork,
     ] {
         let baked = bake_brick_pure(
             brick_name,
@@ -48,7 +49,7 @@ fn initial_scale(brick_name: BrickName) -> f32 {
         OmniSymmetrical => 0.96720,
         OmniTetrahedral => 1.22593,
         SingleTwistLeft => 0.90909,
-        TorqueSymmetrical => 1.02172,
+        TorqueSymmetrical | Tork => 1.02172,
     }
 }
 
@@ -64,6 +65,12 @@ fn brick_params(brick_name: BrickName) -> BrickParams {
         }),
         TorqueSymmetrical => BrickParams::Torque(TorqueParams {
             push_lengths: Vec3::new(3.0, 3.0, 6.0),
+            outer_push_length: 3.0,
+            pull_length: 1.86,
+        }),
+        Tork => BrickParams::Torque(TorqueParams {
+            push_lengths: Vec3::new(3.0, 3.0, 6.0),
+            outer_push_length: 6.0,
             pull_length: 1.86,
         }),
     }

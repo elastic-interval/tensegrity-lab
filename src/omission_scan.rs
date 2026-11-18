@@ -329,24 +329,24 @@ mod tests {
     }
 
     /// Greedily bridles: each round reruns the plan with every candidate on
-    /// top of those already chosen, keeps the one leaving the fewest problems
+    /// top of those already chosen (every pair of candidates when no single
+    /// one helps), keeps the one leaving the fewest problems
     /// (collisions, short cables) without moving the
-    /// settled height by more than `HEIGHT_TOLERANCE`, and stops when none
+    /// settled height by more than `height_tolerance` metres, and stops when none
     /// helps. Prints the `bridle` entries to paste.
     #[test]
     #[ignore]
     fn greedy_headless_hug_bridles() {
-        greedy_bridles(FabricName::HeadlessHug);
+        greedy_bridles(FabricName::HeadlessHug, 0.05);
     }
 
     #[test]
     #[ignore]
     fn greedy_quadruped_bridles() {
-        greedy_bridles(FabricName::Quadruped);
+        greedy_bridles(FabricName::Quadruped, 0.3);
     }
 
-    fn greedy_bridles(name: FabricName) {
-        const HEIGHT_TOLERANCE: f32 = 0.05;
+    fn greedy_bridles(name: FabricName, height_tolerance: f32) {
         let mut chosen: Vec<Bridle> = Vec::new();
         loop {
             let (fabric, current) = run_plan(name, &[], &chosen);
@@ -360,24 +360,34 @@ mod tests {
                 chosen.len()
             );
             let candidates = bridle_candidates(&fabric);
-            let outcomes = parallel(&candidates, |bridle| {
-                let all: Vec<Bridle> = chosen.iter().copied().chain([*bridle]).collect();
-                run_plan(name, &[], &all).1
+            // One bridle at a time; when none helps alone, two together.
+            let singles: Vec<Vec<Bridle>> = candidates.iter().map(|&bridle| vec![bridle]).collect();
+            let pairs: Vec<Vec<Bridle>> = (0..candidates.len())
+                .flat_map(|i| (i + 1..candidates.len()).map(move |j| (i, j)))
+                .map(|(i, j)| vec![candidates[i], candidates[j]])
+                .collect();
+            let best = [singles, pairs].into_iter().find_map(|moves| {
+                let outcomes = parallel(&moves, |added| {
+                    let all: Vec<Bridle> = chosen.iter().chain(added).copied().collect();
+                    run_plan(name, &[], &all).1
+                });
+                moves
+                    .into_iter()
+                    .zip(outcomes)
+                    .filter(|(_, o)| {
+                        o.finite
+                            && o.problems() < current.problems()
+                            && (o.height - current.height).abs() < height_tolerance
+                    })
+                    .min_by_key(|(_, o)| o.problems())
             });
-            let best = candidates
-                .iter()
-                .zip(&outcomes)
-                .filter(|(_, o)| {
-                    o.finite
-                        && o.problems() < current.problems()
-                        && (o.height - current.height).abs() < HEIGHT_TOLERANCE
-                })
-                .min_by_key(|(_, o)| o.problems());
-            let Some((bridle, _)) = best else {
+            let Some((added, _)) = best else {
                 break;
             };
-            eprintln!("  bridle {bridle}");
-            chosen.push(*bridle);
+            for bridle in added {
+                eprintln!("  bridle {bridle}");
+                chosen.push(bridle);
+            }
         }
         for bridle in &chosen {
             eprintln!("{bridle},");

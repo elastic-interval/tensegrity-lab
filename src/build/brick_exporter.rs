@@ -19,6 +19,7 @@ fn function_name(brick_name: BrickName) -> &'static str {
         BrickName::OmniSymmetrical => "omni_symmetrical_baked",
         BrickName::OmniTetrahedral => "omni_tetrahedral_baked",
         BrickName::TorqueSymmetrical => "torque_symmetrical_baked",
+        BrickName::Tork => "tork_baked",
     }
 }
 

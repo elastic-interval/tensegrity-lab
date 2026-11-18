@@ -104,7 +104,7 @@ impl FabricName {
 
             HeadlessHug => headless_hug_plan(HeadlessHugShape::default()),
 
-            Quadruped => quadruped_plan(),
+            Quadruped => quadruped_plan(QuadrupedShape::default()),
 
             Diamond => self
                 .build(FabricDimensions::default())
@@ -379,34 +379,72 @@ pub fn headless_hug_plan(shape: HeadlessHugShape) -> FabricPlan {
         ])
 }
 
-/// A four-legged pet for Headless Hug, on the Torque seed with its four
-/// corner faces down: its long struts run nose to tail, a leg grows off each
-/// corner, and the feet are drawn halfway toward each other.
-pub fn quadruped_plan() -> FabricPlan {
-    let leg = |face, label| on(face).column(2).shrink_by(Pct(13.0)).prism(Pct(400.0)).label(label);
-    let feet = [Foot(Side::Left), Foot(Side::Right), HindFoot(Side::Left), HindFoot(Side::Right)];
+/// The Quadruped's spacers: each front foot to the hind foot on its side,
+/// front foot to front foot and hind to hind, and the diagonals. `Default`
+/// is the design.
+#[derive(Clone, Copy, Debug)]
+pub struct QuadrupedShape {
+    pub along: Pct,
+    pub across: Pct,
+    pub crossed: Pct,
+}
+
+impl Default for QuadrupedShape {
+    fn default() -> Self {
+        QuadrupedShape { along: Pct(50.0), across: Pct(165.0), crossed: Pct(95.0) }
+    }
+}
+
+/// A four-legged pet for Headless Hug, on the Tork seed with its four
+/// corner faces down: its two longest struts run nose to tail, a leg grows
+/// off each corner, and Headless Hug's kind of spacers set the feet on a
+/// square: each front foot drawn toward the hind foot on its side, the
+/// pairs pushed apart across, and the diagonals between. Scaled so its
+/// longest struts are Open Claw's longest (2.48 m); the legs shrink gently
+/// so their last struts still fit the short tube set. Pretensioned less than
+/// Headless Hug: standing on four feet doesn't unload its cables the way
+/// standing upright unloads Headless Hug's.
+pub fn quadruped_plan(shape: QuadrupedShape) -> FabricPlan {
+    let leg = |face, label| on(face).column(3).shrink_by(Pct(9.0)).prism(Pct(400.0)).label(label);
+    let (fore_left, fore_right) = (Foot(Side::Left), Foot(Side::Right));
+    let (hind_left, hind_right) = (HindFoot(Side::Left), HindFoot(Side::Right));
     FabricName::Quadruped
         .build(
             FabricDimensions::default()
                 .with_altitude(M(4.0))
-                .with_scale(M(0.75))
+                .with_scale(M(0.5466))
                 .with_connector()
                 .with_tube_sets(HEADLESS_HUG_TUBES)
                 .with_connectors_shown()
                 .with_hardware(Hardware::OPEN_CLAW),
         )
-        .seed(TorqueSymmetrical, Seed(4))
+        .seed(Tork, Seed(4))
         .faces([
-            leg(LeftFrontBottom, Foot(Side::Left)),
-            leg(LeftBackBottom, Foot(Side::Right)),
-            leg(RightFrontBottom, HindFoot(Side::Left)),
-            leg(RightBackBottom, HindFoot(Side::Right)),
+            leg(LeftFrontBottom, fore_left),
+            leg(LeftBackBottom, fore_right),
+            leg(RightFrontBottom, hind_left),
+            leg(RightBackBottom, hind_right),
         ])
         .prepare_vulcanize(0.5, VulcanizeMode::Linear)
-        .space(Sec(2.8), feet, Pct(50.0))
+        .space_parallel(
+            Sec(2.8),
+            [
+                spacer([fore_left, hind_left], shape.along),
+                spacer([fore_right, hind_right], shape.along),
+                spacer([fore_left, fore_right], shape.across),
+                spacer([hind_left, hind_right], shape.across),
+                spacer([fore_left, hind_right], shape.crossed),
+                spacer([fore_right, hind_left], shape.crossed),
+            ],
+        )
         .vulcanize(Sec(2.1))
-        .down(Sec(1.0), feet)
-        .pretense(Sec(0.3), Pct(0.5))
+        .hinge([LR(12) | LR(12), LR(18) | LR(18)])
+        .bridle([
+            Z(1).bridle(LR(5), LR(14)),
+            Z(2).bridle(LR(7), LR(8)),
+        ])
+        .down(Sec(1.0), [fore_left, fore_right, hind_left, hind_right])
+        .pretense(Sec(0.3), Pct(0.2))
         .surface_frozen()
         .fall(Sec(1.5))
         .settle(Sec(10.0))

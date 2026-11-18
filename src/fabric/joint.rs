@@ -21,7 +21,8 @@ use std::fmt::{self, Display, Formatter};
 /// is the build-time address the twins are numbered from (role A arm, L leg,
 /// T torso, e.g. `AL02.3`); fabrics without a symmetry keep it, without a
 /// role (`A01.1`). A bridle node takes its host joint's label with a `b`
-/// suffix (`L12b`, `Z3b`). Ordering is derived (by variant, then field),
+/// suffix (`L12b`, `Z3b`); a mirror pair of them hanging from one joint on
+/// the mirror plane add their side (`Z2bL`, `Z2bR`). Ordering is derived (by variant, then field),
 /// giving `LabelSymmetry::orbit_key` its canonical minimum.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum JointLabel {
@@ -31,6 +32,7 @@ pub enum JointLabel {
     BridleAxial { index: u16 },
     Twin { letter: char, number: u16 },
     BridleTwin { letter: char, number: u16 },
+    BridleAxialTwin { index: u16, letter: char },
 }
 
 impl JointLabel {
@@ -62,6 +64,7 @@ impl Display for JointLabel {
             JointLabel::BridleAxial { index } => write!(f, "Z{index}b"),
             JointLabel::Twin { letter, number } => write!(f, "{letter}{number}"),
             JointLabel::BridleTwin { letter, number } => write!(f, "{letter}{number}b"),
+            JointLabel::BridleAxialTwin { index, letter } => write!(f, "Z{index}b{letter}"),
         }
     }
 }

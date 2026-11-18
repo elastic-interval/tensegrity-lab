@@ -93,6 +93,10 @@ impl LabelSymmetry {
                 letter: self.map_letter(letter),
                 number,
             },
+            JointLabel::BridleAxialTwin { index, letter } => JointLabel::BridleAxialTwin {
+                index,
+                letter: self.map_letter(letter),
+            },
             axial @ (JointLabel::Axial { .. } | JointLabel::BridleAxial { .. }) => axial,
         }
     }
