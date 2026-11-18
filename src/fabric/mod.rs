@@ -584,6 +584,14 @@ impl Fabric {
             .filter(|surface| surface.character == SurfaceCharacter::Frozen)
             .map(|surface| 0.01 * surface.scale);
         let resting = |joint: &Joint| frozen_tolerance.is_some_and(|t| joint.location.y <= t);
+        // A joint pressing on a grippy surface doesn't slide either, or it
+        // would creep under a steady sideways pull; lifting, it goes free.
+        let grippy_tolerance = physics
+            .surface
+            .filter(|surface| surface.character == SurfaceCharacter::Grippy)
+            .map(|surface| 0.01 * surface.scale);
+        let gripped =
+            |joint: &Joint| grippy_tolerance.is_some_and(|t| joint.location.y <= t && joint.velocity.y <= 0.0);
 
         // 1. First half-kick: v += 0.5 * a * dt (using forces from previous iteration)
         //    Note: On first iteration, forces are zero, so this is a no-op
@@ -593,7 +601,13 @@ impl Fabric {
 
         // 2. Drift: x += v * dt (position update)
         for joint in self.joints.values_mut().filter(|joint| !resting(joint)) {
-            joint.drift(dt);
+            if gripped(joint) {
+                let (x, z) = (joint.location.x, joint.location.z);
+                joint.drift(dt);
+                (joint.location.x, joint.location.z) = (x, z);
+            } else {
+                joint.drift(dt);
+            }
         }
         if let Some(surface) = physics.surface {
             self.apply_quake(0.01 * surface.scale);

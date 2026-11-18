@@ -11,6 +11,9 @@ pub enum SurfaceCharacter {
     Sticky,
     Bouncy,
     Slippery,
+    /// A foot on it doesn't slide, but lifts off freely and lands again,
+    /// sinking in nowhere: Frozen holds a foot down for good.
+    Grippy,
 }
 
 /// Surface with character and scale for proper small-scale physics
@@ -116,6 +119,12 @@ impl Surface {
 
                     let antigravity = gravity * s.mass * degree_submerged * 5.0;
                     velocity.y += antigravity * s.dt;
+                }
+                SurfaceCharacter::Grippy => {
+                    clamp_y = Some(0.0);
+                    velocity.y = velocity.y.max(0.0);
+                    velocity.x = 0.0;
+                    velocity.z = 0.0;
                 }
                 SurfaceCharacter::Slippery => {
                     clamp_y = Some(0.0);

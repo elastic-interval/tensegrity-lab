@@ -711,6 +711,11 @@ impl PretenseChain {
         self.build_plan()
     }
 
+    pub fn surface_grippy(mut self) -> FabricPlan {
+        self.surface = Some(SurfaceCharacter::Grippy);
+        self.build_plan()
+    }
+
     pub fn surface_slippery(mut self) -> FabricPlan {
         self.surface = Some(SurfaceCharacter::Slippery);
         self.build_plan()

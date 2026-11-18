@@ -29,6 +29,8 @@ impl GpuPhysicsConfig {
                     Frozen => 2,
                     Sticky => 3,
                     Slippery => 4,
+                    // The GPU has no grippy floor; frozen is the nearest.
+                    Grippy => 2,
                 };
                 (character, surface.scale)
             }

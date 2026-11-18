@@ -254,6 +254,15 @@ mod tests {
         let fabric = &mut executor.fabric;
         let period = animate.period;
         let before: Vec<Vec3> = fabric.joints.values().map(|j| j.location).collect();
+        let feet: Vec<(crate::fabric::JointKey, Vec3)> = fabric
+            .connector
+            .as_ref()
+            .expect("connector")
+            .feet
+            .iter()
+            .map(|&foot| (foot, fabric.joints[foot].location))
+            .collect();
+        let (mut slid, mut lifted) = (0.0f32, 0.0f32);
         let mut animator = Animator::new(animate, fabric);
         let joint = |fabric: &Fabric, name: &str| fabric.joints.keys().find(|&j| fabric.joint_label(j) == name).expect(name);
         let pairs = [("R7", "L5"), ("L7", "R5")];
@@ -272,12 +281,18 @@ mod tests {
                 .filter(|i| i.role.is_pull_like())
                 .map(|i| (hardware.cable_stiffness * (i.stiffness.as_factor() * i.strain)).f32() / 1000.0)
                 .fold(peak, f32::max);
+            for &(foot, at) in &feet {
+                let now = fabric.joints[foot].location;
+                slid = slid.max(Vec3::new(now.x - at.x, 0.0, now.z - at.z).length());
+                lifted = lifted.max(now.y - at.y);
+            }
             if step >= steps {
                 eprintln!("{:>3}%: {}", (step - steps) * 100 / steps, lengths.join(", "));
             }
         }
         let moved = before.iter().zip(fabric.joints.values()).map(|(a, j)| a.distance(j.location)).fold(0.0, f32::max);
         eprintln!("moved up to {:.0} mm from standing; peak cable {peak:.1} kN", moved * 1000.0);
+        eprintln!("feet slid up to {:.1} mm and lifted up to {:.1} mm", slid * 1000.0, lifted * 1000.0);
     }
 
     /// The Quadruped must stay buildable, with standard parts but its tube
