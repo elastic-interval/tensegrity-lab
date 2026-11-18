@@ -8,37 +8,40 @@
 use crate::connector::fork::BRIDLE_LINK;
 use crate::connector::system::{hinge_struts, ConnectorSystem};
 use crate::units::{Meters, Percent, Unit};
+use glam::Vec3;
 use crate::fabric::interval::Role;
 use crate::fabric::joint::JointLabel;
 use crate::fabric::interval::Span::Fixed;
 use crate::fabric::{Fabric, IntervalKey, JointKey};
 
 impl Fabric {
-    /// Replace the cables `joint`–`a` and `joint`–`b` with a bridle hung on a
-    /// fork rod from `joint`, its node plate `BRIDLE_LINK` out along their
-    /// bisector, close enough to keep the forces much as they were. The
-    /// physics then finds where it settles. At a hinge pin the link stays on the stack that carried
-    /// the first cable. The node is labelled after `joint` (see
-    /// `JointLabel::bridle`), so each joint can host one bridle, except
-    /// that a joint on the mirror plane can host one on each side, its
-    /// cables both to one side's twins (`Z2bL`, `Z2bR`). `None`, changing
-    /// nothing, when either cable is missing, the two run in opposite
-    /// directions, or `joint` already has a bridle with that label.
-    pub fn bridle(&mut self, joint: JointKey, a: JointKey, b: JointKey) -> Option<JointKey> {
+    /// Replace the cables from `joint` to each of `fars` with a bridle hung on
+    /// a fork rod from `joint`, its node plate `BRIDLE_LINK` out along their
+    /// mean direction, close enough to keep the forces much as they were.
+    /// The physics then finds where it settles. At a hinge pin the link stays
+    /// on the stack that carried the first cable. The node is labelled after
+    /// `joint` (see `JointLabel::bridle`), so each joint can host one bridle,
+    /// except that a joint on the mirror plane can host one on each side,
+    /// its two cables both to one side's twins (`Z2bL`, `Z2bR`). `None`,
+    /// changing nothing, when a cable is missing, the cables pull every way
+    /// at once, or `joint` already has a bridle with that label.
+    pub fn bridle(&mut self, joint: JointKey, fars: &[JointKey]) -> Option<JointKey> {
         let cable = |far: JointKey| {
             self.joining((joint, far))
                 .filter(|key| self.intervals[*key].role.is_pull_like())
         };
-        let (cable_a, cable_b) = (cable(a)?, cable(b)?);
+        let cables: Vec<IntervalKey> = fars.iter().map(|&far| cable(far)).collect::<Option<_>>()?;
         let side = |far: JointKey| match self.joints[far].label {
             Some(JointLabel::Twin { letter, .. }) => Some(letter),
             _ => None,
         };
-        let label = match (self.joints[joint].label, side(a), side(b)) {
-            (Some(JointLabel::Axial { index }), Some(a), Some(b)) if a == b => {
-                Some(JointLabel::BridleAxialTwin { index, letter: a })
-            }
-            (host, _, _) => host.map(|label| label.bridle()),
+        let one_side = match fars {
+            [a, b] => side(*a).filter(|&letter| side(*b) == Some(letter)),
+            _ => None,
+        };
+        let label = match (self.joints[joint].label, one_side) {
+            (Some(JointLabel::Axial { index }), Some(letter)) => Some(JointLabel::BridleAxialTwin { index, letter }),
+            (host, _) => host.map(|label| label.bridle()),
         };
         let hosted = |(&node, &link): (&JointKey, &IntervalKey)| {
             self.intervals[link].touches(joint) && self.joints[node].label == label
@@ -47,19 +50,21 @@ impl Fabric {
             return None;
         }
         let at = self.location(joint);
-        let bisector = (self.location(a) - at).normalize() + (self.location(b) - at).normalize();
+        let bisector: Vec3 = fars.iter().map(|&far| (self.location(far) - at).normalize()).sum();
         if bisector.length() < 1e-3 {
             return None;
         }
         let node = self.create_joint(at + bisector.normalize() * BRIDLE_LINK.f32());
         self.joints[node].label = label;
-        let strut = self.hinge_strut.remove(&(cable_a, joint));
-        self.hinge_strut.remove(&(cable_b, joint));
-        let role_a = self.remove_interval(cable_a).role;
-        let role_b = self.remove_interval(cable_b).role;
+        let strut = self.hinge_strut.remove(&(cables[0], joint));
+        for cable in &cables[1..] {
+            self.hinge_strut.remove(&(*cable, joint));
+        }
+        let roles: Vec<Role> = cables.iter().map(|&cable| self.remove_interval(cable).role).collect();
         let link = self.create_slack_interval(joint, node, Role::Pulling);
-        self.create_slack_interval(node, a, role_a);
-        self.create_slack_interval(node, b, role_b);
+        for (&far, role) in fars.iter().zip(roles) {
+            self.create_slack_interval(node, far, role);
+        }
         if let Some(strut) = strut {
             self.hinge_strut.insert((link, joint), strut);
         }
@@ -139,6 +144,34 @@ impl Fabric {
             for interval in self.intervals.values_mut().filter(|i| i.touches(node)) {
                 if let Fixed { length } = interval.span {
                     interval.span = Fixed { length: length * (1.0 - pretenst.as_factor()) };
+                }
+            }
+        }
+    }
+
+    /// Four cables or more on one plate don't find their own balance as three
+    /// do: where the plate settles decides what each carries, and a short one
+    /// can come out slack. Cut any carrying less than `pretenst` to carry it
+    /// where the plate is now. Plates with three cables are left alone.
+    pub fn tension_plates(&mut self, pretenst: Percent) {
+        let factor = pretenst.as_factor();
+        let nodes: Vec<JointKey> = self.bridle_nodes.keys().copied().collect();
+        for node in nodes {
+            let cables: Vec<IntervalKey> = self
+                .intervals
+                .iter()
+                .filter(|(_, i)| i.touches(node) && i.role.is_pull_like())
+                .map(|(key, _)| key)
+                .collect();
+            if cables.len() <= 3 {
+                continue;
+            }
+            for cable in cables {
+                let length = self.intervals[cable].length(&self.joints).f32();
+                if let Fixed { length: rest } = self.intervals[cable].span {
+                    if length / rest.f32() - 1.0 < factor {
+                        self.intervals[cable].span = Fixed { length: Meters(length / (1.0 + factor)) };
+                    }
                 }
             }
         }

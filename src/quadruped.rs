@@ -344,9 +344,44 @@ mod tests {
             top.sort_by(|a, b| b.0.total_cmp(&a.0));
             eprintln!("  highest: {:?}", top.iter().take(8).map(|(f, n)| format!("{n} {f:.1}")).collect::<Vec<_>>());
         }
+        for (&node, _) in &fabric.bridle_nodes {
+            if let Some(plate) = connector.node_plate(node) {
+                eprintln!("plate {}: {} holes, tilt {:.1}°, jammed {}", fabric.joint_label(node), plate.holes.len(), plate.tilt, plate.jammed);
+            }
+        }
+        let mut culprits: Vec<String> = connector.culprits.iter().map(|&(k, j)| format!("{} at {}", cable(k), fabric.joint_label(j))).collect();
+        culprits.sort();
+        eprintln!("culprit ends: {culprits:?}");
         let placements = crate::connector::parts::placements(fabric);
         for (part, count) in crate::connector::parts::parts_list(&placements) {
             eprintln!("  {count} × {}", part.name());
+        }
+        for placement in &placements {
+            if let crate::connector::parts::Part::NodePlate(shape) = placement.part {
+                let z = placement.x.cross(placement.y);
+                let drawn: Vec<Vec3> = shape
+                    .holes()
+                    .iter()
+                    .map(|&(degrees, mm)| {
+                        let (sin, cos) = (degrees as f32).to_radians().sin_cos();
+                        placement.origin + (placement.x * cos + z * sin) * (mm as f32 / 1000.0)
+                    })
+                    .collect();
+                let node = fabric.bridle_nodes.keys().copied().find(|&n| {
+                    connector.node_plate(n).is_some_and(|p| {
+                        let m = p.holes.iter().map(|(_, h)| *h).sum::<Vec3>() / p.holes.len() as f32;
+                        m.distance(placement.origin) < 1e-4
+                    })
+                });
+                if let Some(plate) = node.and_then(|n| connector.node_plate(n)) {
+                    let worst = plate
+                        .holes
+                        .iter()
+                        .map(|(_, pin)| drawn.iter().map(|d| d.distance(*pin)).fold(f32::MAX, f32::min))
+                        .fold(0.0, f32::max);
+                    eprintln!("plate with {} holes: worst pin {:.1} mm from a drawn hole", shape.count, worst * 1000.0);
+                }
+            }
         }
         for placement in placements {
             if let crate::connector::parts::Part::CustomDisc(shape) = placement.part {

@@ -76,19 +76,48 @@ pub enum Part {
     InnerTube(u16),
 }
 
-/// A node plate's three holes as (angle from `x` in degrees, distance from
-/// the centre in millimetres), ascending by angle, the first at 0. Rounded,
-/// so plates that match to the degree and millimetre are the same part.
+/// Most holes one node plate has.
+pub const MAX_PLATE_HOLES: usize = 6;
+
+/// A node plate's holes as (angle from `x` in degrees, distance from the
+/// centre in millimetres), ascending by angle, the first at 0; the first
+/// `count` are used. Rounded, so plates that match to the degree and
+/// millimetre are the same part.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PlateShape {
-    pub holes: [(i16, u16); 3],
+    pub holes: [(i16, u16); MAX_PLATE_HOLES],
+    pub count: u8,
 }
 
 impl PlateShape {
-    /// Every plate: `PLATE_SIDE` on a side.
+    /// Every three-cable plate: `PLATE_SIDE` on a side.
     pub fn equilateral() -> PlateShape {
         let mm = (PLATE_SIDE.f32() / 3f32.sqrt() * 1000.0).round() as u16;
-        PlateShape { holes: [(0, mm), (120, mm), (240, mm)] }
+        let mut holes = [(0, 0); MAX_PLATE_HOLES];
+        holes[..3].copy_from_slice(&[(0, mm), (120, mm), (240, mm)]);
+        PlateShape { holes, count: 3 }
+    }
+
+    /// A plate with holes at `outline`, in order round it, about `middle`,
+    /// lying square to `normal`.
+    fn measured(outline: &[Vec3], middle: Vec3, normal: Vec3) -> PlateShape {
+        // The part's own frame: `y` square to the plate and `z = x × y`, angles
+        // turning from `x` toward `z`, as it is drawn and cut.
+        let x = (outline[0] - middle).normalize();
+        let z = x.cross(normal);
+        let mut holes = [(0, 0); MAX_PLATE_HOLES];
+        for (slot, hole) in holes.iter_mut().zip(outline) {
+            let offset = *hole - middle;
+            let degrees = (offset.dot(z).atan2(offset.dot(x)).to_degrees().round() as i16).rem_euclid(360);
+            *slot = (degrees, (offset.length() * 1000.0).round() as u16);
+        }
+        let count = outline.len().min(MAX_PLATE_HOLES);
+        holes[..count].sort();
+        PlateShape { holes, count: count as u8 }
+    }
+
+    pub fn holes(&self) -> &[(i16, u16)] {
+        &self.holes[..self.count as usize]
     }
 }
 
@@ -138,7 +167,7 @@ impl Part {
                 format!("custom disc {}", bosses.join(" "))
             }
             Part::NodePlate(shape) => {
-                let holes: Vec<String> = shape.holes.iter().map(|(degrees, mm)| format!("{degrees}°/{mm}mm")).collect();
+                let holes: Vec<String> = shape.holes().iter().map(|(degrees, mm)| format!("{degrees}°/{mm}mm")).collect();
                 format!("node plate {}", holes.join(" "))
             }
             Part::OuterTube(mm) => format!("outer tube 40×3 × {mm} mm"),
@@ -212,11 +241,31 @@ impl Part {
             Part::HingeEye => Grams(100.0),
             // Schaeffler's datasheet.
             Part::FootRodEnd => Grams(120.0),
-            Part::NodePlate(shape) => {
+            Part::NodePlate(shape) if shape.count == 3 => {
                 let side = shape.holes[0].1 as f32 / 1000.0 * 3f32.sqrt();
                 let corner = PLATE_CORNER_RADIUS.f32();
                 let area = 3f32.sqrt() / 4.0 * side.powi(2) + 3.0 * side * corner + PI * corner.powi(2)
                     - 3.0 * PI * (PLATE_HOLE_DIAMETER.f32() / 2.0).powi(2);
+                steel(area * PLATE_THICKNESS.f32())
+            }
+            Part::NodePlate(shape) => {
+                // The polygon through the holes, its edges widened by the
+                // rounded corners, less the holes.
+                let at: Vec<(f32, f32)> = shape
+                    .holes()
+                    .iter()
+                    .map(|&(degrees, mm)| {
+                        let (sin, cos) = (degrees as f32).to_radians().sin_cos();
+                        (cos * mm as f32 / 1000.0, sin * mm as f32 / 1000.0)
+                    })
+                    .collect();
+                let n = at.len();
+                let next = |i: usize| at[(i + 1) % n];
+                let polygon = (0..n).map(|i| at[i].0 * next(i).1 - next(i).0 * at[i].1).sum::<f32>().abs() / 2.0;
+                let perimeter: f32 = (0..n).map(|i| (next(i).0 - at[i].0).hypot(next(i).1 - at[i].1)).sum();
+                let corner = PLATE_CORNER_RADIUS.f32();
+                let area = polygon + perimeter * corner + PI * corner.powi(2)
+                    - n as f32 * PI * (PLATE_HOLE_DIAMETER.f32() / 2.0).powi(2);
                 steel(area * PLATE_THICKNESS.f32())
             }
             Part::OuterTube(mm) => aluminium_tube(OUTER_RADIUS, OUTER_BORE_RADIUS, mm),
@@ -388,7 +437,7 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
         let Some(plate) = connector.node_plate(node) else {
             continue;
         };
-        for (cable, hole) in plate.holes {
+        for &(cable, hole) in &plate.holes {
             if is_hanger(fabric, cable) {
                 continue;
             }
@@ -404,10 +453,16 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
                 place(Part::Clevis, hole, cable_dir, pin_axis, culprit);
             }
         }
-        let middle = plate.holes.iter().map(|(_, hole)| *hole).sum::<Vec3>() / 3.0;
-        let x = (plate.holes[0].1 - middle).normalize();
+        let middle = plate.holes.iter().map(|(_, hole)| *hole).sum::<Vec3>() / plate.holes.len() as f32;
         let culprit = connector.culprits.contains(&(link, node));
-        place(Part::NodePlate(PlateShape::equilateral()), middle, x, plate.normal, culprit);
+        if plate.holes.len() == 3 {
+            let x = (plate.holes[0].1 - middle).normalize();
+            place(Part::NodePlate(PlateShape::equilateral()), middle, x, plate.normal, culprit);
+        } else {
+            let outline = plate.outline();
+            let x = (outline[0] - middle).normalize();
+            place(Part::NodePlate(PlateShape::measured(&outline, middle, plate.normal)), middle, x, plate.normal, culprit);
+        }
     }
 
     // Each strut's tubes, from stack to stack, red where no tube set fits it.

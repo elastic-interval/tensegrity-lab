@@ -87,6 +87,13 @@ pub const PLATE_CORNER_RADIUS: Meters = Meters(0.016);
 pub const PLATE_THICKNESS: Meters = Meters(0.012);
 /// For the terminal's 9.7 mm pin. ESTIMATE.
 pub const PLATE_HOLE_DIAMETER: Meters = Meters(0.0105);
+/// A plate taking more than three cables: its holes at least this far apart,
+/// room for two neighbouring jaws. ESTIMATE until the jaws are drawn side by
+/// side.
+pub const PLATE_HOLE_SPACING: Meters = Meters(0.040);
+/// The most a cable may leave such a plate's plane, in degrees: past this a
+/// jaw is bent on its pin. Three cables always lie in one plane. ESTIMATE.
+pub const MAX_PLATE_TILT: f32 = 5.0;
 
 /// A fork rod is threaded rod cut to length between two rod forks. Each fork
 /// is a U: its pin through the jaws, the rod through a hole in its web, a load
@@ -229,18 +236,20 @@ pub fn fork_rod_capsules(pivot: Vec3, far: Vec3) -> Assembly {
     }
 }
 
-/// A node plate for collision testing: its three edges, hole to hole,
-/// as thick as its rounded corners.
-pub fn plate_capsules(holes: [Vec3; 3]) -> Assembly {
+/// A node plate for collision testing: its edges, hole to hole round its
+/// `outline`, as thick as its rounded corners, three to an assembly.
+pub fn plate_capsules(outline: &[Vec3]) -> Vec<Assembly> {
     let corner = PLATE_CORNER_RADIUS.f32();
-    Assembly {
-        body: [
-            (holes[0], holes[1], corner),
-            (holes[1], holes[2], corner),
-            (holes[2], holes[0], corner),
-        ],
-        arm: None,
-    }
+    let edges: Vec<Capsule> = (0..outline.len())
+        .map(|i| (outline[i], outline[(i + 1) % outline.len()], corner))
+        .collect();
+    edges
+        .chunks(3)
+        .map(|three| {
+            let edge = |k: usize| three[k.min(three.len() - 1)];
+            Assembly { body: [edge(0), edge(1), edge(2)], arm: None }
+        })
+        .collect()
 }
 
 /// Bare wire a cable needs between its two barrels to be made at all.

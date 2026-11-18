@@ -139,7 +139,14 @@ impl<S: Symmetry> Joints<S> {
     /// Take these joints' cables to `a` and to `b` off through a bridle
     /// node, each cable staying with its member.
     pub fn bridle(self, a: Joints<S>, b: Joints<S>) -> Bridle {
-        Bridle { joint: self.erased(), a: (self - a).erased_omega(), b: (self - b).erased_omega() }
+        Bridle { joint: self.erased(), a: (self - a).erased_omega(), b: (self - b).erased_omega(), across: false }
+    }
+
+    /// Take a fixed joint's cables to `a` and to `b`, every member of each,
+    /// off through one bridle node on the mirror plane: `Z(2).bridle_across(
+    /// LR(7), LR(8))` is one plate for L7, R7, L8 and R8.
+    pub fn bridle_across(self, a: Joints<S>, b: Joints<S>) -> Bridle {
+        Bridle { across: true, ..self.bridle(a, b) }
     }
 
     pub fn erased(self) -> Erased {
@@ -291,12 +298,14 @@ impl Display for Link {
     }
 }
 
-/// `joint`'s cables to `a` and to `b`, taken off through a bridle node.
+/// `joint`'s cables to `a` and to `b`, taken off through a bridle node; or,
+/// `across`, every member's cables through one node.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Bridle {
     joint: Erased,
     a: Erased,
     b: Erased,
+    across: bool,
 }
 
 impl Bridle {
@@ -318,27 +327,36 @@ impl Bridle {
         }
         let erased = |name| Erased { name, symmetry: to_a.symmetry };
         let far = |link: Link| if link.alpha == name { link.omega } else { link.alpha };
-        Some(Bridle { joint: erased(name), a: erased(far(to_a)), b: erased(far(to_b)) })
+        Some(Bridle { joint: erased(name), a: erased(far(to_a)), b: erased(far(to_b)), across: false })
     }
 
-    /// The `(joint, a, b)` triples this bridle stands for, one per twin. A
-    /// fixed joint bridling a twin set with itself, `Z(3).bridle(LR(7),
-    /// LR(7))`, is its own image: the one bridle Z3 with L7 and R7.
-    pub fn triples(&self, symmetry: Option<&LabelSymmetry>) -> Result<Vec<(JointLabel, JointLabel, JointLabel)>, String> {
+    /// The bridle nodes this bridle stands for, each its joint and the far
+    /// ends of the cables it takes off: one per twin, each with `a` and `b`.
+    /// A fixed joint bridling a twin set with itself, `Z(3).bridle(LR(7),
+    /// LR(7))`, is its own image: the one bridle Z3 with L7 and R7. Across,
+    /// one node takes every member of `a` and of `b`.
+    pub fn nodes(&self, symmetry: Option<&LabelSymmetry>) -> Result<Vec<(JointLabel, Vec<JointLabel>)>, String> {
         let (a, b) = (self.a.labels(symmetry)?, self.b.labels(symmetry)?);
-        if self.joint.name.fixed && self.a == self.b && a.len() == 2 {
-            return Ok(vec![(self.joint.labels(symmetry)?[0], a[0], a[1])]);
-        }
-        let twins = a.len().max(b.len()).max(self.joint.labels(symmetry)?.len());
-        let at = |labels: &[JointLabel], index: usize| if labels.len() == 1 { labels[0] } else { labels[index] };
         let joints = self.joint.labels(symmetry)?;
-        Ok((0..twins).map(|index| (at(&joints, index), at(&a, index), at(&b, index))).collect())
+        if self.across {
+            if !self.joint.name.fixed {
+                return Err(format!("{self}: only a fixed joint bridles across"));
+            }
+            return Ok(vec![(joints[0], a.into_iter().chain(b).collect())]);
+        }
+        if self.joint.name.fixed && self.a == self.b && a.len() == 2 {
+            return Ok(vec![(joints[0], vec![a[0], a[1]])]);
+        }
+        let twins = a.len().max(b.len()).max(joints.len());
+        let at = |labels: &[JointLabel], index: usize| if labels.len() == 1 { labels[0] } else { labels[index] };
+        Ok((0..twins).map(|index| (at(&joints, index), vec![at(&a, index), at(&b, index)])).collect())
     }
 }
 
 impl Display for Bridle {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}.bridle({}, {})", self.joint, self.a, self.b)
+        let across = if self.across { "_across" } else { "" };
+        write!(f, "{}.bridle{across}({}, {})", self.joint, self.a, self.b)
     }
 }
 

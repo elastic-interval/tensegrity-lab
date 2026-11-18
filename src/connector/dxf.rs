@@ -60,10 +60,15 @@ pub fn drawing(part: Part, index: usize, dimensions: &ConnectorDimensions, ring_
                 entities: disc_entities(radius, &bosses),
             })
         }
-        Part::NodePlate(_) => Some(Drawing {
+        Part::NodePlate(shape) if shape.count == 3 => Some(Drawing {
             name: "node-plate".to_string(),
             thickness_mm: (PLATE_THICKNESS.f32() * MM).round() as u16,
             entities: plate_entities(),
+        }),
+        Part::NodePlate(shape) => Some(Drawing {
+            name: format!("node-plate-{}-holes", shape.count),
+            thickness_mm: (PLATE_THICKNESS.f32() * MM).round() as u16,
+            entities: polygon_plate_entities(shape.holes()),
         }),
         _ => None,
     }
@@ -108,6 +113,39 @@ fn plate_entities() -> Vec<Entity> {
         entities.push(Entity::Line {
             from: at(center, corner, angle + sixth),
             to: at(next, corner, angle + sixth),
+        });
+    }
+    entities
+}
+
+/// A plate with a hole at each of `holes` (angle in degrees, ascending;
+/// distance from the centre in millimetres), its outline the convex polygon
+/// through them rounded by `PLATE_CORNER_RADIUS` round each hole.
+fn polygon_plate_entities(holes: &[(i16, u16)]) -> Vec<Entity> {
+    let corner = PLATE_CORNER_RADIUS.f32() * MM;
+    let hole = PLATE_HOLE_DIAMETER.f32() * MM / 2.0;
+    let centers: Vec<[f32; 2]> =
+        holes.iter().map(|&(degrees, mm)| at([0.0, 0.0], mm as f32, (degrees as f32).to_radians())).collect();
+    let n = centers.len();
+    // Each edge's outward direction, square to it.
+    let outward: Vec<f32> = (0..n)
+        .map(|i| {
+            let (a, b) = (centers[i], centers[(i + 1) % n]);
+            (b[1] - a[1]).atan2(b[0] - a[0]) - TAU / 4.0
+        })
+        .collect();
+    let mut entities = Vec::new();
+    for i in 0..n {
+        let before = outward[(i + n - 1) % n];
+        let mut after = outward[i];
+        while after < before {
+            after += TAU;
+        }
+        entities.push(Entity::Circle { center: centers[i], radius: hole });
+        entities.push(Entity::Arc { center: centers[i], radius: corner, start: before, end: after });
+        entities.push(Entity::Line {
+            from: at(centers[i], corner, outward[i]),
+            to: at(centers[(i + 1) % n], corner, outward[i]),
         });
     }
     entities

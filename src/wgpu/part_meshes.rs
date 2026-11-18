@@ -370,7 +370,7 @@ impl Wgpu {
             }
             Part::NodePlate(shape) => {
                 let centers: Vec<Vec2> = shape
-                    .holes
+                    .holes()
                     .iter()
                     .map(|&(degrees, mm)| Vec2::from_angle((degrees as f32).to_radians()) * (mm as f32 / 1000.0))
                     .collect();

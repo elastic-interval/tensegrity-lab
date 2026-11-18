@@ -45,6 +45,8 @@ mod tests {
         cables: usize,
         height: f32,
         finite: bool,
+        /// The highest cable force, kN.
+        peak: f32,
     }
 
     impl Outcome {
@@ -83,6 +85,14 @@ mod tests {
                 .count(),
             height: high - low,
             finite: fabric.joints.values().all(|joint| joint.location.is_finite()),
+            peak: fabric.dimensions.hardware.map_or(0.0, |hardware| {
+                fabric
+                    .intervals
+                    .values()
+                    .filter(|i| i.role.is_pull_like())
+                    .map(|i| (hardware.cable_stiffness * (i.stiffness.as_factor() * i.strain)).f32() / 1000.0)
+                    .fold(0.0, f32::max)
+            }),
         };
         (fabric, outcome)
     }
@@ -332,21 +342,22 @@ mod tests {
     /// top of those already chosen (every pair of candidates when no single
     /// one helps), keeps the one leaving the fewest problems
     /// (collisions, short cables) without moving the
-    /// settled height by more than `height_tolerance` metres, and stops when none
+    /// settled height by more than `height_tolerance` metres or loading a
+    /// cable past `peak_cable` kN, and stops when none
     /// helps. Prints the `bridle` entries to paste.
     #[test]
     #[ignore]
     fn greedy_headless_hug_bridles() {
-        greedy_bridles(FabricName::HeadlessHug, 0.05);
+        greedy_bridles(FabricName::HeadlessHug, 0.05, f32::MAX);
     }
 
     #[test]
     #[ignore]
     fn greedy_quadruped_bridles() {
-        greedy_bridles(FabricName::Quadruped, 0.3);
+        greedy_bridles(FabricName::Quadruped, 0.3, 5.1);
     }
 
-    fn greedy_bridles(name: FabricName, height_tolerance: f32) {
+    fn greedy_bridles(name: FabricName, height_tolerance: f32, peak_cable: f32) {
         let mut chosen: Vec<Bridle> = Vec::new();
         loop {
             let (fabric, current) = run_plan(name, &[], &chosen);
@@ -378,6 +389,7 @@ mod tests {
                         o.finite
                             && o.problems() < current.problems()
                             && (o.height - current.height).abs() < height_tolerance
+                            && o.peak <= peak_cable
                     })
                     .min_by_key(|(_, o)| o.problems())
             });

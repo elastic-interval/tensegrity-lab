@@ -202,8 +202,13 @@ impl ConnectorSystem {
         self.build_nodes(fabric);
         if let Some(LabelSymmetry::Mirror { .. }) = &fabric.label_symmetry {
             self.mirror_assignments(fabric);
+        }
+        self.lift_assignments(fabric);
+        if let Some(LabelSymmetry::Mirror { .. }) = &fabric.label_symmetry {
             self.plane_assignments(fabric);
             self.build_nodes(fabric);
+            // The plates moved with the stacks: lift again where they now aim.
+            self.lift_assignments(fabric);
         }
         self.mark(fabric, true);
     }
@@ -302,7 +307,7 @@ impl ConnectorSystem {
         let stack_pivots: HashMap<(IntervalKey, JointKey), Vec3> =
             frames.iter().map(|(end, pivot, _)| (*end, *pivot)).collect();
         for (&node, plate) in &plates {
-            for (cable, hole) in plate.holes {
+            for &(cable, hole) in &plate.holes {
                 if is_hanger(fabric, cable) {
                     continue;
                 }
@@ -402,9 +407,9 @@ impl ConnectorSystem {
         // other plates. Its collisions are marked on the node's link.
         let plate_bodies: Vec<((IntervalKey, JointKey), Assembly)> = plates
             .iter()
-            .map(|(&node, plate)| {
-                let holes = plate.holes.map(|(_, hole)| hole);
-                ((fabric.bridle_nodes[&node], node), fork::plate_capsules(holes))
+            .flat_map(|(&node, plate)| {
+                let end = (fabric.bridle_nodes[&node], node);
+                fork::plate_capsules(&plate.outline()).into_iter().map(move |body| (end, body))
             })
             .collect();
         for (i, (plate_end, plate_body)) in plate_bodies.iter().enumerate() {
@@ -418,7 +423,10 @@ impl ConnectorSystem {
                     end.1 != node && !own && near(*pivot)
                 })
                 .map(|(end, _, body)| (*end, body));
-            let other_plates = plate_bodies[i + 1..].iter().map(|(end, body)| (*end, body));
+            let other_plates = plate_bodies[i + 1..]
+                .iter()
+                .filter(|(end, _)| end.1 != node)
+                .map(|(end, body)| (*end, body));
             for (end, body) in others.chain(other_plates) {
                 if fork::assemblies_collide(plate_body, body) {
                     self.culprits.insert(*plate_end);
@@ -485,7 +493,7 @@ impl ConnectorSystem {
         }
     }
 
-    /// A bridle node's plate, each of its three cables aimed at its far end:
+    /// A bridle node's plate, each of its cables aimed at its far end:
     /// the far pivot on a strut's stack, or the far joint itself where that
     /// is another node. A hanger aims at the pivot it hangs from.
     fn build_plate(&self, fabric: &Fabric, node: JointKey, ends: &SecondaryMap<JointKey, JointEnds>) -> NodePlate {
@@ -503,9 +511,11 @@ impl ConnectorSystem {
                 (key, aim, is_hanger(fabric, key))
             })
             .collect();
-        let cables = [cables[0], cables[1], cables[2]];
-        let center = self.split_plate_center(fabric, node, cables).unwrap_or(fabric.joints[node].location);
-        NodePlate::new(center, cables)
+        let center = <[_; 3]>::try_from(cables.as_slice())
+            .ok()
+            .and_then(|three| self.split_plate_center(fabric, node, three))
+            .unwrap_or(fabric.joints[node].location);
+        NodePlate::new(center, &cables)
     }
 
     /// Where a hinge cable's plate (`Fabric::split_hinge_cables`) balances.
@@ -526,11 +536,11 @@ impl ConnectorSystem {
         let middle = (pivot(legs[0])? + pivot(legs[1])?) / 2.0;
         // A plate whose triangle cannot be made, as in a slack net, has no
         // balance to find.
-        if NodePlate::new(middle.lerp(aim, 0.5), cables).jammed {
+        if NodePlate::new(middle.lerp(aim, 0.5), &cables).jammed {
             return None;
         }
         let excess = |along: f32| {
-            let plate = NodePlate::new(middle.lerp(aim, along), cables);
+            let plate = NodePlate::new(middle.lerp(aim, along), &cables);
             let span = |key: IntervalKey| Some(plate.hole(key)?.distance(pivot(key)?));
             Some(span(far)? - (span(legs[0])? + span(legs[1])?) / 2.0)
         };
@@ -711,6 +721,69 @@ impl ConnectorSystem {
             .flat_map(|i| (i + 1..capsules.len()).map(move |j| (i, j)))
             .filter(|&(i, j)| fork::assemblies_collide(&capsules[i], &capsules[j]))
             .count()
+    }
+
+    /// A stack whose forks collide, its order kept, may lift units clear of
+    /// the ones below with extra washers (`GAP_WASHERS`), as many as clear
+    /// most collisions and no more. A stack with no collisions is left as it
+    /// is, as are the mirror plane's, which `plane_assignments` places.
+    fn lift_assignments(&mut self, fabric: &Fabric) {
+        let standard = self.dimensions.pivot_radius;
+        let pushes: Vec<(IntervalKey, JointKey, JointKey)> = fabric
+            .intervals
+            .iter()
+            .filter(|(_, i)| i.role == Role::Pushing)
+            .map(|(key, i)| (key, i.alpha_key, i.omega_key))
+            .collect();
+        for (push_key, alpha, omega) in pushes {
+            for (end, joint) in [(IntervalEnd::Alpha, alpha), (IntervalEnd::Omega, omega)] {
+                let Some(connections) = self.connections(push_key, end) else {
+                    continue;
+                };
+                let mut units: Vec<(usize, PullConnection)> =
+                    connections.iter().enumerate().filter_map(|(slot, c)| c.map(|c| (slot, c))).collect();
+                if units.len() < 2 || units.iter().any(|(_, c)| c.reach.is_some()) {
+                    continue;
+                }
+                units.sort_by_key(|(_, c)| c.attachment_index);
+                let aims: HashMap<IntervalKey, Vec3> = self
+                    .stack_aims(fabric, joint, units.iter().map(|(_, c)| c.pull_interval_key))
+                    .into_iter()
+                    .collect();
+                let placed = |gaps: &[u8]| -> Vec<Placed> {
+                    let mut lift = 0;
+                    units
+                        .iter()
+                        .enumerate()
+                        .map(|(rank, (_, c))| {
+                            if rank > 0 {
+                                lift += gaps[rank - 1];
+                            }
+                            let cable = c.pull_interval_key;
+                            (cable, aims[&cable], c.attachment_index, standard, lift)
+                        })
+                        .collect()
+                };
+                let stack = (push_key, end, joint);
+                let flat = vec![0; units.len() - 1];
+                let colliding = self.stack_collisions(fabric, stack, &placed(&flat));
+                if colliding == 0 {
+                    continue;
+                }
+                let mut best = (colliding, 0u8, flat);
+                for gaps in gap_choices(units.len() - 1) {
+                    let score = (self.stack_collisions(fabric, stack, &placed(&gaps)), gaps.iter().sum::<u8>());
+                    if score < (best.0, best.1) {
+                        best = (score.0, score.1, gaps);
+                    }
+                }
+                let lifts: Vec<u8> = placed(&best.2).iter().map(|&(.., lift)| lift).collect();
+                let target = self.connections.get_mut(push_key).expect("stack assigned");
+                for ((slot, connection), lift) in units.into_iter().zip(lifts) {
+                    target.set_connection(end, slot, Some(PullConnection { lift, ..connection }));
+                }
+            }
+        }
     }
 
     /// On a strut lying in the mirror plane each stack is its own mirror

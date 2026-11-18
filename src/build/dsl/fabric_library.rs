@@ -440,8 +440,8 @@ pub fn quadruped_plan(shape: QuadrupedShape) -> FabricPlan {
         .vulcanize(Sec(2.1))
         .hinge([LR(12) | LR(12), LR(18) | LR(18)])
         .bridle([
-            Z(1).bridle(LR(5), LR(14)),
-            Z(2).bridle(LR(7), LR(8)),
+            Z(1).bridle_across(LR(5), LR(14)),
+            Z(2).bridle_across(LR(7), LR(8)),
         ])
         .down(Sec(1.0), [fore_left, fore_right, hind_left, hind_right])
         .pretense(Sec(0.3), Pct(0.2))

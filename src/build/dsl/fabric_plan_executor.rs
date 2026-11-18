@@ -8,7 +8,7 @@ use crate::fabric::physics::presets::{CONSTRUCTION, PRETENSING};
 use crate::fabric::physics::Physics;
 use crate::fabric::interval::Role;
 use crate::fabric::physics::SurfaceCharacter;
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, JointKey};
 use crate::units::{Seconds, Unit};
 
 #[derive(Debug, PartialEq)]
@@ -434,19 +434,21 @@ impl FabricPlanExecutor {
 
         let mut bridles = Vec::new();
         for bridle in self.plan.pretense_phase.bridles.clone() {
-            match bridle.triples(self.fabric.label_symmetry.as_ref()) {
-                Ok(triples) => bridles.extend(triples),
+            match bridle.nodes(self.fabric.label_symmetry.as_ref()) {
+                Ok(nodes) => bridles.extend(nodes),
                 Err(failure) => self.plan_step_failed(failure),
             }
         }
-        for (joint, a, b) in bridles {
+        for (joint, fars) in bridles {
             let key = |label| self.fabric.joint_key(label);
-            let bridled = match (key(joint), key(a), key(b)) {
-                (Some(j), Some(a), Some(b)) => self.fabric.bridle(j, a, b),
+            let keys: Option<Vec<JointKey>> = fars.iter().map(|&far| key(far)).collect();
+            let bridled = match (key(joint), keys) {
+                (Some(j), Some(fars)) => self.fabric.bridle(j, &fars),
                 _ => None,
             };
             if bridled.is_none() {
-                self.plan_step_failed(format!("could not bridle ({joint}: {a}, {b})"));
+                let fars: Vec<String> = fars.iter().map(|far| far.to_string()).collect();
+                self.plan_step_failed(format!("could not bridle ({joint}: {})", fars.join(", ")));
             }
         }
 
@@ -509,6 +511,7 @@ impl FabricPlanExecutor {
         self.fabric.apply_translation(translation);
         self.fabric.update_bounding_radius();
         self.fabric.hang_bridles();
+        self.fabric.tension_plates(self.plan.pretense_phase.pretenst);
 
         let mass_multiplier = self.physics.mass_multiplier();
         let rigidity_multiplier = self.physics.rigidity_multiplier();
@@ -610,6 +613,7 @@ impl FabricPlanExecutor {
         }
 
         self.fabric.hang_bridles();
+        self.fabric.tension_plates(self.plan.pretense_phase.pretenst);
         self.settle_phase_start_age = Some(self.fabric.age);
         self.stage = ExecutorStage::Settling;
     }

@@ -186,7 +186,7 @@ enum TensionEnd {
 #[derive(Serialize)]
 struct PlateJson {
     name: String,
-    holes: [[f64; 3]; 3],
+    holes: Vec<[f64; 3]>,
     normal: [f64; 3],
     thickness: f64,
     /// The plate alone.
@@ -336,11 +336,11 @@ pub fn fabric_json(fabric: &Fabric) -> FabricJson {
             let plate = connector.node_plate(node).expect("every bridle node has a plate");
             PlateJson {
                 name: fabric.joint_label(node),
-                holes: plate.holes.map(|(_, hole)| at(hole)),
+                holes: plate.holes.iter().map(|&(_, hole)| at(hole)).collect(),
                 normal: along(plate.normal),
                 thickness: metres(crate::connector::fork::PLATE_THICKNESS),
                 // The simulation counts the plate less the rings its cables' ends are counted with.
-                mass: kg(hardware.plate + (hardware.cable_end - TERMINAL) * 3.0),
+                mass: kg(hardware.plate + (hardware.cable_end - TERMINAL) * plate.holes.len() as f32),
             }
         })
         .collect();
