@@ -73,6 +73,7 @@ pub mod material;
 pub mod physics;
 pub mod symmetrize;
 pub mod vulcanize;
+pub mod cue;
 pub mod quake;
 pub mod site;
 pub mod wind;

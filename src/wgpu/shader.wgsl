@@ -282,14 +282,15 @@ struct SurfaceVertexOutput {
 };
 
 // The ground: hexagonal paving drawn as lines, in colours for the background,
-// how far below the fabric the floor lies and the cam's throw, and the wobble
-// table's deck: moved by x and y in the ground plane, turned by z, the cam at
-// w.
+// how far below the fabric the floor lies, the wobble table's deck: moved by
+// x and y in the ground plane, turned by z, and how far the cam's pin is from
+// its axis.
 struct Ground {
     line: vec4<f32>,
     fill: vec4<f32>,
     shift: vec4<f32>,
     deck: vec4<f32>,
+    pin: vec4<f32>,
 };
 @group(1) @binding(0) var<uniform> ground: Ground;
 
@@ -577,15 +578,14 @@ struct DeckVertexOutput {
 };
 
 // The wobble table: what moves with the deck (w one) is turned and moved as
-// the deck is, what is on the cam's pin (w two) circles the motor's axis as
-// far as the cam throws it (the shift's w), at the cam's angle (the deck's
-// w), and the base (w zero) stays.
+// the deck is, what is on the cam's pin (w two) goes with the pin, and the
+// base (w zero) stays.
 @vertex
 fn deck_vertex(@location(0) pos: vec4<f32>, @location(1) color: vec4<f32>) -> DeckVertexOutput {
     var output: DeckVertexOutput;
     var p = pos.xyz;
     if (pos.w > 1.5) {
-        p = p + vec3<f32>(cos(ground.deck.w), 0.0, sin(ground.deck.w)) * ground.shift.w;
+        p = p + ground.pin.xyz;
     } else if (pos.w > 0.5) {
         let c = cos(ground.deck.z);
         let s = sin(ground.deck.z);

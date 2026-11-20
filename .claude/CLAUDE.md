@@ -329,6 +329,7 @@ src/
 │   ├── vulcanize.rs
 │   ├── wind.rs         # Gusting wind: drag on every member (Wind button, wind tests)
 │   ├── quake.rs        # The wobble table under a Medium piece (Quake button)
+│   ├── cue.rs          # DMX cues for the table's stepper, and their breeding
 │   ├── site.rs         # Building site: ground that lets go, pinned struts, crane hook (Fabric::site)
 │   └── fabric_sampler.rs
 │
@@ -383,24 +384,40 @@ Important integration tests:
   cables with the wind from five directions. `Fabric::wind` is `None` in
   every build, so the wind never changes one.
 - `src/fabric/quake.rs` — `medium_headless_hug_rides_the_wobble_table`:
-  the motor finds a resonance at the hands and holds it, the hands
-  swinging about `EXPRESSIVE` with the cam thrown less than it can be;
-  once stopped the piece stands where it stood. The table is a hexagonal
-  deck hung on three ties, so it sways and twists but can't tilt. A
-  stepper motor in the middle of the base turns a cam whose throw is set as
-  it runs, and a cable from the cam's pin to each of the deck's three hooks
-  draws the deck round after it. The motor watches the hands (the plan's
-  `Hand` faces; with none, the three highest joints) swing about where they
-  stand on the deck: it sweeps its speed up slowly at a small throw,
-  noting the resonances (`Quake::resonances`, kept for other movements
-  later), then holds the strongest, stepping its speed toward the peak and
-  throwing the cam only as far as makes the hands swing expressively. The
-  piece's feet go with the deck and pull on it. It is drawn with its
-  mechanism showing: at alternate corners a hook drops from the deck and an
-  arm rises from the base, a tie between them, and the cam's cables run
-  from the motor to the hooks. Only a Medium piece has one
-  (`Fabric::quake`, set when it is built); the Quake button, shown only for
-  Medium, starts and stops the motor, and the subtitle says what it is doing.
+  Quake pressed once, it tries its seed cues, keeps more than one, unlike
+  one another, and plays them; pressed again the crank goes back to its
+  zero and the piece stands where it stood. The ignored `breed_wobble_cues`
+  (`PROBE` the fabric, `TRIES` how many) breeds on and prints the kept cues
+  as DMX loops for the electronics.
+  The table is a hexagonal deck hung on three ties, so it sways and twists
+  but can't tilt. A stepper in the middle of the base turns a crank of fixed
+  radius (`CRANK`), and a Dyneema cable from its pin to each of the deck's
+  three hooks draws the deck after it. The stepper plays cues
+  (`src/fabric/cue.rs`): loops of DMX frames, 44 a second, each the
+  crank's position 0–255 with 128 its zero, pointing forward along the
+  piece's mirror plane; it goes from one to the next the short way round,
+  no faster than `TOP_SPEED`, so a cue can rock, turn, or anything between.
+  It breeds them: from seeds rocking and turning at a spread of speeds, by
+  bumps, stretches, widening and crossing. Each is tried `TRYING` on the
+  table, scored for the hands (the plan's `Hand` faces; with none, the
+  three highest joints) swinging about `EXPRESSIVE` against the deck, less
+  for the crank's work (`EFFORT`); it keeps the best of each kind of swing
+  (`Quake::alike` under `DISTINCT`, the hands' way through the loop,
+  wherever it starts), at most `KEPT`, and after every `ROUND` tries plays
+  them in turn, `PLAYING` each. The kept cues are named A to F by where they are
+  kept; the subtitle names the one playing, or the one tried (`B′` a child
+  of B, `?` a seed), with what the stepper is told (`Cue::describe`):
+  `A 34f 130 149/5 107/8 130/21` is a 34-frame loop from position 130,
+  turning back at 149 after 5 frames, at 107 after 8 more, home after 21;
+  `B 34f ↻1 128` turns once round each loop. A kept one adds what the hands
+  do.
+  The piece's feet go with the deck and pull on it. It is drawn with its
+  mechanism showing: at alternate corners (`HANG_CORNERS`, one behind the
+  piece and two before it, so the table has its mirror symmetry and it
+  faces between two) a hook drops from the deck and an arm rises from the
+  base, a tie between them, and the cables run from the crank's pin to the
+  hooks. Only a Medium piece has one (`Fabric::quake`, set when it is
+  built); the Quake button is shown only for Medium.
 - `src/fabric_smoke_test.rs` — `test_all_fabrics_build_medium`: every plan
   builds at Medium too, about 1.5 m tall, on its table.
 - `src/quadruped.rs` — `quadruped_is_buildable`: Quadruped's connectors

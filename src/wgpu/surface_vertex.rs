@@ -1,5 +1,5 @@
 use crate::fabric::quake::{
-    cable_ends, cam_pin, hook_foot, BASE_THICKNESS, DECK_THICKNESS, HANG_CORNERS, HEAD_CLEARANCE,
+    cable_ends, cam_axis, corner_angle, hook_foot, CRANK, BASE_THICKNESS, DECK_THICKNESS, HANG_CORNERS, HEAD_CLEARANCE,
     HOOK_REACH, TIE_RADIUS,
 };
 use bytemuck::{Pod, Zeroable};
@@ -56,11 +56,11 @@ const ON_DECK: f32 = 1.0;
 const ON_PIN: f32 = 2.0;
 
 /// Half the width of a hook's or an arm's square tube, of a tie or cable,
-/// of the motor and of the crank.
+/// of the motor and of the crank's pin.
 const TUBE: f32 = 0.0125;
 const TIE: f32 = 0.003;
 const MOTOR: f32 = 0.03;
-const CRANK: f32 = 0.008;
+const PIN: f32 = 0.004;
 
 const DECK_COLOR: [f32; 3] = [0.30, 0.22, 0.15];
 const BASE_COLOR: [f32; 3] = [0.12, 0.12, 0.13];
@@ -81,7 +81,7 @@ impl DeckVertex {
         prism(&mut vertices, radius * 1.08, -height, base_top, BASE_COLOR, STAYS);
         let tie_radius = TIE_RADIUS * radius;
         for corner in HANG_CORNERS {
-            let angle = corner as f32 * PI / 3.0;
+            let angle = corner_angle(corner);
             let out = Vec3::new(angle.cos(), 0.0, angle.sin());
             let at = |along: f32, y: f32| out * along + Vec3::Y * y;
             let (inner, outer) = (tie_radius - HOOK_REACH, tie_radius + HOOK_REACH);
@@ -93,10 +93,10 @@ impl DeckVertex {
             bar(&mut vertices, arm[1] + out * TUBE, arm[2], TUBE, ARM_COLOR, (STAYS, STAYS));
             bar(&mut vertices, at(tie_radius, foot), at(tie_radius, head), TIE, TIE_COLOR, (ON_DECK, STAYS));
         }
-        let home = cam_pin(0.0, 0.0);
-        let axis = Vec3::new(0.0, home.y, 0.0);
+        let axis = cam_axis();
         bar(&mut vertices, Vec3::new(0.0, base_top, 0.0), axis, MOTOR, MOTOR_COLOR, (STAYS, STAYS));
-        bar(&mut vertices, axis - Vec3::Y * CRANK, axis + Vec3::Y * CRANK, CRANK, CABLE_COLOR, (ON_PIN, ON_PIN));
+        prism(&mut vertices, CRANK * 1.3, axis.y - PIN, axis.y, MOTOR_COLOR, STAYS);
+        bar(&mut vertices, axis - Vec3::Y * PIN, axis + Vec3::Y * PIN, PIN, CABLE_COLOR, (ON_PIN, ON_PIN));
         for end in cable_ends(radius) {
             bar(&mut vertices, axis, end, TIE, CABLE_COLOR, (ON_PIN, ON_DECK));
         }
@@ -126,7 +126,7 @@ fn shade(color: [f32; 3], light: f32) -> [f32; 4] {
 /// A hexagonal prism from `bottom` to `top`: its top and its six sides.
 fn prism(vertices: &mut Vec<DeckVertex>, radius: f32, bottom: f32, top: f32, color: [f32; 3], moves: f32) {
     let corner = |index: usize, y: f32| {
-        let angle = index as f32 * PI / 3.0;
+        let angle = corner_angle(index);
         [radius * angle.cos(), y, radius * angle.sin(), moves]
     };
     let mut push = |position: [f32; 4], color: [f32; 4]| vertices.push(DeckVertex { position, color });
@@ -136,7 +136,7 @@ fn prism(vertices: &mut Vec<DeckVertex>, radius: f32, bottom: f32, top: f32, col
         push([0.0, top, 0.0, moves], lit);
         push(corner(next, top), lit);
         push(corner(index, top), lit);
-        let middle = (index as f32 + 0.5) * PI / 3.0;
+        let middle = corner_angle(index) + PI / 6.0;
         let side = shade(color, light(Vec3::new(middle.cos(), 0.0, middle.sin())));
         for position in [corner(index, top), corner(next, top), corner(next, bottom)] {
             push(position, side);

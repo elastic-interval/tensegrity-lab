@@ -404,12 +404,8 @@ impl Crucible {
                 let fabric = &mut *context.fabric;
                 let age = fabric.age;
                 if let Some(quake) = &mut fabric.quake {
-                    if quake.running() {
-                        quake.stop(age);
-                    } else {
-                        quake.start(age);
-                        fabric.unfreeze();
-                    }
+                    quake.advance(age);
+                    fabric.unfreeze();
                 }
             }
             Assemble => match &mut self.stage {
