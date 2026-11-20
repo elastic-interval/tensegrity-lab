@@ -350,7 +350,7 @@ impl Scene {
         if has_surface {
             self.surface_renderer
                 .update_radius(&self.wgpu.queue, fabric.bounding_radius());
-            self.surface_renderer.set_shift(&self.wgpu.queue, fabric.ground_shift());
+            self.surface_renderer.set_deck(&self.wgpu.device, &self.wgpu.queue, fabric.deck());
         }
         self.render(has_surface)?;
         Ok(())

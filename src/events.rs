@@ -56,8 +56,9 @@ pub enum StateChange {
     SetFabricMotion(FabricMotion),
     SetControlState(ControlState),
     SetStageLabel(String),
-    /// The ground shaking or not, shown over the stage label.
-    SetQuaking(bool),
+    /// What the wobble table's motor is doing, shown over the stage label,
+    /// or `None` when it stands still.
+    SetQuaking(Option<String>),
     ResetView,
     RestartApproach,
     JumpToFabric,

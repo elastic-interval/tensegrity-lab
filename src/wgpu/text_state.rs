@@ -32,7 +32,7 @@ pub struct TextState {
     experiment_title: String,
     control_state: ControlState,
     stage_label: String,
-    quaking: bool,
+    quaking: Option<String>,
     fabric_stats: Option<FabricStats>,
     movement_analysis: Option<String>,
     sections: [Option<OwnedSection>; SectionName::count()],
@@ -73,7 +73,7 @@ impl TextState {
             experiment_title: "".to_string(),
             control_state: ControlState::Waiting,
             stage_label: "Waiting".to_string(),
-            quaking: false,
+            quaking: None,
             fabric_stats: None,
             movement_analysis: None,
             sections: Default::default(),
@@ -94,7 +94,7 @@ impl TextState {
                 self.control_state = control_state.clone();
             }
             SetQuaking(quaking) => {
-                self.quaking = *quaking;
+                self.quaking = quaking.clone();
             }
             SetStageLabel(label) => {
                 self.stage_label = label.clone();
@@ -164,7 +164,7 @@ impl TextState {
             );
 
             // Add state subtitle below title (normal size, not small)
-            let subtitle = if self.quaking { "Quaking".to_string() } else { self.stage_label.clone() };
+            let subtitle = self.quaking.clone().unwrap_or_else(|| self.stage_label.clone());
             self.update_section(SectionName::TopSubtitle, Normal(subtitle));
         }
 

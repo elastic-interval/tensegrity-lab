@@ -275,7 +275,8 @@ pub struct Fabric {
     pub bridle_hangers: HashSet<IntervalKey>,
     /// Blowing on the fabric when set; `None` in every build.
     pub wind: Option<wind::Wind>,
-    /// Shaking the ground when set; `None` in every build.
+    /// The wobble table a Medium piece stands on, set when it is built;
+    /// `None` for every other size.
     pub quake: Option<quake::Quake>,
     /// Being put together or lifted when set; `None` in every build.
     pub site: Option<site::Site>,
@@ -437,6 +438,30 @@ impl Fabric {
         for joint in self.joints.values_mut() {
             joint.location += translation;
         }
+    }
+
+    /// Made `factor` times the size, about the origin: every joint, every
+    /// rest length and the fabric's own scale, with its motion stopped.
+    pub fn rescale(&mut self, factor: f32) {
+        for joint in self.joints.values_mut() {
+            joint.location *= factor;
+            joint.velocity = Vec3::ZERO;
+        }
+        for interval in self.intervals.values_mut() {
+            interval.scale_lengths(factor);
+        }
+        self.dimensions.scale = self.dimensions.scale * factor;
+        self.dimensions.altitude = self.dimensions.altitude * factor;
+        self.update_bounding_radius();
+    }
+
+    /// How tall it stands, lowest joint to highest.
+    pub fn height(&self) -> Meters {
+        let (low, high) = self
+            .joints
+            .values()
+            .fold((f32::MAX, f32::MIN), |(low, high), joint| (low.min(joint.location.y), high.max(joint.location.y)));
+        Meters((high - low).max(0.0))
     }
 
     /// Scale all coordinates and interval lengths by the given factor.
@@ -642,6 +667,9 @@ impl Fabric {
             }
         }
         self.apply_wind();
+        if let Some(surface) = physics.surface {
+            self.feel_quake(0.01 * surface.scale);
+        }
 
         // 4. Second half-kick: v += 0.5 * a * dt (using new forces)
         //    Also apply damping and surface interaction after the velocity update
@@ -685,7 +713,7 @@ impl Fabric {
         // imperfectly cancelled interval forces); see commit notes.
         const QUIET_MAX_SPEED_SQ: f32 = 2.5e-3; // (5e-2 m/s)² = (50 mm/s)²
         const QUIET_FREEZE_DURATION_SECS: f32 = 10.0;
-        if self.approaching_count > 0 || max_speed_squared > QUIET_MAX_SPEED_SQ || self.wind.is_some() || self.quake.is_some() || self.site.is_some() {
+        if self.approaching_count > 0 || max_speed_squared > QUIET_MAX_SPEED_SQ || self.wind.is_some() || self.quake.as_ref().is_some_and(quake::Quake::moving) || self.site.is_some() {
             self.quiet_since = None;
         } else {
             match self.quiet_since {

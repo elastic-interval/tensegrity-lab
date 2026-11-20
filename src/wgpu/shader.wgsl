@@ -282,11 +282,14 @@ struct SurfaceVertexOutput {
 };
 
 // The ground: hexagonal paving drawn as lines, in colours for the background,
-// and how far a quake has moved it.
+// how far below the fabric the floor lies and the cam's throw, and the wobble
+// table's deck: moved by x and y in the ground plane, turned by z, the cam at
+// w.
 struct Ground {
     line: vec4<f32>,
     fill: vec4<f32>,
     shift: vec4<f32>,
+    deck: vec4<f32>,
 };
 @group(1) @binding(0) var<uniform> ground: Ground;
 
@@ -566,4 +569,34 @@ fn sky_fragment(in: SkyVertexOutput) -> @location(0) vec4<f32> {
 
     let final_color = gradient + vec3<f32>(star_brightness);
     return vec4<f32>(final_color, 1.0);
+}
+
+struct DeckVertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) color: vec4<f32>,
+};
+
+// The wobble table: what moves with the deck (w one) is turned and moved as
+// the deck is, what is on the cam's pin (w two) circles the motor's axis as
+// far as the cam throws it (the shift's w), at the cam's angle (the deck's
+// w), and the base (w zero) stays.
+@vertex
+fn deck_vertex(@location(0) pos: vec4<f32>, @location(1) color: vec4<f32>) -> DeckVertexOutput {
+    var output: DeckVertexOutput;
+    var p = pos.xyz;
+    if (pos.w > 1.5) {
+        p = p + vec3<f32>(cos(ground.deck.w), 0.0, sin(ground.deck.w)) * ground.shift.w;
+    } else if (pos.w > 0.5) {
+        let c = cos(ground.deck.z);
+        let s = sin(ground.deck.z);
+        p = vec3<f32>(c * p.x + s * p.z, p.y, -s * p.x + c * p.z) + vec3<f32>(ground.deck.x, 0.0, ground.deck.y);
+    }
+    output.position = uniforms.mvp_matrix * vec4<f32>(p, 1.0);
+    output.color = color;
+    return output;
+}
+
+@fragment
+fn deck_fragment(in: DeckVertexOutput) -> @location(0) vec4<f32> {
+    return vec4<f32>(gamma(in.color.rgb), in.color.a);
 }

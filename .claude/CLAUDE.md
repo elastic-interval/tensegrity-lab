@@ -101,6 +101,23 @@ parts sets `with_hardware(Hardware::OPEN_CLAW)` instead: telescoping tube mass
 per metre of strut, hardware at each strut and cable end, and point masses for
 node plates and hinges, with no flat joint mass (Headless Hug).
 
+### Sizes: Large, Medium, Small
+
+`Size` (`src/fabric/dimensions.rs`, `--size`) says how big a fabric is made,
+from one plan for all three (`FabricPlan::at_size`):
+- **Large** — the plan as designed, with its connectors.
+- **Medium** — about 1.5 m tall (`MEDIUM_HEIGHT`), built as the 2021 Headless
+  Hug was: 8×1 mm aluminium tube, an M6 bolt set per strut end, 1.5 mm
+  Dyneema, hinges made by hand, no connectors, bridles or node plates
+  (`Hardware::MEDIUM`). It is built as Large, then just before pretensing
+  made its own size and materials (`Fabric::rescale`) and simulated so; it
+  falls for less time, as things do the smaller they are, and is pretensioned
+  less than its plan says (`MEDIUM_PRETENSION`), as a piece tied by hand is. The struts are a
+  third as stiff as real: the 50 µs tick can't follow short light ones at
+  full stiffness. It always stands on the wobble table (`Fabric::quake`).
+- **Small** — a model to build from: the Large fabric, its lengths shown at
+  `--model-scale` (1:10 by default), with caliper readings.
+
 ### Connector (optional plugin) — `src/connector/`
 
 All physical-connector code lives in `src/connector/`, adjacent to the
@@ -171,7 +188,7 @@ build, and not again afterwards: animation keeps them.
 - `Assembling(Assembly)` — Headless Hug or Open Claw taken apart strut by
   strut on a crane hook, then put together again (`src/build/assembly.rs`,
   `docs/crane-lift.md`). While it runs `Fabric::site` is set, `None` in
-  every build like the wind and the quake.
+  every build like the wind.
 - `PhysicsTesting(PhysicsTester)` — real-time gravity test, offered only for
   fabrics without a plan (sphere, Klein, Möbius).
 - `BakingBrick(Oven)`, `Evolving(...)`, `Articulating(...)` — brick baking
@@ -311,7 +328,7 @@ src/
 │   ├── physics_tester.rs
 │   ├── vulcanize.rs
 │   ├── wind.rs         # Gusting wind: drag on every member (Wind button, wind tests)
-│   ├── quake.rs        # Shaking ground, carrying what rests on it (Quake button)
+│   ├── quake.rs        # The wobble table under a Medium piece (Quake button)
 │   ├── site.rs         # Building site: ground that lets go, pinned struts, crane hook (Fabric::site)
 │   └── fabric_sampler.rs
 │
@@ -365,10 +382,27 @@ Important integration tests:
   `measure_headless_hug_in_wind` reports apex sway, peak forces and slack
   cables with the wind from five directions. `Fabric::wind` is `None` in
   every build, so the wind never changes one.
-- `src/fabric/quake.rs` — `headless_hug_stands_through_a_quake`: 20 s of
-  ground shaking at up to half of g, 0.5–2 Hz, then stopped; it stays whole
-  and stands again within 50 mm. The Quake button starts and stops it.
-  `Fabric::quake`, like the wind, is `None` in every build.
+- `src/fabric/quake.rs` — `medium_headless_hug_rides_the_wobble_table`:
+  the motor finds a resonance at the hands and holds it, the hands
+  swinging about `EXPRESSIVE` with the cam thrown less than it can be;
+  once stopped the piece stands where it stood. The table is a hexagonal
+  deck hung on three ties, so it sways and twists but can't tilt. A
+  stepper motor in the middle of the base turns a cam whose throw is set as
+  it runs, and a cable from the cam's pin to each of the deck's three hooks
+  draws the deck round after it. The motor watches the hands (the plan's
+  `Hand` faces; with none, the three highest joints) swing about where they
+  stand on the deck: it sweeps its speed up slowly at a small throw,
+  noting the resonances (`Quake::resonances`, kept for other movements
+  later), then holds the strongest, stepping its speed toward the peak and
+  throwing the cam only as far as makes the hands swing expressively. The
+  piece's feet go with the deck and pull on it. It is drawn with its
+  mechanism showing: at alternate corners a hook drops from the deck and an
+  arm rises from the base, a tie between them, and the cam's cables run
+  from the motor to the hooks. Only a Medium piece has one
+  (`Fabric::quake`, set when it is built); the Quake button, shown only for
+  Medium, starts and stops the motor, and the subtitle says what it is doing.
+- `src/fabric_smoke_test.rs` — `test_all_fabrics_build_medium`: every plan
+  builds at Medium too, about 1.5 m tall, on its table.
 - `src/quadruped.rs` — `quadruped_is_buildable`: Quadruped's connectors
   have no collisions or short cables, none slack, none past 5.1 kN;
   `quadruped_stands_on_four_feet`. Ignored tools: load path, cable forces,
@@ -381,6 +415,9 @@ Important integration tests:
 ```bash
 # Native:
 cargo run --release -- --fabric "Halo by Crane"
+
+# Medium, on the wobble table (Quake starts its motor):
+cargo run --release -- --fabric "Headless Hug" --size medium
 
 # Headless Hug as built, as JSON (writes HeadlessHug-<date>.json):
 cargo test --release --lib export_headless_hug_json -- --ignored

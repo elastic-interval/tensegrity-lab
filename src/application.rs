@@ -7,6 +7,7 @@ use crate::build::dsl::fabric_plan_executor::ExecutorStage;
 use crate::camera::Framing;
 use crate::button_bar::ButtonBar;
 use crate::crucible::Crucible;
+use crate::fabric::dimensions::Size;
 use crate::pointer::PointerHandler;
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
@@ -79,6 +80,7 @@ pub struct Application {
     control_state: ControlState,
     pointer_handler: PointerHandler,
     time_scale: f32,
+    size: Size,
     model_scale: Option<f32>,
     cycle: Option<CycleState>,
     #[cfg(not(target_arch = "wasm32"))]
@@ -110,6 +112,7 @@ impl Application {
         window_attributes: WindowAttributes,
         radio: Radio,
         time_scale: f32,
+        size: Size,
         model_scale: Option<f32>,
     ) -> Application {
         Application {
@@ -118,7 +121,7 @@ impl Application {
             window_attributes,
             radio: radio.clone(),
             scene: None,
-            button_bar: ButtonBar::new(model_scale.is_some()),
+            button_bar: ButtonBar::new(size),
             crucible: Crucible::new(radio.clone()),
             last_update: Instant::now(),
             accumulated_time: Duration::default(),
@@ -130,6 +133,7 @@ impl Application {
             last_motion: Instant::now(),
             control_state: ControlState::Waiting,
             time_scale,
+            size,
             model_scale: model_scale.map(|n| 1.0 / n),
             cycle: None,
             #[cfg(not(target_arch = "wasm32"))]
@@ -313,7 +317,7 @@ impl ApplicationHandler<LabEvent> for Application {
                             exporter.start();
                             self.native.animation_exporter = Some(exporter);
                         }
-                        let fabric_plan = fabric_library::get_fabric_plan(*fabric_name);
+                        let fabric_plan = fabric_library::get_fabric_plan(*fabric_name).at_size(self.size);
                         CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
                     }
                     RunStyle::BakeBricks => {
@@ -533,7 +537,7 @@ impl ApplicationHandler<LabEvent> for Application {
             FabricBuilt(fabric_stats) => {
                 // Reset time scale to normal when construction completes
                 self.time_scale = 1.0;
-                StateChange::SetFabricName(fabric_stats.name.clone()).send(&self.radio);
+                StateChange::SetFabricName(self.size.title(&fabric_stats.name)).send(&self.radio);
                 StateChange::SetFabricStats(Some(fabric_stats)).send(&self.radio);
                 StateChange::SetControlState(self.crucible.viewing_state()).send(&self.radio);
                 StateChange::SetStageLabel("Viewing".to_string()).send(&self.radio);

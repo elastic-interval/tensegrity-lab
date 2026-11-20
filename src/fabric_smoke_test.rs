@@ -341,3 +341,29 @@ mod tests {
     }
 
 }
+
+#[cfg(test)]
+mod medium {
+    use crate::build::dsl::fabric_library::{self, FabricName};
+    use crate::build::dsl::fabric_plan_executor::{FabricPlanExecutor, IterateResult};
+    use crate::fabric::dimensions::Size;
+    use strum::IntoEnumIterator;
+
+    /// Every named fabric builds at Medium too: its plan applies cleanly,
+    /// it stays finite, stands about 1.5 m tall and is on its wobble table.
+    #[test]
+    fn test_all_fabrics_build_medium() {
+        for name in FabricName::iter() {
+            let plan = fabric_library::get_fabric_plan(name).at_size(Size::Medium);
+            let mut executor = FabricPlanExecutor::new(plan);
+            let completed = (0..5_000_000).any(|_| matches!(executor.iterate(), IterateResult::Complete));
+            assert!(completed, "{name}: Medium did not reach Complete (stuck at {:?})", executor.stage());
+            assert!(executor.plan_failures().is_empty(), "{name}: plan steps failed: {:?}", executor.plan_failures());
+            let fabric = &executor.fabric;
+            assert!(!fabric.frozen && fabric.joints.values().all(|joint| joint.location.is_finite()), "{name}: diverged");
+            let height = fabric.height().0;
+            assert!((1.2..1.8).contains(&height), "{name}: Medium stands {height:.2} m tall");
+            assert!(fabric.quake.is_some(), "{name}: no wobble table");
+        }
+    }
+}

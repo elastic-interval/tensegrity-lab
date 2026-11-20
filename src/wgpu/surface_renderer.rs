@@ -1,4 +1,5 @@
-use crate::wgpu::surface_vertex::SurfaceVertex;
+use crate::fabric::quake::{Deck, DECK_HEIGHT};
+use crate::wgpu::surface_vertex::{DeckVertex, SurfaceVertex};
 use crate::wgpu::Wgpu;
 use crate::wgpu::DEFAULT_PRIMITIVE_STATE;
 use bytemuck::{cast_slice, Pod, Zeroable};
@@ -16,6 +17,9 @@ pub struct SurfaceRenderer {
     ground_buffer: wgpu::Buffer,
     ground_bind_group: wgpu::BindGroup,
     current_radius: f32,
+    deck_pipeline: wgpu::RenderPipeline,
+    /// The wobble table under a Medium piece, and how big it was made.
+    deck: Option<(wgpu::Buffer, u32, f32)>,
 }
 
 /// The ground's hexagon lines and the fill between them, linear RGBA, as the
@@ -26,15 +30,18 @@ struct Ground {
     line: [f32; 4],
     fill: [f32; 4],
     shift: [f32; 4],
+    /// The wobble table's deck: moved by x and z, turned by the third, the
+    /// cam turned by the fourth.
+    deck: [f32; 4],
 }
 
 impl Ground {
     fn for_background(white: bool, shift: Vec3) -> [Ground; 1] {
         let shift = shift.extend(0.0).into();
         [if white {
-            Ground { line: [0.35, 0.35, 0.35, 1.0], fill: [0.85, 0.85, 0.85, 0.6], shift }
+            Ground { line: [0.35, 0.35, 0.35, 1.0], fill: [0.85, 0.85, 0.85, 0.6], shift, deck: [0.0; 4] }
         } else {
-            Ground { line: [0.18, 0.19, 0.2, 1.0], fill: [0.012, 0.013, 0.016, 0.9], shift }
+            Ground { line: [0.18, 0.19, 0.2, 1.0], fill: [0.012, 0.013, 0.016, 0.9], shift, deck: [0.0; 4] }
         }]
     }
 }
@@ -106,6 +113,34 @@ impl SurfaceRenderer {
                     multiview_mask: None,
                     cache: None,
                 });
+        let deck_pipeline = wgpu.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Deck Pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &wgpu.shader,
+                entry_point: Some("deck_vertex"),
+                compilation_options: Default::default(),
+                buffers: &[DeckVertex::desc()],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &wgpu.shader,
+                entry_point: Some("deck_fragment"),
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: wgpu.gamma_constants(),
+                    ..Default::default()
+                },
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: wgpu.surface_configuration.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState { cull_mode: None, ..DEFAULT_PRIMITIVE_STATE },
+            depth_stencil: Some(crate::wgpu::default_depth_stencil_state()),
+            multisample: wgpu::MultisampleState::default(),
+            multiview_mask: None,
+            cache: None,
+        });
         let surface_buffer = wgpu
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -120,6 +155,8 @@ impl SurfaceRenderer {
             ground_buffer,
             ground_bind_group,
             current_radius: MIN_RADIUS,
+            deck_pipeline,
+            deck: None,
         }
     }
 
@@ -147,10 +184,31 @@ impl SurfaceRenderer {
         queue.write_buffer(&self.ground_buffer, 0, cast_slice(&Ground::for_background(white, Vec3::ZERO)));
     }
 
-    /// Move the ground as far as a quake has moved it.
-    pub fn set_shift(&self, queue: &wgpu::Queue, shift: Vec3) {
+    /// Stand the fabric on its wobble table, where the deck is now, the
+    /// floor that far below; or on the floor, with none.
+    pub fn set_deck(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, deck: Option<Deck>) {
+        let shift = match deck {
+            Some(deck) => [0.0, -DECK_HEIGHT, 0.0, deck.throw],
+            None => [0.0; 4],
+        };
         let offset = std::mem::offset_of!(Ground, shift) as u64;
-        queue.write_buffer(&self.ground_buffer, offset, cast_slice(&shift.extend(0.0).to_array()));
+        queue.write_buffer(&self.ground_buffer, offset, cast_slice(&shift));
+        let Some(deck) = deck else {
+            self.deck = None;
+            return;
+        };
+        let pose = [deck.offset.x, deck.offset.z, deck.turn, deck.cam];
+        let offset = std::mem::offset_of!(Ground, deck) as u64;
+        queue.write_buffer(&self.ground_buffer, offset, cast_slice(&pose));
+        if self.deck.as_ref().is_none_or(|(_, _, radius)| *radius != deck.radius) {
+            let vertices = DeckVertex::for_radius(deck.radius, DECK_HEIGHT);
+            let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Deck Buffer"),
+                contents: cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+            self.deck = Some((buffer, vertices.len() as u32, deck.radius));
+        }
     }
 
     pub fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
@@ -158,5 +216,10 @@ impl SurfaceRenderer {
         render_pass.set_bind_group(1, &self.ground_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.buffer.slice(..));
         render_pass.draw(0..self.vertices.len() as u32, 0..1);
+        if let Some((buffer, count, _)) = &self.deck {
+            render_pass.set_pipeline(&self.deck_pipeline);
+            render_pass.set_vertex_buffer(0, buffer.slice(..));
+            render_pass.draw(0..*count, 0..1);
+        }
     }
 }

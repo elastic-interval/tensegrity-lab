@@ -17,6 +17,8 @@ pub struct Hardware {
     pub strut_density: GramsPerMeter,
     /// At each strut end: its cap, bolt, nut and washers.
     pub strut_end: Grams,
+    /// The cable itself, per metre.
+    pub cable_density: GramsPerMeter,
     /// At each cable end: its terminal, and on a strut, its ring and POM washer.
     pub cable_end: Grams,
     /// A node plate, less the rings its cable ends are counted with.
@@ -43,6 +45,8 @@ impl Hardware {
         // (110 g); M12×55 bolt (60 g), nyloc (17), DIN 9021 washer (22),
         // spring washer and nut cap (10).
         strut_end: Grams(254.0),
+        // 6 mm steel cable.
+        cable_density: GramsPerMeter(130.0),
         // Louis Ruys 37260006 jaw terminal (160 g, vault figure), ring with
         // boss and cross-tube (61 g), POM washer (3 g), 7 mm more bolt (6 g).
         cable_end: Grams(230.0),
@@ -59,7 +63,59 @@ impl Hardware {
         // rope modulus near 100 GPa. ESTIMATE until a datasheet gives it.
         cable_stiffness: Newtons(1.4e6),
     };
+
+    /// A Medium piece, as the 2021 Headless Hug was made: 8×1 mm aluminium
+    /// tube, an M6 bolt, nut and washer at each strut end, Dyneema cord tied
+    /// on, no plates, and hinges made by hand.
+    pub const MEDIUM: Hardware = Hardware {
+        // 22 mm² of aluminium at 2700 kg/m³.
+        strut_density: GramsPerMeter(59.4),
+        // A long M6 bolt, nut and washers: what makes the 2021 Headless Hug
+        // weigh about 4 kg.
+        strut_end: Grams(20.0),
+        // 1.5 mm Dyneema braid. ESTIMATE until weighed.
+        cable_density: GramsPerMeter(1.2),
+        // A knot or spliced eye.
+        cable_end: Grams(0.5),
+        plate: Grams(0.0),
+        // As much as a bolt, nut and washers.
+        hinge: Grams(20.0),
+        // E 69 GPa on 22 mm² is 1.5 MN, but a strut this short and light
+        // rings faster than the 50 µs tick can follow: a third of it is
+        // stable, still ten times the cords', which give the piece its give.
+        strut_stiffness: Newtons(5.0e5),
+        // About 1 mm² of fibre in the braid at an effective 50 GPa. ESTIMATE
+        // until a pull test gives it.
+        cable_stiffness: Newtons(5.0e4),
+    };
 }
+
+/// How big a fabric is made. Large is the plan as designed; Medium is the
+/// same plan made about `MEDIUM_HEIGHT` tall from `Hardware::MEDIUM`,
+/// simulated at that size and standing on the wobble table; Small is the
+/// Large fabric with its lengths shown at a model's scale.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, strum::Display, strum::EnumString)]
+#[strum(ascii_case_insensitive)]
+pub enum Size {
+    #[default]
+    Large,
+    Medium,
+    Small,
+}
+
+impl Size {
+    /// A fabric's title, saying how big it is made.
+    pub fn title(self, name: &str) -> String {
+        format!("{name} · {self}")
+    }
+}
+
+/// A Medium piece's pretension, as part of its plan's: a piece tied by
+/// hand is not as tight as one built to its plan, and wobbles more.
+pub const MEDIUM_PRETENSION: f32 = 0.4;
+
+/// How tall a Medium piece stands, near enough.
+pub const MEDIUM_HEIGHT: Meters = Meters(1.5);
 
 /// All physical dimensions for a fabric: structure size and interval geometry.
 #[derive(Clone, Debug)]
@@ -92,6 +148,7 @@ pub struct FabricDimensions {
     /// Open the fabric with its connector hardware showing, as if C were
     /// pressed: for the fabrics that are, or are meant to be, built for real.
     pub connectors_shown: bool,
+    pub size: Size,
 }
 
 impl Default for FabricDimensions {
@@ -110,6 +167,7 @@ impl Default for FabricDimensions {
             pull_end_mass: Grams(160.0),
             hardware: None,
             connectors_shown: false,
+            size: Size::Large,
         }
     }
 }
@@ -153,6 +211,20 @@ impl FabricDimensions {
     pub fn with_connectors_shown(mut self) -> Self {
         self.connectors_shown = true;
         self
+    }
+
+    /// Made Medium: from `Hardware::MEDIUM`, with no connector hardware, its
+    /// struts and cords drawn their own thickness. A Medium plan is built as
+    /// Large and turned Medium just before pretensing, when it is made its
+    /// own size (`Fabric::rescale`).
+    pub fn medium(mut self) -> Self {
+        self.size = Size::Medium;
+        self.connector = None;
+        self.connectors_shown = false;
+        self.strut_mass = None;
+        self.push_radius = Meters(0.004);
+        self.pull_radius = Meters(0.00075);
+        self.with_hardware(Hardware::MEDIUM)
     }
 
     /// Equip the fabric with physical connector hardware (default dimensions),
@@ -201,9 +273,10 @@ impl FabricDimensions {
 
     /// Linear density for a material type, using configurable push density.
     pub fn linear_density(&self, material: Material, physics: &Physics) -> GramsPerMeter {
-        let base = match material {
-            Material::Push => self.push_density,
-            _ => material.base_linear_density(),
+        let base = match (material, self.hardware) {
+            (Material::Pull, Some(hardware)) => hardware.cable_density,
+            (Material::Push, _) => self.push_density,
+            (_, _) => material.base_linear_density(),
         };
         GramsPerMeter(base.0 * physics.mass_multiplier())
     }

@@ -38,6 +38,8 @@ pub struct Crucible {
     pub physics: Physics,
     fabric_plan: Option<FabricPlan>,
     last_stage_label: Option<String>,
+    /// What the wobble table's motor was last said to be doing.
+    last_quake_label: Option<String>,
     last_executor_stage: Option<ExecutorStage>,
 }
 
@@ -50,6 +52,7 @@ impl Crucible {
             physics: VIEWING,
             fabric_plan: None,
             last_stage_label: None,
+            last_quake_label: None,
             last_executor_stage: None,
         }
     }
@@ -194,7 +197,6 @@ impl Crucible {
             return;
         }
 
-        let quaking_before = self.fabric.quake.is_some();
         // Handle other stages
         match &mut self.stage {
             Empty => {}
@@ -278,8 +280,9 @@ impl Crucible {
                 }
             }
         }
-        let quaking = self.fabric.quake.is_some();
-        if quaking != quaking_before {
+        let quaking = self.fabric.quake.as_ref().filter(|quake| quake.moving()).map(quake::Quake::describe);
+        if quaking != self.last_quake_label {
+            self.last_quake_label = quaking.clone();
             SetQuaking(quaking).send(&self.radio);
         }
     }
@@ -294,6 +297,7 @@ impl Crucible {
             let rigidity_multiplier = self.physics.rigidity_multiplier();
 
             let name = fabric_plan.name.clone();
+            let fabric_plan_size = fabric_plan.dimensions.size;
             let mut executor = FabricPlanExecutor::new(fabric_plan.clone());
 
             // Store the fabric_plan for later use (animate, settle, etc.)
@@ -316,7 +320,7 @@ impl Crucible {
             self.stage = RunningPlan(executor);
 
             // Set fabric name immediately so title appears right away
-            SetFabricName(name.to_string()).send(&self.radio);
+            SetFabricName(fabric_plan_size.title(&name.to_string())).send(&self.radio);
             SetStageLabel("Building".to_string()).send(&self.radio);
             SetFabricStats(None).send(&self.radio);
             crate::ControlState::Building.send(&self.radio);
@@ -399,13 +403,12 @@ impl Crucible {
             CrucibleAction::Quake => {
                 let fabric = &mut *context.fabric;
                 let age = fabric.age;
-                match &mut fabric.quake {
-                    Some(quake) if !quake.stopping() => quake.stop(age),
-                    _ => {
-                        let seed = age.elapsed_since(crate::Age::default()).0.to_bits() as u64;
-                        fabric.quake = Some(quake::Quake::starting(age, seed));
+                if let Some(quake) = &mut fabric.quake {
+                    if quake.running() {
+                        quake.stop(age);
+                    } else {
+                        quake.start(age);
                         fabric.unfreeze();
-                        context.send_event(LabEvent::UpdateState(SetQuaking(true)));
                     }
                 }
             }

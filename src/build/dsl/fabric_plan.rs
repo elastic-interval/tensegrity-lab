@@ -8,6 +8,7 @@ use crate::build::dsl::joint_names::Link;
 use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::settle_phase::{GuyLine, SettlePhase};
 use crate::build::dsl::shape_phase::ShapePhase;
+use crate::fabric::dimensions::{Size, MEDIUM_PRETENSION};
 use crate::fabric::FabricDimensions;
 
 use crate::units::{Hertz, Percent, Seconds};
@@ -53,6 +54,19 @@ impl FabricPlan {
             .expect("cables requires settle()")
             .cables
             .extend(links.map(|link| (link, length)));
+        self
+    }
+
+    /// This plan made at `size`. Medium is built as Large is, then made its
+    /// own size and materials before pretensing
+    /// (`FabricDimensions::medium`); it has no node plates, so no bridles,
+    /// and its hinges are made by hand. Small is shown from the Large fabric.
+    pub fn at_size(mut self, size: Size) -> Self {
+        self.dimensions.size = size;
+        if size == Size::Medium {
+            self.pretense_phase.bridles.clear();
+            self.pretense_phase.pretenst = Percent(self.pretense_phase.pretenst.0 * MEDIUM_PRETENSION);
+        }
         self
     }
 

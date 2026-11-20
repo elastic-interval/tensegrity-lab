@@ -9,6 +9,7 @@ use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
 use tensegrity_lab::build::dsl::fabric_library::FabricName;
+use tensegrity_lab::fabric::dimensions::Size;
 use tensegrity_lab::units::Seconds;
 use tensegrity_lab::{LabEvent, RunStyle};
 
@@ -57,7 +58,13 @@ struct Args {
     #[arg(long, default_value_t = 1.0)]
     time_scale: f32,
 
-    /// Display dimensions at model scale: 10 for a 1:10 model.
+    /// Large (as designed), Medium (about 1.5 m, simulated in its own
+    /// materials, on the wobble table) or Small (a model, 1:10 unless
+    /// `--model-scale` says otherwise).
+    #[arg(long, default_value_t = Size::Large)]
+    size: Size,
+
+    /// Small, at this model scale: 10 for a 1:10 model.
     /// Only affects displayed measurements, not simulation
     #[arg(long)]
     model_scale: Option<f32>,
@@ -117,14 +124,19 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let model_scale = args.model_scale;
+    let (size, model_scale) = match (args.size, args.model_scale) {
+        (_, Some(scale)) => (Size::Small, Some(scale)),
+        (Size::Small, None) => (Size::Small, Some(10.0)),
+        (size, None) => (size, None),
+    };
 
-    run_with(run_style, args.time_scale, model_scale, cycle_names)
+    run_with(run_style, args.time_scale, size, model_scale, cycle_names)
 }
 
 fn run_with(
     run_style: RunStyle,
     time_scale: f32,
+    size: Size,
     model_scale: Option<f32>,
     cycle: Option<Vec<FabricName>>,
 ) -> Result<(), Box<dyn Error>> {
@@ -137,7 +149,7 @@ fn run_with(
     #[cfg(target_arch = "wasm32")]
     let window_attributes = create_window_attributes();
     let mut application =
-        Application::new(window_attributes, radio.clone(), time_scale, model_scale);
+        Application::new(window_attributes, radio.clone(), time_scale, size, model_scale);
     if let Some(names) = cycle {
         application.set_cycle(names);
     }
@@ -163,6 +175,7 @@ pub fn run() {
             export_fps: 100.0,
         },
         1.0,
+        Size::Large,
         None, // No model scale for WASM
         cycle,
     )
