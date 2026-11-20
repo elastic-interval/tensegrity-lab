@@ -8,7 +8,7 @@ use crate::fabric::physics::presets::{CONSTRUCTION, PRETENSING};
 use crate::fabric::physics::Physics;
 use crate::fabric::interval::Role;
 use crate::fabric::physics::SurfaceCharacter;
-use crate::fabric::dimensions::{Size, MEDIUM_HEIGHT};
+use crate::fabric::dimensions::Size;
 use crate::build::dsl::brick_dsl::Side;
 use crate::fabric::quake::Quake;
 use crate::fabric::{Fabric, JointKey};
@@ -165,9 +165,6 @@ pub struct FabricPlanExecutor {
     plates_retensioned: usize,
     /// Whether the settle's cables are on (`CABLES_AT`).
     settle_cables_added: bool,
-    /// How much smaller than its plan it is made: below one for Medium,
-    /// scaling the plan's lengths given in metres, its guy lines'.
-    size_factor: f32,
     /// The joints at the tips of the plan's hands, for the wobble table to
     /// watch.
     hands: Vec<(JointKey, Side)>,
@@ -176,7 +173,9 @@ pub struct FabricPlanExecutor {
 impl FabricPlanExecutor {
 
     pub fn new(plan: FabricPlan) -> Self {
-        let fabric = Fabric::new(plan.name.to_string()).with_dimensions(plan.dimensions.clone());
+        let mut fabric = Fabric::new(plan.name.to_string()).with_dimensions(plan.dimensions.clone());
+        // A Medium piece is built over its wobble table.
+        fabric.quake = plan.dimensions.table.map(|radius| Quake::of_radius(radius.f32()));
         let plan_runner = PlanRunner::new(plan.clone());
         let physics = CONSTRUCTION;
 
@@ -195,7 +194,6 @@ impl FabricPlanExecutor {
             settle_phase_start_age: None,
             plates_retensioned: 0,
             settle_cables_added: false,
-            size_factor: 1.0,
             hands: Vec::new(),
         };
 
@@ -340,7 +338,7 @@ impl FabricPlanExecutor {
             ExecutorStage::Falling => {
                 let fall_done = self.fall_start_age.map_or(false, |start| {
                     let elapsed = self.fabric.age.elapsed_since(start);
-                    elapsed >= self.fall_seconds()
+                    elapsed >= self.plan.fall_phase.seconds
                 });
                 if fall_done {
                     if self.plan.settle_phase.is_some() {
@@ -443,14 +441,10 @@ impl FabricPlanExecutor {
             self.fabric.remove_face(face_key);
         }
 
-        // A Medium piece is built as designed, then made its own size, from
-        // here on simulated in its own materials.
+        // A Medium piece is made in its own materials from here on.
         if self.fabric.dimensions.size == Size::Medium {
-            self.size_factor = MEDIUM_HEIGHT.f32() / self.fabric.height().f32();
             self.fabric.dimensions = self.fabric.dimensions.clone().medium();
             self.fabric.connector = None;
-            self.fabric.rescale(self.size_factor);
-            self.stored_scale *= self.size_factor;
         }
 
         // Twins get their short names before any plan step names one.
@@ -553,14 +547,6 @@ impl FabricPlanExecutor {
         self.stage = ExecutorStage::Pretensing;
     }
 
-    /// How long it falls before it settles. Things fall faster the smaller
-    /// they are, in time going as the square root of their size, so a
-    /// Medium piece falls for less time, or it would topple before its guy
-    /// lines are on.
-    fn fall_seconds(&self) -> Seconds {
-        Seconds(self.plan.fall_phase.seconds.0 * self.size_factor.sqrt())
-    }
-
     fn transition_to_fall(&mut self) {
         self.log_event(ExecutionEvent::StageTransition {
             iteration: self.current_iteration,
@@ -651,7 +637,6 @@ impl FabricPlanExecutor {
             }
             let landed = self.fabric.location(joint);
             let (outward, dz) = guy_line.ground_offset;
-            let (outward, dz) = (outward * self.size_factor, dz * self.size_factor);
             let dx = outward * landed.x.signum();
             let ground = self
                 .fabric
@@ -678,6 +663,7 @@ impl FabricPlanExecutor {
 
         self.fabric.hang_bridles();
         self.fabric.tension_plates(self.plan.pretense_phase.pretenst);
+        self.mount_on_table();
         self.settle_phase_start_age = Some(self.fabric.age);
         self.stage = ExecutorStage::Settling;
     }
@@ -738,11 +724,20 @@ impl FabricPlanExecutor {
         });
 
         self.fabric.zero_velocities();
-        if self.fabric.dimensions.size == Size::Medium {
-            self.fabric.quake = Some(Quake::under(&self.fabric, &self.hands));
-        }
+        self.mount_on_table();
         self.settler = None;
         self.stage = ExecutorStage::Complete;
+    }
+
+    /// A Medium piece, landed and its guy lines on, is mounted on its
+    /// wobble table.
+    fn mount_on_table(&mut self) {
+        if let Some(mut quake) = self.fabric.quake.take() {
+            if !quake.mounted() {
+                quake.mount(&self.fabric, &self.hands);
+            }
+            self.fabric.quake = Some(quake);
+        }
     }
 
     pub fn is_complete(&self) -> bool {

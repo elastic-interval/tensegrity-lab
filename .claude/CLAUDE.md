@@ -109,12 +109,16 @@ from one plan for all three (`FabricPlan::at_size`):
 - **Medium** — about 1.5 m tall (`MEDIUM_HEIGHT`), built as the 2021 Headless
   Hug was: 8×1 mm aluminium tube, an M6 bolt set per strut end, 1.5 mm
   Dyneema, hinges made by hand, no connectors, bridles or node plates
-  (`Hardware::MEDIUM`). It is built as Large, then just before pretensing
-  made its own size and materials (`Fabric::rescale`) and simulated so; it
-  falls for less time, as things do the smaller they are, and is pretensioned
-  less than its plan says (`MEDIUM_PRETENSION`), as a piece tied by hand is. The struts are a
+  (`Hardware::MEDIUM`). It is built small from the start: how much smaller,
+  and how big its table, come from building it Large unseen up to its
+  pretensing, once for each fabric (`FabricPlan::at_size`). From pretensing
+  on it is simulated in its own materials; it falls for less time, as
+  things do the smaller they are, and is pretensioned less than its plan
+  says (`MEDIUM_PRETENSION`), as a piece tied by hand is. The struts are a
   third as stiff as real: the 50 µs tick can't follow short light ones at
-  full stiffness. It always stands on the wobble table (`Fabric::quake`).
+  full stiffness. It is built over its wobble table (`Fabric::quake`) and
+  mounted on it once landed. Small and Medium start building in
+  fast-forward.
 - **Small** — a model to build from: the Large fabric, its lengths shown at
   `--model-scale` (1:10 by default), with caliper readings.
 
@@ -416,8 +420,8 @@ Important integration tests:
   piece and two before it, so the table has its mirror symmetry and it
   faces between two) a hook drops from the deck and an arm rises from the
   base, a tie between them, and the cables run from the crank's pin to the
-  hooks. Only a Medium piece has one (`Fabric::quake`, set when it is
-  built); the Quake button is shown only for Medium.
+  hooks. Only a Medium piece has one (`Fabric::quake`, there from the start
+  of its build); the Quake button is shown only for Medium.
 - `src/fabric_smoke_test.rs` — `test_all_fabrics_build_medium`: every plan
   builds at Medium too, about 1.5 m tall, on its table.
 - `src/quadruped.rs` — `quadruped_is_buildable`: Quadruped's connectors

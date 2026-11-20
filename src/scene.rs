@@ -289,6 +289,7 @@ impl Scene {
         if show_surface {
             self.surface_renderer.render(&mut render_pass);
         }
+        self.surface_renderer.render_deck(&mut render_pass);
         self.fabric_renderer
             .render_highlight(&mut render_pass, &self.wgpu.uniform_bind_group);
         self.label_renderer.render(&mut render_pass);
@@ -346,11 +347,11 @@ impl Scene {
             self.white,
             self.show_attachment_points,
         );
+        self.surface_renderer.set_deck(&self.wgpu.device, &self.wgpu.queue, fabric.deck());
         // Update surface size based on fabric bounding radius
         if has_surface {
             self.surface_renderer
                 .update_radius(&self.wgpu.queue, fabric.bounding_radius());
-            self.surface_renderer.set_deck(&self.wgpu.device, &self.wgpu.queue, fabric.deck());
         }
         self.render(has_surface)?;
         Ok(())

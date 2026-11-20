@@ -441,21 +441,6 @@ impl Fabric {
         }
     }
 
-    /// Made `factor` times the size, about the origin: every joint, every
-    /// rest length and the fabric's own scale, with its motion stopped.
-    pub fn rescale(&mut self, factor: f32) {
-        for joint in self.joints.values_mut() {
-            joint.location *= factor;
-            joint.velocity = Vec3::ZERO;
-        }
-        for interval in self.intervals.values_mut() {
-            interval.scale_lengths(factor);
-        }
-        self.dimensions.scale = self.dimensions.scale * factor;
-        self.dimensions.altitude = self.dimensions.altitude * factor;
-        self.update_bounding_radius();
-    }
-
     /// How tall it stands, lowest joint to highest.
     pub fn height(&self) -> Meters {
         let (low, high) = self

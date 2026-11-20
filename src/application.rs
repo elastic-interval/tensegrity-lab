@@ -5,7 +5,7 @@ use crate::build::algo::tensegrity_sphere::generate_sphere;
 use crate::build::dsl::fabric_library;
 use crate::build::dsl::fabric_plan_executor::ExecutorStage;
 use crate::camera::Framing;
-use crate::button_bar::ButtonBar;
+use crate::button_bar::{ButtonBar, FAST_FORWARD};
 use crate::crucible::Crucible;
 use crate::fabric::dimensions::Size;
 use crate::pointer::PointerHandler;
@@ -319,6 +319,10 @@ impl ApplicationHandler<LabEvent> for Application {
                         }
                         let fabric_plan = fabric_library::get_fabric_plan(*fabric_name).at_size(self.size);
                         CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
+                        // A model is built to be seen built, not watched growing.
+                        if self.size != Size::Large {
+                            SetTimeScale(FAST_FORWARD).send(&self.radio);
+                        }
                     }
                     RunStyle::BakeBricks => {
                         StateChange::SetStageLabel("Baking".to_string()).send(&self.radio);

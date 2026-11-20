@@ -149,6 +149,8 @@ pub struct FabricDimensions {
     /// pressed: for the fabrics that are, or are meant to be, built for real.
     pub connectors_shown: bool,
     pub size: Size,
+    /// A Medium piece's wobble table, this far across its corners.
+    pub table: Option<Meters>,
 }
 
 impl Default for FabricDimensions {
@@ -168,6 +170,7 @@ impl Default for FabricDimensions {
             hardware: None,
             connectors_shown: false,
             size: Size::Large,
+            table: None,
         }
     }
 }
@@ -214,9 +217,9 @@ impl FabricDimensions {
     }
 
     /// Made Medium: from `Hardware::MEDIUM`, with no connector hardware, its
-    /// struts and cords drawn their own thickness. A Medium plan is built as
-    /// Large and turned Medium just before pretensing, when it is made its
-    /// own size (`Fabric::rescale`).
+    /// struts and cords drawn their own thickness. A Medium plan is built
+    /// small (`FabricPlan::at_size`) and turned Medium just before
+    /// pretensing.
     pub fn medium(mut self) -> Self {
         self.size = Size::Medium;
         self.connector = None;

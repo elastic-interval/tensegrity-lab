@@ -55,7 +55,7 @@ const TOP_SPEED: f32 = 4.0 * TAU;
 /// Deck and frame, per square metre.
 const DECK_DENSITY: f32 = 15.0;
 /// The deck reaches this far past the farthest foot or guy anchor.
-const DECK_MARGIN: f32 = 0.1;
+pub const DECK_MARGIN: f32 = 0.1;
 /// How much of its swing the deck loses each cycle, as a damping ratio.
 const DAMPING: f32 = 0.05;
 /// Each cable's tension with the deck still and the crank at its zero.
@@ -237,46 +237,27 @@ pub struct Quake {
 }
 
 impl Quake {
-    /// The table under `fabric`, just big enough for its feet and guy
-    /// anchors, still, its crank at its zero, watching `hands`, or with none
-    /// the fabric's three highest joints.
-    pub fn under(fabric: &Fabric, hands: &[(JointKey, Side)]) -> Quake {
-        let reach = fabric
-            .joints
-            .values()
-            .filter(|joint| joint.location.y < 0.01)
-            .map(|joint| Vec3::new(joint.location.x, 0.0, joint.location.z).length())
-            .fold(0.0, f32::max);
-        let radius = reach + DECK_MARGIN;
+    /// A table `radius` across its corners, still, its crank at its zero,
+    /// nothing on it yet.
+    pub fn of_radius(radius: f32) -> Quake {
         let area = 1.5 * 3.0f32.sqrt() * radius * radius;
         let mass = DECK_DENSITY * area;
-        let piece = fabric.joints.values().map(|joint| joint.accumulated_mass.f32()).sum::<f32>() / 1000.0;
         let home = cam_axis() + crank_pin(0.0);
         let spans = cable_ends(radius).map(|end| end.distance(home));
         let ea = Hardware::MEDIUM.cable_stiffness.0;
         let cable_stiffness = ea / (spans.iter().sum::<f32>() / 3.0);
-        let mut watched: Vec<(JointKey, Option<Side>)> =
-            hands.iter().filter(|(key, _)| fabric.joints.contains_key(*key)).map(|&(key, side)| (key, Some(side))).collect();
-        if watched.is_empty() {
-            let mut highest: Vec<(JointKey, f32)> = fabric.joints.iter().map(|(key, joint)| (key, joint.location.y)).collect();
-            highest.sort_by(|a, b| b.1.total_cmp(&a.1));
-            watched = highest.into_iter().take(3).map(|(key, _)| (key, None)).collect();
-        }
         Quake {
             deck: Deck { radius, pin: crank_pin(0.0), ..Deck::default() },
             velocity: Vec3::ZERO,
             spin: 0.0,
             mass,
-            weight: (mass + piece) * EARTH_GRAVITY.f32(),
+            weight: mass * EARTH_GRAVITY.f32(),
             cables: spans.map(|span| span - CABLE_PRETENSION / cable_stiffness),
             cable_stiffness,
             motor: None,
             pull: Vec3::ZERO,
             pull_twist: 0.0,
-            watched: watched
-                .into_iter()
-                .map(|(key, side)| Watched { key, side, stance: fabric.joints[key].location })
-                .collect(),
+            watched: Vec::new(),
             response: 0.0,
             standing: SecondaryMap::new(),
             task: None,
@@ -287,6 +268,27 @@ impl Quake {
             kept: Vec::new(),
             random: ChaCha8Rng::seed_from_u64(1),
         }
+    }
+
+    /// The piece `fabric` landed on the table: its weight on the ties, and
+    /// `hands` watched, or with none its three highest joints.
+    pub fn mount(&mut self, fabric: &Fabric, hands: &[(JointKey, Side)]) {
+        let piece = fabric.joints.values().map(|joint| joint.accumulated_mass.f32()).sum::<f32>() / 1000.0;
+        self.weight = (self.mass + piece) * EARTH_GRAVITY.f32();
+        let mut watched: Vec<(JointKey, Option<Side>)> =
+            hands.iter().filter(|(key, _)| fabric.joints.contains_key(*key)).map(|&(key, side)| (key, Some(side))).collect();
+        if watched.is_empty() {
+            let mut highest: Vec<(JointKey, f32)> = fabric.joints.iter().map(|(key, joint)| (key, joint.location.y)).collect();
+            highest.sort_by(|a, b| b.1.total_cmp(&a.1));
+            watched = highest.into_iter().take(3).map(|(key, _)| (key, None)).collect();
+        }
+        self.watched =
+            watched.into_iter().map(|(key, side)| Watched { key, side, stance: fabric.joints[key].location }).collect();
+    }
+
+    /// Whether a piece has landed on it.
+    pub fn mounted(&self) -> bool {
+        !self.watched.is_empty()
     }
 
     pub fn deck(&self) -> Deck {
@@ -514,6 +516,11 @@ impl Quake {
     /// Whether the stepper is playing, not stopping.
     pub fn running(&self) -> bool {
         self.motor.as_ref().is_some_and(|motor| !motor.stopping)
+    }
+
+    /// Whether the stepper is playing, or bringing its crank back to zero.
+    pub fn busy(&self) -> bool {
+        self.motor.is_some()
     }
 
     /// Whether the deck is still going, with the motor or after it.

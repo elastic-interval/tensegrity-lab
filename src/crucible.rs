@@ -280,7 +280,7 @@ impl Crucible {
                 }
             }
         }
-        let quaking = self.fabric.quake.as_ref().filter(|quake| quake.moving()).map(quake::Quake::describe);
+        let quaking = self.fabric.quake.as_ref().filter(|quake| quake.busy()).map(quake::Quake::describe);
         if quaking != self.last_quake_label {
             self.last_quake_label = quaking.clone();
             SetQuaking(quaking).send(&self.radio);

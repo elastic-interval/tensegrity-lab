@@ -217,7 +217,12 @@ impl SurfaceRenderer {
         render_pass.set_bind_group(1, &self.ground_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.buffer.slice(..));
         render_pass.draw(0..self.vertices.len() as u32, 0..1);
+    }
+
+    /// The wobble table, if there is one, gravity or not.
+    pub fn render_deck<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
         if let Some((buffer, count, _)) = &self.deck {
+            render_pass.set_bind_group(1, &self.ground_bind_group, &[]);
             render_pass.set_pipeline(&self.deck_pipeline);
             render_pass.set_vertex_buffer(0, buffer.slice(..));
             render_pass.draw(0..*count, 0..1);

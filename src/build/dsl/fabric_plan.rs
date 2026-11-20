@@ -8,7 +8,13 @@ use crate::build::dsl::joint_names::Link;
 use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::settle_phase::{GuyLine, SettlePhase};
 use crate::build::dsl::shape_phase::ShapePhase;
-use crate::fabric::dimensions::{Size, MEDIUM_PRETENSION};
+use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
+use crate::fabric::dimensions::{Size, MEDIUM_HEIGHT, MEDIUM_PRETENSION};
+use crate::fabric::quake::DECK_MARGIN;
+use crate::units::{Meters, Unit};
+use glam::{Vec2, Vec3};
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 use crate::fabric::FabricDimensions;
 
 use crate::units::{Hertz, Percent, Seconds};
@@ -57,17 +63,63 @@ impl FabricPlan {
         self
     }
 
-    /// This plan made at `size`. Medium is built as Large is, then made its
-    /// own size and materials before pretensing
-    /// (`FabricDimensions::medium`); it has no node plates, so no bridles,
-    /// and its hinges are made by hand. Small is shown from the Large fabric.
+    /// This plan made at `size`. Medium is built small enough to stand about
+    /// `MEDIUM_HEIGHT` tall, its lengths in metres shrunk with it, and made
+    /// in its own materials from pretensing on (`FabricDimensions::medium`);
+    /// it has no node plates, so no bridles, and its hinges are made by
+    /// hand. Small is shown from the Large fabric.
     pub fn at_size(mut self, size: Size) -> Self {
-        self.dimensions.size = size;
         if size == Size::Medium {
+            let (shrink, table) = self.medium_shrink();
+            self.dimensions.table = Some(Meters(table));
+            self.dimensions.scale = self.dimensions.scale * shrink;
+            self.dimensions.altitude = self.dimensions.altitude * shrink;
+            // Things fall faster the smaller they are, in time going as the
+            // square root of their size: in the time a Large one falls, a
+            // Medium one would topple before its guy lines are on.
+            self.fall_phase.seconds = Seconds(self.fall_phase.seconds.0 * shrink.sqrt());
+            if let Some(settle) = &mut self.settle_phase {
+                for guy_line in &mut settle.guy_lines {
+                    let (outward, along) = guy_line.ground_offset;
+                    guy_line.ground_offset = (outward * shrink, along * shrink);
+                }
+            }
             self.pretense_phase.bridles.clear();
             self.pretense_phase.pretenst = Percent(self.pretense_phase.pretenst.0 * MEDIUM_PRETENSION);
         }
+        self.dimensions.size = size;
         self
+    }
+
+    /// How much smaller than Large to build it, for it to stand about
+    /// `MEDIUM_HEIGHT` tall, and how far across its table's corners: from
+    /// building it Large, unseen, up to its pretensing, once for each
+    /// fabric. The table reaches past the piece's spread and its guy lines'
+    /// anchors.
+    fn medium_shrink(&self) -> (f32, f32) {
+        static SHRINKS: OnceLock<Mutex<HashMap<FabricName, (f32, f32)>>> = OnceLock::new();
+        let shrinks = SHRINKS.get_or_init(Default::default);
+        if let Some(&found) = shrinks.lock().unwrap().get(&self.name) {
+            return found;
+        }
+        let mut executor = FabricPlanExecutor::new(self.clone());
+        while matches!(executor.stage(), ExecutorStage::Building) {
+            let _ = executor.iterate();
+        }
+        let fabric = &executor.fabric;
+        let shrink = MEDIUM_HEIGHT.f32() / fabric.height().f32();
+        let middle = fabric.joints.values().fold(Vec3::ZERO, |sum, joint| sum + joint.location) / fabric.joints.len() as f32;
+        let spread = fabric.joints.values().fold(Vec2::ZERO, |most, joint| {
+            most.max(Vec2::new((joint.location.x - middle.x).abs(), (joint.location.z - middle.z).abs()))
+        });
+        let guys = self.settle_phase.iter().flat_map(|settle| &settle.guy_lines);
+        let anchors = guys.fold(0.0f32, |most, guy| {
+            let (outward, along) = guy.ground_offset;
+            most.max((spread.x + outward.f32().abs()).hypot(along.f32().abs()))
+        });
+        let table = (spread.length().max(anchors) * shrink + DECK_MARGIN) * 1.05;
+        shrinks.lock().unwrap().insert(self.name, (shrink, table));
+        (shrink, table)
     }
 
     pub fn animate(self) -> AnimateBuilder {
