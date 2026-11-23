@@ -74,7 +74,8 @@ impl FabricName {
                 .build(
                     FabricDimensions::default()
                         .with_altitude(M(2.0))
-                        .with_scale(M(1.0)),
+                        .with_scale(M(1.0))
+                        .with_table_turn(Degrees(60.0)),
                 )
                 .seed(SingleTwistLeft, Seed(1))
                 .faces([

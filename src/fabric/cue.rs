@@ -104,6 +104,12 @@ impl Cue {
         words.join(" ")
     }
 
+    /// A cue from its DMX frames, written as numbers apart.
+    pub fn parse(text: &str) -> Option<Cue> {
+        let frames: Vec<u8> = text.split_whitespace().map(str::parse).collect::<Result<_, _>>().ok()?;
+        (frames.len() >= FRAMES.0).then_some(Cue { frames })
+    }
+
     /// Rocking `degrees` each way, `hertz` times a second.
     pub fn rocking(hertz: f32, degrees: f32) -> Cue {
         let (frames, cycles) = Self::span(hertz);

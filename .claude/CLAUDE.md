@@ -392,11 +392,11 @@ Important integration tests:
   cables with the wind from five directions. `Fabric::wind` is `None` in
   every build, so the wind never changes one.
 - `src/fabric/quake.rs` — `medium_headless_hug_rides_the_wobble_table`:
-  Quake pressed once, it tries its seed cues, keeps more than one, unlike
-  one another, and plays them; pressed again the crank goes back to its
-  zero and the piece stands where it stood. The ignored `breed_wobble_cues`
-  (`PROBE` the fabric, `TRIES` how many) breeds on and prints the kept cues
-  as DMX loops for the electronics.
+  Quake pressed once, it breeds, keeps more than one cue, unlike one
+  another, and plays them; pressed again the crank goes back to its zero
+  and the piece stands where it stood. The ignored `breed_wobble_cues`
+  (`PROBE` the fabric) breeds until it stops finding and prints the kept
+  cues as DMX loops for the electronics.
   The table is a hexagonal deck hung on three ties, so it sways and twists
   but can't tilt. A stepper in the middle of the base turns a crank of fixed
   radius (`CRANK`), and a Dyneema cable from its pin to each of the deck's
@@ -406,15 +406,24 @@ Important integration tests:
   piece's mirror plane; it goes from one to the next the short way round,
   no faster than `TOP_SPEED`, so a cue can rock, turn, or anything between.
   It breeds them: from seeds rocking and turning at a spread of speeds, by
-  bumps, stretches, widening and crossing. Each is tried `TRYING` on the
-  table, scored for the hands (the plan's `Hand` faces; with none, the
-  three highest joints) swinging about `EXPRESSIVE` against the deck, less
-  for the crank's work (`EFFORT`); it keeps the best of each kind of swing
-  (`Quake::alike` under `DISTINCT`, the hands' way through the loop,
-  wherever it starts), at most `KEPT`, and after every `ROUND` tries plays
-  them in turn, `PLAYING` each. The kept cues are named A to F by where they are
-  kept; the subtitle names the one playing, or the one tried (`B′` a child
-  of B, `?` a seed), with what the stepper is told (`Cue::describe`):
+  bumps, stretches, widening and crossing, out of sight: each tried
+  `TRYING` on a copy of the piece as it stood when Quake was pressed,
+  `ROUND` side by side on their own threads (one after another on the
+  web), about eight tries a second. Each is scored for the hands (the
+  plan's `Hand` faces; with none, the highest joint off the symmetry axis
+  or plane with its images; with no symmetry, the three highest joints)
+  swinging about `EXPRESSIVE` against the deck, less for the crank's work
+  (`EFFORT`); it keeps the best of each kind of swing (`Quake::alike` under
+  `DISTINCT`, the hands' way through the loop, wherever it starts), at most
+  `KEPT`, and stops after `STALE` rounds with no find (a new kind, or one
+  `NOTABLE` better) or `MOST_TRIES`. The piece itself only plays: each
+  find `SHOWING`, then the kept in turn, `PLAYING` each once breeding has
+  stopped. Each time it finds, the kept cues are written to
+  `cues/<fabric>.txt` (native only; `quake::cues_file`), one a line with the
+  DMX frames after `|`, and tried first the next time Quake is pressed, so
+  breeding carries on from them. The kept cues are named A to F by where they are kept; the
+  subtitle names the one playing, with what the stepper is told
+  (`Cue::describe`) and, while it breeds, how many tried:
   `A 34f 130 149/5 107/8 130/21` is a 34-frame loop from position 130,
   turning back at 149 after 5 frames, at 107 after 8 more, home after 21;
   `B 34f ↻1 128` turns once round each loop.
@@ -424,7 +433,9 @@ Important integration tests:
   faces between two) a hook drops from the deck and an arm rises from the
   base, a tie between them, and the cables run from the crank's pin to the
   hooks. Only a Medium piece has one (`Fabric::quake`, there from the start
-  of its build); the Quake button is shown only for Medium.
+  of its build); the Quake button is shown only for Medium. Open Claw and
+  Halo by Crane are built turned (`FabricDimensions::table_turn`) to stand
+  a foot over each hanger.
 - `src/fabric_smoke_test.rs` — `test_all_fabrics_build_medium`: every plan
   builds at Medium too, about 1.5 m tall, on its table.
 - `src/quadruped.rs` — `quadruped_is_buildable`: Quadruped's connectors

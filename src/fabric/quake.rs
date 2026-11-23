@@ -6,12 +6,14 @@
 //! hooks draws the deck after the pin. The piece's feet stand on the deck
 //! and go with it, and pull on it in turn.
 //!
-//! The stepper plays cues (`Cue`), DMX loops of the crank's position, and
-//! breeds them. It watches the piece's hands (or, with none, its highest
-//! joints) swing against the deck while it tries each cue, scoring it for
-//! the hands swinging expressively and for how little the crank works, and
-//! keeps the best of each kind of swing, unlike one another. Every so often
-//! it plays what it has kept, each in turn, then breeds on.
+//! The stepper plays cues (`Cue`), DMX loops of the crank's position, bred
+//! out of sight: each tried on a copy of the piece as it stood when Quake
+//! was pressed, `ROUND` at a time side by side. A try watches the piece's
+//! hands (or, with none, its highest joints) swing against the deck,
+//! scoring the cue for the hands swinging expressively and for how little
+//! the crank works, and the best of each kind of swing is kept, unlike one
+//! another. The piece itself plays what is kept: each new find a moment,
+//! and once breeding has stopped finding, each in turn.
 
 use crate::fabric::cue::Cue;
 use crate::fabric::dimensions::Hardware;
@@ -22,9 +24,12 @@ use crate::Age;
 use glam::{Quat, Vec3};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use crate::fabric::physics::Physics;
 use slotmap::SecondaryMap;
 use std::collections::VecDeque;
 use std::f32::consts::{PI, TAU};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 /// The deck's top, where the piece stands, above the floor.
 pub const DECK_HEIGHT: f32 = 0.45;
@@ -66,10 +71,19 @@ const EXPRESSIVE: f32 = 0.04;
 /// A cue is tried this long, listened to after it has had time to build.
 const TRYING: Seconds = Seconds(12.0);
 const SETTLING_IN: Seconds = Seconds(4.0);
-/// A cue kept is played this long.
+/// A cue kept is played this long, and one just found this long.
 const PLAYING: Seconds = Seconds(15.0);
-/// After this many tries, it plays what it has kept.
-const ROUND: u32 = 8;
+const SHOWING: Seconds = Seconds(5.0);
+/// With nothing kept yet, it looks again this often.
+const WAITING: Seconds = Seconds(0.25);
+/// Cues tried side by side, a round of them.
+const ROUND: usize = 8;
+/// Breeding stops after this many rounds finding nothing new or better, or
+/// after this many tries.
+const STALE: u32 = 10;
+const MOST_TRIES: u32 = 400;
+/// A kept cue bettered by this much is a find.
+const NOTABLE: f32 = 0.05;
 /// It keeps at most this many cues.
 const KEPT: usize = 6;
 /// How much the crank's work counts against a cue, against its hands'
@@ -132,12 +146,212 @@ pub struct Kept {
     shape: Vec<f32>,
 }
 
-/// What the stepper does with a cue: try it, a child of a kept one or a
-/// seed, or play one kept.
+/// What the stepper does: try a cue, on a copy of the piece, play one kept
+/// for so long, or wait at its zero for one to be found.
 #[derive(Clone, Debug, PartialEq)]
 enum Task {
-    Try(Cue, Option<usize>),
-    Play(usize),
+    Try(Cue),
+    Play(usize, Cue, Seconds),
+    Wait,
+}
+
+/// The breeding: the seeds still to try, the cues kept, unlike one another,
+/// each named by where it is kept, and how many have been tried.
+#[derive(Clone, Debug)]
+struct Breeder {
+    seeds: VecDeque<Cue>,
+    kept: Vec<Kept>,
+    tries: u32,
+    random: ChaCha8Rng,
+}
+
+impl Breeder {
+    /// Breeding from `remembered` cues, tried first, and then the seeds.
+    fn new(remembered: Vec<Cue>) -> Breeder {
+        let seeds = remembered.into_iter().chain(Cue::seeds()).collect();
+        Breeder { seeds, kept: Vec::new(), tries: 0, random: ChaCha8Rng::seed_from_u64(1) }
+    }
+
+    /// The next cue to try: a seed, or a child of those kept.
+    fn next(&mut self) -> Cue {
+        self.seeds.pop_front().unwrap_or_else(|| self.child())
+    }
+
+    /// A child of the cues kept: of the better of a pair drawn, sometimes
+    /// crossed with another; with none kept, of a seed.
+    fn child(&mut self) -> Cue {
+        if self.kept.is_empty() {
+            let seeds = Cue::seeds();
+            let seed = &seeds[self.random.gen_range(0..seeds.len())];
+            return seed.mutated(None, &mut self.random);
+        }
+        let draw = |random: &mut ChaCha8Rng| {
+            let (a, b) = (random.gen_range(0..self.kept.len()), random.gen_range(0..self.kept.len()));
+            if self.kept[a].score >= self.kept[b].score { a } else { b }
+        };
+        let parent = draw(&mut self.random);
+        let other = draw(&mut self.random);
+        let other = (other != parent && self.random.gen_bool(0.3)).then(|| self.kept[other].cue.clone());
+        self.kept[parent].cue.mutated(other.as_ref(), &mut self.random)
+    }
+
+    /// A cue tried: kept if the hands swung and no kept cue's swing is like
+    /// it, or in place of the one whose is (only one) but did less well, or
+    /// of the worst when there are enough; and where, if it is a find: a new
+    /// kind, or `NOTABLE` better.
+    fn keep(&mut self, found: Kept) -> Option<usize> {
+        self.tries += 1;
+        if found.swing <= EXPRESSIVE / 2.0 {
+            return None;
+        }
+        let alike: Vec<usize> =
+            (0..self.kept.len()).filter(|&index| Quake::alike(&self.kept[index].shape, &found.shape) >= DISTINCT).collect();
+        match alike[..] {
+            [index] if found.score > self.kept[index].score => {
+                let better = found.score - self.kept[index].score;
+                self.kept[index] = found;
+                (better >= NOTABLE).then_some(index)
+            }
+            [_, ..] => None,
+            [] if self.kept.len() < KEPT => {
+                self.kept.push(found);
+                Some(self.kept.len() - 1)
+            }
+            [] => {
+                let worst = (0..self.kept.len()).min_by(|&a, &b| self.kept[a].score.total_cmp(&self.kept[b].score))?;
+                (found.score > self.kept[worst].score).then(|| {
+                    self.kept[worst] = found;
+                    worst
+                })
+            }
+        }
+    }
+}
+
+/// The breeding, shared with the rounds run out of sight: where each find
+/// was kept, in turn, whether it is still breeding, whether it should
+/// stop, and where what it keeps is remembered.
+#[derive(Debug)]
+struct Shared {
+    breeder: Breeder,
+    finds: Vec<usize>,
+    breeding: bool,
+    stop: bool,
+    memory: Option<PathBuf>,
+}
+
+/// Where the cues kept for the piece `name` are remembered between runs.
+pub fn cues_file(name: &str) -> PathBuf {
+    PathBuf::from("cues").join(format!("{}.txt", name.to_lowercase().replace(' ', "-")))
+}
+
+/// The cues remembered in `path`: each line a kept cue, what the stepper
+/// is told after `|`.
+fn remembered(path: &Path) -> Vec<Cue> {
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return Vec::new();
+    };
+    text.lines()
+        .filter(|line| !line.starts_with('#'))
+        .filter_map(|line| Cue::parse(line.split_once('|')?.1))
+        .collect()
+}
+
+/// Remember `kept` in `path`, A first: its name, score, how far the hands
+/// swung, what it is (`Cue::describe`), and after `|` its DMX frames.
+fn remember(path: &Path, kept: &[Kept]) {
+    let mut text = String::from("# Wobble table cues, kept by Quake and tried first next time.\n");
+    text += "# name score hands description | DMX frames, 44 a second, 128 the crank's zero\n";
+    for (index, kept) in kept.iter().enumerate() {
+        let frames: Vec<String> = kept.cue.frames.iter().map(u8::to_string).collect();
+        text += &format!(
+            "{} {:.2} {:.0}mm {} | {}\n",
+            letter(index),
+            kept.score,
+            kept.swing * 1000.0,
+            kept.cue.describe(),
+            frames.join(" ")
+        );
+    }
+    let written = path.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|_| std::fs::write(path, text));
+    if let Err(error) = written {
+        eprintln!("Couldn't remember the cues in {}: {error}", path.display());
+    }
+}
+
+/// The piece's link to its breeding. A copy of the piece has none, and when
+/// the piece goes, its breeding stops.
+#[derive(Debug, Default)]
+struct Search(Option<Arc<Mutex<Shared>>>);
+
+impl Clone for Search {
+    fn clone(&self) -> Self {
+        Search(None)
+    }
+}
+
+impl Drop for Search {
+    fn drop(&mut self) {
+        if let Some(shared) = &self.0 {
+            shared.lock().unwrap().stop = true;
+        }
+    }
+}
+
+/// Each cue tried on its own copy of `piece`, side by side.
+fn trials(piece: &Fabric, physics: &Physics, cues: Vec<Cue>) -> Vec<Option<Kept>> {
+    #[cfg(not(target_arch = "wasm32"))]
+    return std::thread::scope(|scope| {
+        let tries: Vec<_> = cues.into_iter().map(|cue| scope.spawn(move || trial(piece, physics, cue))).collect();
+        tries.into_iter().map(|try_| try_.join().unwrap()).collect()
+    });
+    #[cfg(target_arch = "wasm32")]
+    cues.into_iter().map(|cue| trial(piece, physics, cue)).collect()
+}
+
+/// `cue` tried on a copy of `piece`, for as long as a try lasts.
+fn trial(piece: &Fabric, physics: &Physics, cue: Cue) -> Option<Kept> {
+    let mut fabric = piece.clone();
+    let quake = fabric.quake.as_mut()?;
+    quake.next = Some(Task::Try(cue));
+    quake.begin(fabric.age);
+    loop {
+        fabric.iterate(physics);
+        if let Some(found) = fabric.quake.as_mut()?.found.take() {
+            return Some(found);
+        }
+    }
+}
+
+/// Breed in rounds, each cue tried on its own copy of `piece`, until it
+/// stops finding or is told to stop.
+fn breed(shared: Arc<Mutex<Shared>>, piece: Fabric, physics: Physics) {
+    let mut stale = 0;
+    loop {
+        let cues: Vec<Cue> = {
+            let mut shared = shared.lock().unwrap();
+            if shared.stop {
+                break;
+            }
+            (0..ROUND).map(|_| shared.breeder.next()).collect()
+        };
+        let found = trials(&piece, &physics, cues);
+        let mut shared = shared.lock().unwrap();
+        let before = shared.finds.len();
+        for found in found.into_iter().flatten() {
+            if let Some(index) = shared.breeder.keep(found) {
+                shared.finds.push(index);
+            }
+        }
+        stale = if shared.finds.len() > before { 0 } else { stale + 1 };
+        if let (Some(memory), true) = (&shared.memory, shared.finds.len() > before) {
+            remember(memory, &shared.breeder.kept);
+        }
+        if stale >= STALE || shared.breeder.tries >= MOST_TRIES {
+            break;
+        }
+    }
+    shared.lock().unwrap().breeding = false;
 }
 
 /// A kept cue's name: A to F, by where it is kept.
@@ -221,16 +435,14 @@ pub struct Quake {
     /// Each joint standing on the deck: where on the deck, and where it was
     /// put.
     standing: SecondaryMap<JointKey, (Vec3, Vec3)>,
-    /// What the stepper plays, what comes once it is back at its zero, the
-    /// seeds still to try, and how many tries since it last played.
+    /// What the stepper plays, and what comes once it is back at its zero.
     task: Option<Task>,
     next: Option<Task>,
-    seeds: VecDeque<Cue>,
-    tries: u32,
-    since_played: u32,
-    /// The cues kept, unlike one another, each named by where it is kept.
-    kept: Vec<Kept>,
-    random: ChaCha8Rng,
+    /// The breeding, and how many of its finds have been played.
+    search: Search,
+    played: usize,
+    /// A cue tried on a copy of the piece, once its try is done.
+    found: Option<Kept>,
 }
 
 impl Quake {
@@ -259,17 +471,16 @@ impl Quake {
             standing: SecondaryMap::new(),
             task: None,
             next: None,
-            seeds: Cue::seeds().into(),
-            tries: 0,
-            since_played: 0,
-            kept: Vec::new(),
-            random: ChaCha8Rng::seed_from_u64(1),
+            search: Search::default(),
+            played: 0,
+            found: None,
         }
     }
 
     /// The piece `fabric` landed on the table: its weight on the ties, and
     /// `hands` watched, or with none the highest joint off its symmetry
-    /// axis or plane, with its images.
+    /// axis or plane, with its images, or with no symmetry its three
+    /// highest joints.
     pub fn mount(&mut self, fabric: &Fabric, hands: &[JointKey]) {
         let piece = fabric.joints.values().map(|joint| joint.accumulated_mass.f32()).sum::<f32>() / 1000.0;
         self.weight = (self.mass + piece) * EARTH_GRAVITY.f32();
@@ -285,6 +496,11 @@ impl Quake {
             if let Some(number) = highest.and_then(twin) {
                 watched = fabric.joints.keys().filter(|&key| twin(key) == Some(number)).collect();
             }
+        }
+        if watched.is_empty() {
+            let mut highest: Vec<JointKey> = fabric.joints.keys().collect();
+            highest.sort_by(|&a, &b| fabric.joints[b].location.y.total_cmp(&fabric.joints[a].location.y));
+            watched = highest.into_iter().take(3).collect();
         }
         self.watched = watched.into_iter().map(|key| Watched { key, stance: fabric.joints[key].location }).collect();
     }
@@ -303,57 +519,88 @@ impl Quake {
         self.response
     }
 
+    /// What the breeding has come to: the cues kept, where each find was
+    /// kept in turn, how many tried, and whether it is still breeding.
+    fn shared<T>(&self, look: impl FnOnce(&Shared) -> T) -> Option<T> {
+        self.search.0.as_ref().map(|shared| look(&shared.lock().unwrap()))
+    }
+
     /// The cues kept so far, A first.
-    pub fn kept(&self) -> &[Kept] {
-        &self.kept
+    pub fn kept(&self) -> Vec<Kept> {
+        self.shared(|shared| shared.breeder.kept.clone()).unwrap_or_default()
     }
 
     /// How many cues it has tried.
     pub fn tries(&self) -> u32 {
-        self.tries
+        self.shared(|shared| shared.breeder.tries).unwrap_or(0)
+    }
+
+    /// Whether it is still breeding.
+    pub fn breeding(&self) -> bool {
+        self.shared(|shared| shared.breeding).unwrap_or(false)
     }
 
     /// The kept cue it plays, if it plays one.
     pub fn playing(&self) -> Option<usize> {
         match (&self.task, self.running()) {
-            (Some(Task::Play(index)), true) => Some(*index),
+            (Some(Task::Play(index, ..)), true) => Some(*index),
             _ => None,
         }
     }
 
     /// What the stepper is doing, for the subtitle, briefly: the kept cue
-    /// it plays, by its letter, or the one it tries, a child of a kept one
-    /// (`B′`) or a seed (`?`), and what the stepper is told
-    /// (`Cue::describe`).
+    /// it plays, by its letter, and what the stepper is told
+    /// (`Cue::describe`), and while it breeds, how many tried.
     pub fn describe(&self) -> String {
         let (Some(motor), Some(task)) = (&self.motor, &self.task) else {
             return "stopped".to_string();
         };
         let name = |task: &Task| match task {
-            Task::Play(index) => letter(*index).to_string(),
-            Task::Try(_, Some(parent)) => format!("{}′", letter(*parent)),
-            Task::Try(_, None) => "?".to_string(),
+            Task::Play(index, ..) => letter(*index).to_string(),
+            _ => "?".to_string(),
         };
         if motor.stopping {
             return self.next.as_ref().map_or("stopping".to_string(), |next| format!("→ {}", name(next)));
         }
-        match task {
-            Task::Try(cue, _) => format!("{} {}", name(task), cue.describe()),
-            Task::Play(index) => {
-                let kept = &self.kept[*index];
-                format!("{} {}", name(task), kept.cue.describe())
-            }
-        }
+        let (tries, breeding) = self.shared(|shared| (shared.breeder.tries, shared.breeding)).unwrap_or_default();
+        let playing = match task {
+            Task::Play(_, cue, _) => format!("{} {}", name(task), cue.describe()),
+            Task::Try(cue) => cue.describe(),
+            Task::Wait => "breeding".to_string(),
+        };
+        if breeding { format!("{playing} · {tries} tried") } else { playing }
     }
 
-    /// The Quake button: it breeds cues, trying each, every so often
-    /// playing those it has kept, until pressed again.
-    pub fn advance(&mut self, age: Age) {
+    /// The Quake button: it breeds cues on copies of `piece`, as it stands
+    /// now, playing what it keeps, until pressed again. With a `memory`,
+    /// the cues kept there before are tried first, and what it keeps is
+    /// kept there.
+    pub fn advance(&mut self, age: Age, piece: Option<(Fabric, Physics)>, memory: Option<PathBuf>) {
         if self.running() {
             self.then(age, None);
-        } else {
-            self.go_on(age);
+            if let Some(shared) = &self.search.0 {
+                shared.lock().unwrap().stop = true;
+            }
+            return;
         }
+        let shared = self.search.0.get_or_insert_with(|| {
+            let remembered = memory.as_deref().map(remembered).unwrap_or_default();
+            Arc::new(Mutex::new(Shared { breeder: Breeder::new(remembered), finds: Vec::new(), breeding: false, stop: false, memory }))
+        });
+        let start = {
+            let mut shared = shared.lock().unwrap();
+            let start = !shared.breeding;
+            (shared.breeding, shared.stop) = (true, false);
+            start
+        };
+        if let (true, Some((piece, physics))) = (start, piece) {
+            let shared = Arc::clone(shared);
+            #[cfg(not(target_arch = "wasm32"))]
+            std::thread::spawn(move || breed(shared, piece, physics));
+            #[cfg(target_arch = "wasm32")]
+            breed(shared, piece, physics);
+        }
+        self.go_on(age);
     }
 
     /// Bring the crank back to its zero and stop.
@@ -361,42 +608,26 @@ impl Quake {
         self.then(age, None);
     }
 
-    /// On to what is next: the next kept cue while it plays them, or when
-    /// it has tried enough, or else a seed, or a child of those kept.
+    /// On to what is next: the newest find, a moment, or else the next
+    /// kept cue, a moment while it breeds, or with none yet, waiting for
+    /// one.
     fn go_on(&mut self, age: Age) {
-        let next = match &self.task {
-            Some(Task::Play(index)) if index + 1 < self.kept.len() => Some(Task::Play(index + 1)),
-            _ if self.seeds.is_empty() && self.since_played >= ROUND && !self.kept.is_empty() => {
-                self.since_played = 0;
-                Some(Task::Play(0))
-            }
-            _ => Some(match self.seeds.pop_front() {
-                Some(seed) => Task::Try(seed, None),
-                None => {
-                    let (cue, parent) = self.child();
-                    Task::Try(cue, parent)
-                }
-            }),
+        let (finds, kept, breeding) =
+            self.shared(|shared| (shared.finds.clone(), shared.breeder.kept.clone(), shared.breeding)).unwrap_or_default();
+        let next = if finds.len() > self.played {
+            self.played = finds.len();
+            let index = finds[finds.len() - 1];
+            Task::Play(index, kept[index].cue.clone(), SHOWING)
+        } else if !kept.is_empty() {
+            let index = match self.task {
+                Some(Task::Play(index, ..)) => (index + 1) % kept.len(),
+                _ => 0,
+            };
+            Task::Play(index, kept[index].cue.clone(), if breeding { SHOWING } else { PLAYING })
+        } else {
+            Task::Wait
         };
-        self.then(age, next);
-    }
-
-    /// A child of the cues kept, and which: of the better of a pair drawn,
-    /// sometimes crossed with another; with none kept, of a seed.
-    fn child(&mut self) -> (Cue, Option<usize>) {
-        if self.kept.is_empty() {
-            let seeds = Cue::seeds();
-            let seed = &seeds[self.random.gen_range(0..seeds.len())];
-            return (seed.mutated(None, &mut self.random), None);
-        }
-        let draw = |random: &mut ChaCha8Rng| {
-            let (a, b) = (random.gen_range(0..self.kept.len()), random.gen_range(0..self.kept.len()));
-            if self.kept[a].score >= self.kept[b].score { a } else { b }
-        };
-        let parent = draw(&mut self.random);
-        let other = draw(&mut self.random);
-        let other = (other != parent && self.random.gen_bool(0.3)).then(|| self.kept[other].cue.clone());
-        (self.kept[parent].cue.mutated(other.as_ref(), &mut self.random), Some(parent))
+        self.then(age, Some(next));
     }
 
     /// Bring the crank back to its zero, then do `next`.
@@ -421,21 +652,18 @@ impl Quake {
     /// The cue it plays now.
     fn cue(&self) -> Option<&Cue> {
         match self.task.as_ref()? {
-            Task::Try(cue, _) => Some(cue),
-            Task::Play(index) => Some(&self.kept[*index].cue),
+            Task::Try(cue) | Task::Play(_, cue, _) => Some(cue),
+            Task::Wait => None,
         }
     }
 
-    /// Done with the cue in hand: a cue tried is scored, and kept if the
-    /// hands swung and no kept cue's swing is like it, or in place of one
-    /// whose is but did less well, or of the worst when there are enough.
+    /// Done with the cue in hand: a cue tried is scored and the try ends,
+    /// or it goes on to what is next.
     fn done(&mut self, age: Age) {
-        let (Some(Task::Try(cue, _)), Some(motor)) = (self.task.clone(), &self.motor) else {
+        let (Some(Task::Try(cue)), Some(motor)) = (self.task.clone(), &self.motor) else {
             self.go_on(age);
             return;
         };
-        self.tries += 1;
-        self.since_played += 1;
         let hearing = &motor.hearing;
         let ticks = hearing.ticks.max(1) as f32;
         let swing = hearing.swing / ticks;
@@ -449,21 +677,8 @@ impl Quake {
             .zip(&hearing.counts)
             .flat_map(|(sum, &count)| (*sum / count.max(1) as f32).to_array())
             .collect();
-        let found = Kept { cue, score, swing, shape };
-        if swing > EXPRESSIVE / 2.0 {
-            match self.kept.iter().position(|kept| Self::alike(&kept.shape, &found.shape) >= DISTINCT) {
-                Some(index) if found.score > self.kept[index].score => self.kept[index] = found,
-                Some(_) => {}
-                None if self.kept.len() < KEPT => self.kept.push(found),
-                None => {
-                    let worst = (0..self.kept.len()).min_by(|&a, &b| self.kept[a].score.total_cmp(&self.kept[b].score));
-                    if let Some(worst) = worst.filter(|&worst| found.score > self.kept[worst].score) {
-                        self.kept[worst] = found;
-                    }
-                }
-            }
-        }
-        self.go_on(age);
+        self.found = Some(Kept { cue, score, swing, shape });
+        (self.task, self.motor) = (None, None);
     }
 
     /// How alike two swings are, whatever their size and wherever in the
@@ -530,7 +745,8 @@ impl Quake {
         }
         let lasts = match self.task {
             Some(Task::Try(..)) => TRYING.0,
-            _ => PLAYING.0,
+            Some(Task::Play(_, _, seconds)) => seconds.0,
+            _ => WAITING.0,
         };
         if elapsed >= lasts {
             self.done(age);
@@ -672,10 +888,31 @@ mod tests {
         (executor.fabric, physics)
     }
 
+    /// Kept cues remembered in a file come back as the cues tried first.
+    #[test]
+    fn kept_cues_are_remembered() {
+        let path = std::env::temp_dir().join("tensegrity-lab-cues").join("remembered.txt");
+        let kept: Vec<Kept> = [Cue::rocking(2.0, 30.0), Cue::turning(1.3)]
+            .into_iter()
+            .map(|cue| Kept { cue, score: 0.8, swing: 0.04, shape: Vec::new() })
+            .collect();
+        remember(&path, &kept);
+        let cues = remembered(&path);
+        assert_eq!(cues, kept.iter().map(|kept| kept.cue.clone()).collect::<Vec<_>>());
+        assert_eq!(Breeder::new(cues).next(), kept[0].cue);
+    }
+
+    /// Quake pressed on `fabric`, as the button does.
+    fn press(fabric: &mut Fabric, physics: &Physics) {
+        let age = fabric.age;
+        let piece = fabric.quake.as_ref().is_some_and(|quake| !quake.running()).then(|| (fabric.clone(), physics.clone()));
+        fabric.quake.as_mut().unwrap().advance(age, piece, None);
+    }
+
     /// A Medium Headless Hug on its wobble table, Quake pressed once: it
-    /// tries its seeds, keeps cues unlike one another that swing the hands,
-    /// then plays them in turn. Pressed again the crank goes back to its
-    /// zero, and the piece stands where it stood.
+    /// breeds cues on copies of itself, keeps several unlike one another
+    /// that swing the hands, and plays them. Pressed again the crank goes
+    /// back to its zero, and the piece stands where it stood.
     #[test]
     fn medium_headless_hug_rides_the_wobble_table() {
         let (mut fabric, physics) = medium(FabricName::HeadlessHug);
@@ -683,27 +920,31 @@ mod tests {
         fabric.take_motion();
         let before: Vec<Vec3> = fabric.joints.values().map(|joint| joint.location).collect();
         let per_second = Age::iterations_per_second() as usize;
-        fabric.quake.as_mut().unwrap().advance(fabric.age);
+        press(&mut fabric, &physics);
+        while fabric.quake.as_ref().unwrap().breeding() {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
         let mut ticks = 0;
         while fabric.quake.as_ref().unwrap().playing().is_none() {
             fabric.iterate(&physics);
             ticks += 1;
-            assert!(ticks < 600 * per_second, "it played what it kept within ten minutes");
+            assert!(ticks < 60 * per_second, "it played what it kept within a minute");
         }
         let quake = fabric.quake.as_ref().unwrap();
         for kept in quake.kept() {
             eprintln!("{} scored {:.2}, hands {:.0} mm", kept.cue.describe(), kept.score, kept.swing * 1000.0);
         }
-        assert!(quake.kept().len() > 1, "it kept {} cues", quake.kept().len());
-        for (index, a) in quake.kept().iter().enumerate() {
-            for b in &quake.kept()[index + 1..] {
+        let kept = quake.kept();
+        assert!(kept.len() > 1, "it kept {} cues", kept.len());
+        for (index, a) in kept.iter().enumerate() {
+            for b in &kept[index + 1..] {
                 assert!(Quake::alike(&a.shape, &b.shape) < DISTINCT, "two kept cues swing alike");
             }
         }
         for _ in 0..20 * per_second {
             fabric.iterate(&physics);
         }
-        fabric.quake.as_mut().unwrap().advance(fabric.age);
+        press(&mut fabric, &physics);
         assert!(!fabric.quake.as_ref().unwrap().running(), "pressed again, it stops");
         for _ in 0..30 * per_second {
             fabric.iterate(&physics);
@@ -720,26 +961,26 @@ mod tests {
     }
 
     /// Breed cues for a Medium piece (`PROBE` names the fabric, Headless
-    /// Hug by default; `TRIES` how many, 100 by default) and print those
-    /// kept as DMX loops, for the electronics.
+    /// Hug by default) until it stops finding, and print those kept as DMX
+    /// loops, for the electronics.
     #[test]
     #[ignore]
     fn breed_wobble_cues() {
         let name: FabricName = std::env::var("PROBE").ok().and_then(|name| name.parse().ok()).unwrap_or(FabricName::HeadlessHug);
-        let tries: u32 = std::env::var("TRIES").ok().and_then(|tries| tries.parse().ok()).unwrap_or(100);
         let (mut fabric, physics) = medium(name);
-        fabric.quake.as_mut().unwrap().advance(fabric.age);
+        let started = std::time::Instant::now();
+        press(&mut fabric, &physics);
+        let quake = fabric.quake.as_ref().unwrap();
         let mut reported = 0;
-        while fabric.quake.as_ref().unwrap().tries() < tries {
-            fabric.iterate(&physics);
-            let quake = fabric.quake.as_ref().unwrap();
+        while quake.breeding() {
+            std::thread::sleep(std::time::Duration::from_millis(100));
             if quake.tries() != reported {
                 reported = quake.tries();
                 let best: Vec<String> = quake.kept().iter().map(|kept| format!("{:.2}", kept.score)).collect();
-                eprintln!("try {reported}: kept {}", best.join(" "));
+                eprintln!("{:.1} s, {reported} tried: kept {}", started.elapsed().as_secs_f32(), best.join(" "));
             }
         }
-        for (index, kept) in fabric.quake.as_ref().unwrap().kept().iter().enumerate() {
+        for (index, kept) in quake.kept().iter().enumerate() {
             eprintln!(
                 "// {} {}: scored {:.2}, hands {:.0} mm\n{:?}",
                 letter(index),

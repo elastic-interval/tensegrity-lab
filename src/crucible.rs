@@ -403,8 +403,13 @@ impl Crucible {
             CrucibleAction::Quake => {
                 let fabric = &mut *context.fabric;
                 let age = fabric.age;
+                let piece = fabric.quake.as_ref().is_some_and(|quake| !quake.running()).then(|| (fabric.clone(), context.physics.clone()));
                 if let Some(quake) = &mut fabric.quake {
-                    quake.advance(age);
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let memory = Some(quake::cues_file(&fabric.name));
+                    #[cfg(target_arch = "wasm32")]
+                    let memory = None;
+                    quake.advance(age, piece, memory);
                     fabric.unfreeze();
                 }
             }
