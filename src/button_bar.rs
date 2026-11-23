@@ -4,7 +4,9 @@ use crate::CrucibleAction::*;
 use crate::LabEvent::*;
 use crate::fabric::dimensions::Size;
 use crate::units::Meters;
-use crate::{ControlState, LabEvent, StateChange, TesterAction, TweakFeature};
+use crate::build::dsl::fabric_library::FabricName;
+use crate::{ControlState, LabEvent, RunStyle, StateChange, TesterAction, TweakFeature};
+use strum::IntoEnumIterator;
 
 /// How much faster than real time Fast-forward runs.
 pub const FAST_FORWARD: f32 = 10.0;
@@ -32,14 +34,15 @@ pub struct ButtonBar {
 
 impl ButtonBar {
     /// A Large fabric has everything but the quake, which is the wobble
-    /// table under a Medium piece. A Medium piece has no connectors, so no
-    /// parts, and no wind or assembly. A Small one, a model at
-    /// `--model-scale`, is for building from: none of these, nor animation.
+    /// table under a Medium piece. Only a Large one animates. A Medium
+    /// piece has no connectors, so no parts, and no wind or assembly. A
+    /// Small one, a model at `--model-scale`, is for building from: none of
+    /// these.
     pub fn new(size: Size) -> Self {
         let mut bar = ButtonBar { entries: Vec::new() };
         bar.once("Back to joint", |s| matches!(s, ShowingInterval(_)), UpdateState(StateChange::BackToJoint));
         bar.once("Deselect", |s| matches!(s, ShowingJoint(_)), Crucible(ClearSelection));
-        if size != Size::Small {
+        if size == Size::Large {
             bar.once(
                 "Start animation",
                 |s| matches!(s, Viewing { animation_available: true, .. }),
@@ -84,7 +87,7 @@ impl ButtonBar {
             );
         }
         bar.once("Next brick", |s| matches!(s, Baking), NextBrick);
-        bar.once("Reload", |s| matches!(s, Viewing { .. }), RebuildFabric);
+        bar.once("Choose", |s| matches!(s, Viewing { .. }), ToggleChoosing);
         bar.entries.last_mut().unwrap().quaking = Some(false);
         for (label, feature) in [("Mass", TweakFeature::MassScale), ("Rigidity", TweakFeature::RigidityScale)] {
             bar.entries.push(Entry {
@@ -101,8 +104,16 @@ impl ButtonBar {
     }
 
     /// The buttons that apply in `control_state`, the wobble table
-    /// `quaking` or not, in groups to keep together.
-    pub fn buttons(&self, control_state: &ControlState, quaking: bool) -> Vec<Vec<Button<LabEvent>>> {
+    /// `quaking` or not, in groups to keep together; or while `choosing`, a
+    /// button for each fabric, and Back.
+    pub fn buttons(&self, control_state: &ControlState, quaking: bool, choosing: bool) -> Vec<Vec<Button<LabEvent>>> {
+        if choosing {
+            let fabrics = FabricName::iter().map(|fabric_name| {
+                let run = Run(RunStyle::Fabric { fabric_name, record: None, export_fps: 100.0 });
+                vec![Button::new(&fabric_name.to_string(), run)]
+            });
+            return fabrics.chain([vec![Button::new("Back", ToggleChoosing)]]).collect();
+        }
         self.entries
             .iter()
             .filter(|entry| (entry.shows_in)(control_state) && entry.quaking.is_none_or(|when| when == quaking))

@@ -50,9 +50,9 @@ stands (Viewing).
 | Quake / Stop quake | Medium only. Breeds DMX cues for the wobble table's stepper on copies of the piece, eight at a time out of sight, while the piece plays each find; it breeds on until pressed again (`src/fabric/quake.rs`, `src/fabric/cue.rs`) |
 | Demo | While Quake runs. Plays the kept cues A–F in turn, 15 s each, breeding waiting, then breeds on |
 | Take apart | Large only. Headless Hug and Open Claw: taken apart strut by strut on a crane hook, then straight away put together again, in real time (`src/build/assembly.rs`) |
-| Start / Stop animation | The animation |
+| Start / Stop animation | Large only. The animation |
+| Choose | In Viewing. A button for each fabric, to build it at the same size, and Back |
 | Parts | Large only. The parts, full screen; Back to return |
-| Reload | Reload the fabric |
 | Deselect / Back to joint | Step back out of a selection |
 
 The connector hardware always shows at real scale, and only at Large. Small and Medium start

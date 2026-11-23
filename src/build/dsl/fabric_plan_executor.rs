@@ -715,9 +715,11 @@ impl FabricPlanExecutor {
     }
 
     /// A Medium piece, landed and its guy lines on, is mounted on its
-    /// wobble table.
+    /// wobble table, fitted to where it stands, and fitted again when it
+    /// has settled.
     fn mount_on_table(&mut self) {
         if let Some(mut quake) = self.fabric.quake.take() {
+            quake.fit(&self.fabric);
             if !quake.mounted() {
                 quake.mount(&self.fabric);
             }

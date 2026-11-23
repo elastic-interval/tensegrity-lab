@@ -10,10 +10,11 @@ use crate::build::dsl::settle_phase::{GuyLine, SettlePhase};
 use crate::build::dsl::shape_phase::ShapePhase;
 use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
 use crate::fabric::dimensions::{Size, MEDIUM_HEIGHT, MEDIUM_PRETENSION};
-use crate::fabric::quake::DECK_MARGIN;
+use crate::fabric::quake::{smallest_hexagon, ROOM, SMALLEST};
 use crate::units::{Meters, Unit};
-use glam::{Vec2, Vec3};
+use glam::{Quat, Vec2, Vec3};
 use std::collections::HashMap;
+use std::f32::consts::PI;
 use std::sync::{Mutex, OnceLock};
 use crate::fabric::FabricDimensions;
 
@@ -85,7 +86,7 @@ impl FabricPlan {
         if size == Size::Medium {
             let shrink = MEDIUM_HEIGHT.f32() / height;
             self.dimensions.reach = Some(Meters(reach * shrink));
-            self.dimensions.table = Some(Meters(table * shrink));
+            self.dimensions.table = Some(Meters((table * shrink).max(SMALLEST)));
             self.dimensions = self.dimensions.drawn_medium();
             self.dimensions.scale = self.dimensions.scale * shrink;
             self.dimensions.altitude = self.dimensions.altitude * shrink;
@@ -124,6 +125,16 @@ impl FabricPlan {
         let spread = fabric.joints.values().fold(Vec2::ZERO, |most, joint| {
             most.max(Vec2::new((joint.location.x - middle.x).abs(), (joint.location.z - middle.z).abs()))
         });
+        // Its feet to be: its lowest joints, turned as it will stand on the
+        // table. Where they land, the deck is fitted again (`Quake::mount`).
+        let lowest = fabric.joints.values().map(|joint| joint.location.y).fold(f32::MAX, f32::min);
+        let turn = Quat::from_rotation_y(-self.dimensions.table_turn.0.to_radians());
+        let feet = fabric
+            .joints
+            .values()
+            .filter(|joint| joint.location.y < lowest + 0.02 * fabric.height().f32())
+            .map(|joint| turn * joint.location);
+        let feet = smallest_hexagon(feet);
         let guys = self.settle_phase.iter().flat_map(|settle| &settle.guy_lines);
         let anchors = guys.fold(0.0f32, |most, guy| {
             let (outward, along) = guy.ground_offset;
@@ -132,7 +143,7 @@ impl FabricPlan {
         let found = Built {
             height: fabric.height().f32(),
             reach: fabric.bounding_radius(),
-            table: spread.length().max(anchors) * 1.05 + DECK_MARGIN / MEDIUM_HEIGHT.f32() * fabric.height().f32(),
+            table: ROOM * feet.max(anchors / (PI / 6.0).cos()),
         };
         built.lock().unwrap().insert(self.name, found);
         found

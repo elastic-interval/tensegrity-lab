@@ -114,15 +114,45 @@ impl Cue {
         (frames.len() >= FRAMES.0).then_some(Cue { frames })
     }
 
-    /// Rocking `degrees` each way, `hertz` times a second.
+    /// Rocking `degrees` each way about the zero, pointing forward,
+    /// `hertz` times a second: the crank's pin swings across the front, so
+    /// it draws the deck from side to side.
     pub fn rocking(hertz: f32, degrees: f32) -> Cue {
+        Cue::rocking_about(ZERO, hertz, degrees)
+    }
+
+    /// Rocking about `centre`, a DMX value: about the side (`ZERO + 64`) the
+    /// pin swings fore and aft, about a diagonal both ways at once.
+    pub fn rocking_about(centre: u8, hertz: f32, degrees: f32) -> Cue {
         let (frames, cycles) = Self::span(hertz);
         let reach = degrees / 360.0 * 256.0;
         Cue {
             frames: (0..frames)
-                .map(|i| moved(ZERO, reach * (TAU * cycles as f32 * i as f32 / frames as f32).sin()))
+                .map(|i| moved(centre, reach * (TAU * cycles as f32 * i as f32 / frames as f32).sin()))
                 .collect(),
         }
+    }
+
+    /// Rocking about `centre` for `cycles` cycles at `hertz`, then holding
+    /// still there for `pause` seconds, so the piece rings on by itself.
+    pub fn pulsing(centre: u8, hertz: f32, degrees: f32, cycles: usize, pause: f32) -> Cue {
+        let driving = (cycles as f32 * DMX_RATE / hertz).round() as usize;
+        let holding = (pause * DMX_RATE).round() as usize;
+        let reach = degrees / 360.0 * 256.0;
+        Cue {
+            frames: (0..driving + holding)
+                .map(|i| {
+                    let phase = (TAU * cycles as f32 * i.min(driving) as f32 / driving as f32).sin();
+                    moved(centre, if i < driving { reach * phase } else { 0.0 })
+                })
+                .collect(),
+        }
+    }
+
+    /// Where it rocks about, as a DMX value: its frames' mean, round the
+    /// turn from the zero.
+    fn centre(&self) -> f32 {
+        self.frames.iter().map(|&value| step(ZERO, value)).sum::<f32>() / self.frames.len() as f32
     }
 
     /// Turning round `hertz` times a second.
@@ -137,11 +167,19 @@ impl Cue {
         ((cycles as f32 * DMX_RATE / hertz).round() as usize, cycles)
     }
 
-    /// Where breeding starts: rocking at a spread of speeds, and turning.
+    /// Where breeding starts: rocking at a spread of speeds about the
+    /// front, the side and a diagonal; a few cycles of rocking and then
+    /// holding still while the piece rings on; and turning.
     pub fn seeds() -> Vec<Cue> {
-        let rocking = [0.6, 0.8, 1.0, 1.3, 1.6, 2.0, 2.3, 2.6, 2.9].map(|hertz| Cue::rocking(hertz, 30.0));
+        const SIDE: u8 = ZERO + 64;
+        const DIAGONAL: u8 = ZERO + 32;
+        let front = [0.6, 0.8, 1.0, 1.3, 1.6, 2.0, 2.3, 2.6, 2.9].map(|hertz| Cue::rocking(hertz, 30.0));
+        let side = [0.8, 1.3, 2.0, 2.6].map(|hertz| Cue::rocking_about(SIDE, hertz, 30.0));
+        let diagonal = [1.0, 1.6, 2.3].map(|hertz| Cue::rocking_about(DIAGONAL, hertz, 30.0));
+        let pulses = [(ZERO, 1.3, 2), (ZERO, 2.0, 3), (SIDE, 1.3, 2), (SIDE, 2.0, 3)]
+            .map(|(centre, hertz, cycles)| Cue::pulsing(centre, hertz, 30.0, cycles, 2.0));
         let turning = [1.3, 2.1, 2.6].map(Cue::turning);
-        rocking.into_iter().chain(turning).collect()
+        front.into_iter().chain(side).chain(diagonal).chain(pulses).chain(turning).collect()
     }
 
     /// The value at `index` of this loop resampled to `frames` frames.
@@ -179,7 +217,14 @@ impl Cue {
             }
             2 if self.turns() == 0 => {
                 let wider = random.gen_range(0.75..1.3);
-                Cue { frames: self.frames.iter().map(|&value| moved(ZERO, step(ZERO, value) * wider)).collect() }
+                let centre = self.centre();
+                Cue {
+                    frames: self
+                        .frames
+                        .iter()
+                        .map(|&value| moved(ZERO, centre + (step(ZERO, value) - centre) * wider))
+                        .collect(),
+                }
             }
             3 if other.is_some() => {
                 let other = other.unwrap().resampled(frames);
@@ -226,6 +271,9 @@ mod tests {
         assert!((1.0 / (turning.seconds() / turning.turns() as f32) - 2.0).abs() < 0.1);
         assert_eq!(rocking.describe(), "44f 128 149/6 107/11 149/11 107/11 128/5");
         assert!(turning.describe().contains('↻'), "{}", turning.describe());
+        assert!(Cue::seeds().iter().all(|seed| seed.followable() && seed.frames.len() <= FRAMES.1));
+        let pulse = Cue::pulsing(ZERO + 64, 2.0, 30.0, 3, 2.0);
+        assert_eq!(pulse.frames[pulse.frames.len() - 1], ZERO + 64, "it holds still at the side");
         let between = turning.value(0.5 / DMX_RATE);
         assert!(between > turning.frames[0] as f32 && between < turning.frames[1] as f32);
     }

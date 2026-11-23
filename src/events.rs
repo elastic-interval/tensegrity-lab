@@ -143,7 +143,8 @@ pub enum LabEvent {
     FabricBuilt(FabricStats),
     Crucible(CrucibleAction),
     UpdateState(StateChange),
-    RebuildFabric,
+    /// Show the fabrics to choose one from, or go back from them.
+    ToggleChoosing,
     NextBrick,
     RequestRedraw,
     PointerChanged(PointerChange),

@@ -60,10 +60,20 @@ pub const CRANK_ZERO: f32 = TAU / 4.0;
 const TOP_SPEED: f32 = TOP_TURNS * TAU;
 /// Deck and frame, per square metre.
 const DECK_DENSITY: f32 = 15.0;
-/// The deck reaches this far past the farthest foot or guy anchor.
-pub const DECK_MARGIN: f32 = 0.1;
+/// The deck is this much larger across than the smallest that holds every
+/// foot and guy anchor: just big enough to look good.
+pub const ROOM: f32 = 1.3;
+/// A joint this low stands on the deck.
+const FOOTING: f32 = 0.02;
+/// The smallest table, across its corners: room for its hooks and arms.
+pub const SMALLEST: f32 = 0.4;
 /// How much of its swing the deck loses each cycle, as a damping ratio.
 const DAMPING: f32 = 0.05;
+/// A spring in each cable, in series with its cord, so the deck follows
+/// the crank's pin smoothly instead of with every jerk of the stepper: each
+/// table's springs are chosen for its deck to sway on them, by itself, this
+/// many times a second, well above the piece's own swings.
+const DECK_SWAY: f32 = 3.5;
 /// Each cable's tension with the deck still and the crank at its zero.
 /// Enough that none goes slack drawing the deck round.
 const CABLE_PRETENSION: f32 = 300.0;
@@ -75,7 +85,9 @@ const TRYING: Seconds = Seconds(12.0);
 const SETTLING_IN: Seconds = Seconds(4.0);
 /// A cue kept is played this long, and one just found this long.
 const PLAYING: Seconds = Seconds(15.0);
-const SHOWING: Seconds = Seconds(5.0);
+const SHOWING: Seconds = TRYING;
+/// Stopping, the crank goes back to its zero this fast, radians a second.
+const RETURNING: f32 = TAU;
 /// With nothing kept yet, it looks again this often.
 const WAITING: Seconds = Seconds(0.25);
 /// Cues tried side by side, a round of them.
@@ -104,6 +116,16 @@ const STANCE_MEMORY: Seconds = Seconds(3.0);
 /// 150° and 270°.
 pub fn corner_angle(index: usize) -> f32 {
     (index as f32 * 60.0 + 30.0).to_radians()
+}
+
+/// The radius across the corners of the smallest table that holds every
+/// one of `places`, on it: each must be inside every edge.
+pub fn smallest_hexagon(places: impl Iterator<Item = Vec3>) -> f32 {
+    places.fold(0.0, |radius: f32, place| {
+        let toward = place.z.atan2(place.x).rem_euclid(PI / 3.0);
+        let off_normal = toward.min(PI / 3.0 - toward);
+        radius.max(place.x.hypot(place.z) * off_normal.cos() / (PI / 6.0).cos())
+    })
 }
 
 /// The y of a hook's foot, where its tie and its cable are tied.
@@ -183,6 +205,8 @@ enum Task {
 struct Breeder {
     seeds: VecDeque<Cue>,
     kept: Vec<Kept>,
+    /// How many times what is kept has changed.
+    changes: u32,
     tries: u32,
     random: ChaCha8Rng,
 }
@@ -191,7 +215,7 @@ impl Breeder {
     /// Breeding from `remembered` cues, tried first, and then the seeds.
     fn new(remembered: Vec<Cue>) -> Breeder {
         let seeds = remembered.into_iter().chain(Cue::seeds()).collect();
-        Breeder { seeds, kept: Vec::new(), tries: 0, random: ChaCha8Rng::seed_from_u64(1) }
+        Breeder { seeds, kept: Vec::new(), changes: 0, tries: 0, random: ChaCha8Rng::seed_from_u64(1) }
     }
 
     /// The next cue to try: a seed, or a child of those kept.
@@ -232,17 +256,20 @@ impl Breeder {
             [index] if found.score > self.kept[index].score => {
                 let better = found.score - self.kept[index].score;
                 self.kept[index] = found;
+                self.changes += 1;
                 (better >= NOTABLE).then_some(index)
             }
             [_, ..] => None,
             [] if self.kept.len() < KEPT => {
                 self.kept.push(found);
+                self.changes += 1;
                 Some(self.kept.len() - 1)
             }
             [] => {
                 let worst = (0..self.kept.len()).min_by(|&a, &b| self.kept[a].score.total_cmp(&self.kept[b].score))?;
                 (found.score > self.kept[worst].score).then(|| {
                     self.kept[worst] = found;
+                    self.changes += 1;
                     worst
                 })
             }
@@ -373,7 +400,7 @@ fn breed(shared: Arc<Mutex<Shared>>, piece: Fabric, physics: Physics) {
         let found = trials(&piece, &physics, cues);
         let mut shared = shared.lock().unwrap();
         shared.trying = false;
-        let before = shared.finds.len();
+        let (before, changes) = (shared.finds.len(), shared.breeder.changes);
         for found in found.into_iter().flatten() {
             if let Some(index) = shared.breeder.keep(found) {
                 shared.finds.push(index);
@@ -381,7 +408,7 @@ fn breed(shared: Arc<Mutex<Shared>>, piece: Fabric, physics: Physics) {
         }
         stale = if shared.finds.len() > before { 0 } else { stale + 1 };
         (shared.rounds, shared.stale) = (shared.rounds + 1, stale);
-        if let (Some(memory), true) = (&shared.memory, shared.finds.len() > before) {
+        if let (Some(memory), true) = (&shared.memory, shared.breeder.changes > changes) {
             remember(memory, &shared.breeder.kept);
         }
     }
@@ -391,6 +418,19 @@ fn breed(shared: Arc<Mutex<Shared>>, piece: Fabric, physics: Physics) {
 /// A kept cue's name: A to F, by where it is kept.
 fn letter(index: usize) -> char {
     (b'A' + index as u8) as char
+}
+
+/// The piece and its table at rest, as they stood when Quake was pressed,
+/// for each cue played to start from: every joint where it was and how it
+/// moved, and the deck.
+#[derive(Clone, Debug)]
+struct Rest {
+    joints: Vec<(JointKey, Vec3, Vec3)>,
+    deck: Deck,
+    velocity: Vec3,
+    spin: f32,
+    standing: SecondaryMap<JointKey, (Vec3, Vec3)>,
+    watched: Vec<Watched>,
 }
 
 /// A joint the motor watches, its name, and where it has stood on the
@@ -421,6 +461,7 @@ struct Hearing {
 #[derive(Clone, Debug)]
 struct Motor {
     since: Age,
+    /// Bringing its crank back to its zero, to stop.
     stopping: bool,
     /// The crank's angle from its zero, and how fast it turned last tick.
     angle: f32,
@@ -485,6 +526,9 @@ pub struct Quake {
     demo: Option<usize>,
     /// A cue tried on a copy of the piece, once its try is done.
     found: Option<Kept>,
+    /// The piece at rest, and whether to put it back so this tick.
+    rest: Option<Rest>,
+    restoring: bool,
 }
 
 impl Quake {
@@ -496,7 +540,9 @@ impl Quake {
         let home = cam_axis() + crank_pin(0.0);
         let spans = cable_ends(radius).map(|end| end.distance(home));
         let ea = Hardware::MEDIUM.cable_stiffness.0;
-        let cable_stiffness = ea / (spans.iter().sum::<f32>() / 3.0);
+        let cord = ea / (spans.iter().sum::<f32>() / 3.0);
+        let ties = mass * EARTH_GRAVITY.f32() / TIE_LENGTH;
+        let cable_stiffness = ((mass * (TAU * DECK_SWAY).powi(2) - ties) / 1.5).clamp(ties, cord);
         Quake {
             deck: Deck { radius, pin: crank_pin(0.0), ..Deck::default() },
             velocity: Vec3::ZERO,
@@ -517,14 +563,27 @@ impl Quake {
             played: 0,
             demo: None,
             found: None,
+            rest: None,
+            restoring: false,
         }
+    }
+
+    /// The deck made `ROOM` larger than it need be for where the feet and
+    /// guy anchors of the piece `fabric` stand on it, and no smaller than
+    /// `SMALLEST`, and its weight and the piece's on the ties.
+    pub fn fit(&mut self, fabric: &Fabric) {
+        let feet = fabric.joints.values().filter(|joint| joint.location.y < FOOTING).map(|joint| self.deck.on_deck(joint.location));
+        let fitting = (ROOM * smallest_hexagon(feet)).max(SMALLEST);
+        let fitted = Quake::of_radius(fitting);
+        (self.deck.radius, self.mass, self.cables, self.cable_stiffness) =
+            (fitting, fitted.mass, fitted.cables, fitted.cable_stiffness);
+        let piece = fabric.joints.values().map(|joint| joint.accumulated_mass.f32()).sum::<f32>() / 1000.0;
+        self.weight = (self.mass + piece) * EARTH_GRAVITY.f32();
     }
 
     /// The piece `fabric` landed on the table: its weight on the ties, and
     /// every joint watched.
     pub fn mount(&mut self, fabric: &Fabric) {
-        let piece = fabric.joints.values().map(|joint| joint.accumulated_mass.f32()).sum::<f32>() / 1000.0;
-        self.weight = (self.mass + piece) * EARTH_GRAVITY.f32();
         self.watched = fabric
             .joints
             .iter()
@@ -635,7 +694,7 @@ impl Quake {
         }
         lines.push(String::new());
         lines.push(match &self.task {
-            Some(Task::Play(index, _, seconds)) => format!("Playing {} for {:.0} s", letter(*index), seconds.0),
+            Some(Task::Play(index, _, seconds)) => format!("Playing {} for {:.0} s, from rest", letter(*index), seconds.0),
             _ => "Waiting for a first find".to_string(),
         });
         lines.push(format!("Score: 1 for {:.0} mm of swing,", EXPRESSIVE * 1000.0));
@@ -656,6 +715,16 @@ impl Quake {
                 (shared.stop, shared.paused) = (true, false);
             }
             return;
+        }
+        if let Some((piece, Some(quake))) = piece.as_ref().map(|(piece, _)| (piece, piece.quake.as_ref())) {
+            self.rest = Some(Rest {
+                joints: piece.joints.iter().map(|(key, joint)| (key, joint.location, joint.velocity)).collect(),
+                deck: quake.deck,
+                velocity: quake.velocity,
+                spin: quake.spin,
+                standing: quake.standing.clone(),
+                watched: quake.watched.clone(),
+            });
         }
         let shared = self.search.0.get_or_insert_with(|| {
             let remembered = memory.as_deref().map(remembered).unwrap_or_default();
@@ -751,9 +820,16 @@ impl Quake {
     }
 
     /// Bring the crank back to its zero, then do `next`.
+    /// On to `next` from rest, the piece put back as it stood when Quake
+    /// was pressed; or with nothing next, bring the crank back to its zero.
     fn then(&mut self, age: Age, next: Option<Task>) {
         self.next = next;
         match &mut self.motor {
+            Some(_) if self.next.is_some() && self.rest.is_some() => {
+                self.restoring = true;
+                self.motor = None;
+                self.begin(age);
+            }
             Some(motor) => motor.stopping = true,
             None => self.begin(age),
         }
@@ -847,13 +923,13 @@ impl Quake {
             return;
         };
         let elapsed = age.elapsed_since(motor.since).0;
-        let target = match (motor.stopping, self.cue()) {
-            (false, Some(cue)) => Cue::angle(cue.value(elapsed)),
-            _ => 0.0,
+        let (target, fastest) = match (motor.stopping, self.cue()) {
+            (false, Some(cue)) => (Cue::angle(cue.value(elapsed)), TOP_SPEED),
+            _ => (0.0, RETURNING),
         };
         let motor = self.motor.as_mut().unwrap();
         let toward = wrapped(target - motor.angle);
-        let turned = toward.clamp(-TOP_SPEED * dt, TOP_SPEED * dt);
+        let turned = toward.clamp(-fastest * dt, fastest * dt);
         motor.angle += turned;
         motor.speed = turned / dt;
         self.deck.pin = crank_pin(motor.angle);
@@ -961,6 +1037,18 @@ impl Fabric {
         let Some(quake) = &mut self.quake else {
             return;
         };
+        if std::mem::take(&mut quake.restoring) {
+            if let Some(rest) = &quake.rest {
+                for &(key, location, velocity) in &rest.joints {
+                    if let Some(joint) = self.joints.get_mut(key) {
+                        (joint.location, joint.velocity) = (location, velocity);
+                    }
+                }
+                (quake.deck, quake.velocity, quake.spin) = (rest.deck, rest.velocity, rest.spin);
+                (quake.standing, quake.watched) = (rest.standing.clone(), rest.watched.clone());
+                quake.response = 0.0;
+            }
+        }
         let before = quake.deck;
         quake.step(self.age, Age::iteration_duration().f32());
         let after = quake.deck;

@@ -276,9 +276,11 @@ need to adjust mass or rigidity multipliers at runtime.
   is Esc (native only), stepping back out of the parts view or a selection
   (`Application::step_back`): `ButtonBar` (`src/button_bar.rs`) registers
   every button with its label, the stages it shows in and the event it
-  sends. Only the buttons that apply show. Reload only in Viewing; Quake
-  only in Viewing, Stop quake and Demo in its place while the wobble table
-  quakes, with no Reload or Start animation meanwhile.
+  sends. Only the buttons that apply show. Quake only in Viewing, Stop
+  quake and Demo in its place while the wobble table quakes, with no Start
+  animation or Choose meanwhile. Choose (in Viewing) swaps the bar for a
+  button per fabric, and Back: one builds that fabric at the size the app
+  runs at; there is no Reload.
 - `sky_renderer.rs`, `surface_renderer.rs`, `text_renderer.rs` — chrome.
 - `shader.wgsl` — shared WGSL for fabric pipelines.
 
@@ -401,13 +403,21 @@ Important integration tests:
   kept cues as DMX loops for the electronics.
   The table is a hexagonal deck hung on three ties, so it sways and twists
   but can't tilt. A stepper in the middle of the base turns a crank of fixed
-  radius (`CRANK`), and a Dyneema cable from its pin to each of the deck's
-  three hooks draws the deck after it. The stepper plays cues
+  radius (`CRANK`), and a Dyneema cable, through a spring chosen for the
+  deck to sway on them by itself at `DECK_SWAY`, above the piece's swings, so
+  it follows smoothly, from its pin to each of the deck's
+  three hooks draws the deck after it. The deck is `ROOM` (1.3) times the
+  smallest hexagon holding the feet and guy anchors, at least `SMALLEST`:
+  estimated from the lowest joints before the build, fitted to where they
+  land (`Quake::fit`). The stepper plays cues
   (`src/fabric/cue.rs`): loops of DMX frames, 44 a second, each the
   crank's position 0–255 with 128 its zero, pointing forward along the
   piece's mirror plane; it goes from one to the next the short way round,
   no faster than `TOP_SPEED`, so a cue can rock, turn, or anything between.
-  It breeds them: from seeds rocking and turning at a spread of speeds, by
+  It breeds them: from seeds rocking about the front (drawing the deck
+  side to side), the side (fore and aft) and a diagonal, rocking a few
+  cycles then holding still while the piece rings on (`Cue::pulsing`), and
+  turning, at a spread of speeds, by
   bumps, stretches, widening and crossing blended at its seams, none the
   stepper couldn't follow (`Cue::followable`), out of sight: each tried
   `TRYING` on a copy of the piece as it stood when Quake was pressed,
@@ -421,9 +431,12 @@ Important integration tests:
   every joint's way through the loop, wherever it starts), at most
   `KEPT`, breeding on until Quake is pressed again. The piece itself only
   plays: each find (a new kind, or one `NOTABLE` better) `SHOWING`, else
-  the kept in turn, `SHOWING` each. Demo, shown only while it quakes,
+  the kept in turn, `SHOWING` each, every one from rest: between cues the
+  piece and the deck are put back as they stood when Quake was pressed
+  (`Rest`), still. Stopping, the crank goes back to its zero gently
+  (`RETURNING`). Demo, shown only while it quakes,
   plays the kept in turn, `PLAYING` each, breeding waiting meanwhile, then
-  breeds on. Each time it finds, the kept cues are written to
+  breeds on. After every round that changes what is kept, the kept cues are written to
   `cues/<fabric>.txt` (native only; `quake::cues_file`), one a line with the
   DMX frames after `|`, and tried first the next time Quake is pressed, so
   breeding carries on from them. The kept cues are named A to F by where they are kept; the

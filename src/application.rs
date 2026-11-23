@@ -87,6 +87,8 @@ pub struct Application {
     cycle: Option<CycleState>,
     /// On a white background instead of the starry sky.
     white: bool,
+    /// Showing the fabrics to choose one from.
+    choosing: bool,
     #[cfg(not(target_arch = "wasm32"))]
     native: NativeState,
 }
@@ -145,6 +147,7 @@ impl Application {
             model_scale: model_scale.map(|n| 1.0 / n),
             cycle: None,
             white: false,
+            choosing: false,
             #[cfg(not(target_arch = "wasm32"))]
             native: NativeState::default(),
         }
@@ -182,7 +185,7 @@ impl Application {
 
     fn redraw(&mut self) {
         let quaking = self.crucible.fabric.quake.as_ref().is_some_and(|quake| quake.running());
-        let buttons = self.button_bar.buttons(&self.control_state, quaking);
+        let buttons = self.button_bar.buttons(&self.control_state, quaking, self.choosing);
         self.with_scene(|scene| scene.set_buttons(buttons));
 
         if self.last_motion.elapsed() >= MOTION_INTERVAL {
@@ -310,6 +313,7 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             Run(run_style) => {
                 self.run_style = run_style;
+                self.choosing = false;
                 // Use the new with_scene method to handle the scene existence check
                 self.with_scene(|scene| {
                     scene.normal_rendering();
@@ -590,10 +594,9 @@ impl ApplicationHandler<LabEvent> for Application {
             Crucible(crucible_action) => {
                 self.crucible.action(crucible_action);
             }
-            RebuildFabric => {
-                #[cfg(not(target_arch = "wasm32"))]
-                { self.native.gpu_batch = None; }
-                Run(self.run_style.clone()).send(&self.radio);
+            ToggleChoosing => {
+                self.choosing = !self.choosing;
+                RequestRedraw.send(&self.radio);
             }
             NextBrick => {
                 if let RunStyle::BakeBricks = &self.run_style {
