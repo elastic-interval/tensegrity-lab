@@ -164,9 +164,6 @@ pub struct FabricPlanExecutor {
     plates_retensioned: usize,
     /// Whether the settle's cables are on (`CABLES_AT`).
     settle_cables_added: bool,
-    /// The joints at the tips of the plan's hands, for the wobble table to
-    /// watch.
-    hands: Vec<JointKey>,
 }
 
 impl FabricPlanExecutor {
@@ -193,7 +190,6 @@ impl FabricPlanExecutor {
             settle_phase_start_age: None,
             plates_retensioned: 0,
             settle_cables_added: false,
-            hands: Vec::new(),
         };
 
         executor.log_event(ExecutionEvent::Started { iteration: 0 });
@@ -408,16 +404,6 @@ impl FabricPlanExecutor {
 
         // Update bounding radius after scale is applied
         self.fabric.update_bounding_radius();
-
-        if let Some(plan_runner) = &self.plan_runner {
-            use crate::build::dsl::brick_dsl::FaceLabel;
-            for (label, &face) in plan_runner.face_labels() {
-                if matches!(label, FaceLabel::Hand(_)) {
-                    self.hands.extend(self.fabric.face(face).radial_joints(&self.fabric));
-                }
-            }
-            self.hands.sort();
-        }
 
         // Remove faces
         use crate::fabric::face::FaceEnding;
@@ -733,7 +719,7 @@ impl FabricPlanExecutor {
     fn mount_on_table(&mut self) {
         if let Some(mut quake) = self.fabric.quake.take() {
             if !quake.mounted() {
-                quake.mount(&self.fabric, &self.hands);
+                quake.mount(&self.fabric);
             }
             self.fabric.quake = Some(quake);
         }

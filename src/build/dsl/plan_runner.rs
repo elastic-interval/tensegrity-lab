@@ -36,10 +36,6 @@ pub struct PlanRunner {
 }
 
 impl PlanRunner {
-    /// The faces the plan labelled, by label.
-    pub fn face_labels(&self) -> &std::collections::HashMap<crate::build::dsl::brick_dsl::FaceLabel, crate::fabric::FaceKey> {
-        &self.shape_phase.labels
-    }
 
     pub fn new(
         FabricPlan {

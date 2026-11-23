@@ -8,16 +8,15 @@
 //!
 //! The stepper plays cues (`Cue`), DMX loops of the crank's position, bred
 //! out of sight: each tried on a copy of the piece as it stood when Quake
-//! was pressed, `ROUND` at a time side by side. A try watches the piece's
-//! hands (or, with none, its highest joints) swing against the deck,
-//! scoring the cue for the hands swinging expressively and for how little
-//! the crank works, and the best of each kind of swing is kept, unlike one
-//! another. The piece itself plays what is kept: each new find a moment,
+//! was pressed, `ROUND` at a time side by side. A try watches every joint
+//! of the piece swing against the deck, scoring the cue for the joint that
+//! swings most swinging expressively and for how little the crank works,
+//! and the best of each kind of swing, the whole piece's way through the
+//! loop, is kept, unlike one another. The piece itself plays what is kept: each new find a moment,
 //! and once breeding has stopped finding, each in turn.
 
 use crate::fabric::cue::Cue;
 use crate::fabric::dimensions::Hardware;
-use crate::fabric::joint::JointLabel;
 use crate::fabric::{Fabric, JointKey};
 use crate::units::{Seconds, Unit, EARTH_GRAVITY};
 use crate::Age;
@@ -66,7 +65,8 @@ const DAMPING: f32 = 0.05;
 /// Each cable's tension with the deck still and the crank at its zero.
 /// Enough that none goes slack drawing the deck round.
 const CABLE_PRETENSION: f32 = 300.0;
-/// How far the hands should swing against the deck: expressive, no more.
+/// How far the joint swinging most should swing against the deck:
+/// expressive, no more.
 const EXPRESSIVE: f32 = 0.04;
 /// A cue is tried this long, listened to after it has had time to build.
 const TRYING: Seconds = Seconds(12.0);
@@ -86,14 +86,14 @@ const MOST_TRIES: u32 = 400;
 const NOTABLE: f32 = 0.05;
 /// It keeps at most this many cues.
 const KEPT: usize = 6;
-/// How much the crank's work counts against a cue, against its hands'
+/// How much the crank's work counts against a cue, against its
 /// swing: a turn every half second costs this much.
 const EFFORT: f32 = 0.3;
 /// Two swings less alike than this (`Quake::alike`) are of different kinds.
 pub const DISTINCT: f32 = 0.6;
 /// A swing's shape is followed in this many steps through its cue's loop.
 const BINS: usize = 12;
-/// How long the hands' swing is remembered, as it dies away, and how long
+/// How long the swing is remembered, as it dies away, and how long
 /// where they stand is averaged over.
 const RESPONSE_MEMORY: Seconds = Seconds(1.0);
 const STANCE_MEMORY: Seconds = Seconds(3.0);
@@ -136,14 +136,32 @@ fn wrapped(angle: f32) -> f32 {
     (angle + PI).rem_euclid(TAU) - PI
 }
 
-/// A cue kept: how well it did, how far the hands swung, and the shape of
-/// their swing (`Quake::alike`).
+/// A cue kept: how well it did, how far the joint that swung most swung,
+/// which joint that was and which way it went most (`Swing`), and the shape
+/// of the whole piece's swing (`Quake::alike`).
 #[derive(Clone, Debug)]
 pub struct Kept {
     pub cue: Cue,
     pub score: f32,
     pub swing: f32,
+    pub most: String,
     shape: Vec<f32>,
+}
+
+/// Which way a joint's swing mostly goes, against the deck: side to side,
+/// up and down, fore and aft (the way the piece faces), or two of them
+/// when no one is most of it.
+fn way(motion: &[Vec3]) -> String {
+    let energy: [f32; 3] = [0, 1, 2].map(|axis| motion.iter().map(|v| v[axis] * v[axis]).sum());
+    let total = energy.iter().sum::<f32>().max(1e-12);
+    let names = ["side", "up", "fore"];
+    let mut order = [0, 1, 2];
+    order.sort_by(|&a, &b| energy[b].total_cmp(&energy[a]));
+    if energy[order[0]] / total >= 0.7 {
+        names[order[0]].to_string()
+    } else {
+        format!("{}+{}", names[order[0]], names[order[1]])
+    }
 }
 
 /// What the stepper does: try a cue, on a copy of the piece, play one kept
@@ -195,13 +213,13 @@ impl Breeder {
         self.kept[parent].cue.mutated(other.as_ref(), &mut self.random)
     }
 
-    /// A cue tried: kept if the hands swung and no kept cue's swing is like
-    /// it, or in place of the one whose is (only one) but did less well, or
-    /// of the worst when there are enough; and where, if it is a find: a new
-    /// kind, or `NOTABLE` better.
+    /// A cue tried: kept if the piece swung, not wildly, and no kept cue's
+    /// swing is like it, or in place of the one whose is (only one) but did
+    /// less well, or of the worst when there are enough; and where, if it
+    /// is a find: a new kind, or `NOTABLE` better.
     fn keep(&mut self, found: Kept) -> Option<usize> {
         self.tries += 1;
-        if found.swing <= EXPRESSIVE / 2.0 {
+        if found.swing <= EXPRESSIVE / 2.0 || found.score <= 0.0 {
             return None;
         }
         let alike: Vec<usize> =
@@ -253,22 +271,23 @@ fn remembered(path: &Path) -> Vec<Cue> {
     };
     text.lines()
         .filter(|line| !line.starts_with('#'))
-        .filter_map(|line| Cue::parse(line.split_once('|')?.1))
+        .filter_map(|line| Cue::parse(line.rsplit_once('|')?.1))
         .collect()
 }
 
-/// Remember `kept` in `path`, A first: its name, score, how far the hands
+/// Remember `kept` in `path`, A first: its name, score, how far the piece
 /// swung, what it is (`Cue::describe`), and after `|` its DMX frames.
 fn remember(path: &Path, kept: &[Kept]) {
     let mut text = String::from("# Wobble table cues, kept by Quake and tried first next time.\n");
-    text += "# name score hands description | DMX frames, 44 a second, 128 the crank's zero\n";
+    text += "# name score swing, the joint moved most and which way | stepper | DMX frames, 44 a second, 128 the crank's zero\n";
     for (index, kept) in kept.iter().enumerate() {
         let frames: Vec<String> = kept.cue.frames.iter().map(u8::to_string).collect();
         text += &format!(
-            "{} {:.2} {:.0}mm {} | {}\n",
+            "{} {:.2} {:.0}mm {} | {} | {}\n",
             letter(index),
             kept.score,
             kept.swing * 1000.0,
+            kept.most,
             kept.cue.describe(),
             frames.join(" ")
         );
@@ -359,16 +378,18 @@ fn letter(index: usize) -> char {
     (b'A' + index as u8) as char
 }
 
-/// A joint the motor watches, and where it has stood on the deck lately.
+/// A joint the motor watches, its name, and where it has stood on the
+/// deck lately.
 #[derive(Clone, Debug)]
 struct Watched {
     key: JointKey,
+    name: String,
     stance: Vec3,
 }
 
-/// What it hears while a cue plays, once it has settled in: the hands'
-/// swing, the crank's work, and the hands' way from where they stand
-/// through the loop, `BINS` steps of it for each.
+/// What it hears while a cue plays, once it has settled in: the swing of
+/// the joint swinging most, the crank's work, and every joint's way from
+/// where it stands through the loop, `BINS` steps of it for each.
 #[derive(Clone, Debug, Default)]
 struct Hearing {
     ticks: u32,
@@ -478,31 +499,19 @@ impl Quake {
     }
 
     /// The piece `fabric` landed on the table: its weight on the ties, and
-    /// `hands` watched, or with none the highest joint off its symmetry
-    /// axis or plane, with its images, or with no symmetry its three
-    /// highest joints.
-    pub fn mount(&mut self, fabric: &Fabric, hands: &[JointKey]) {
+    /// every joint watched.
+    pub fn mount(&mut self, fabric: &Fabric) {
         let piece = fabric.joints.values().map(|joint| joint.accumulated_mass.f32()).sum::<f32>() / 1000.0;
         self.weight = (self.mass + piece) * EARTH_GRAVITY.f32();
-        let mut watched: Vec<JointKey> = hands.iter().copied().filter(|&key| fabric.joints.contains_key(key)).collect();
-        if watched.is_empty() {
-            let twin = |key: JointKey| match fabric.joints[key].label {
-                Some(JointLabel::Twin { number, .. }) => Some(number),
-                _ => None,
-            };
-            let highest = fabric.joints.keys().filter(|&key| twin(key).is_some()).max_by(|&a, &b| {
-                fabric.joints[a].location.y.total_cmp(&fabric.joints[b].location.y)
-            });
-            if let Some(number) = highest.and_then(twin) {
-                watched = fabric.joints.keys().filter(|&key| twin(key) == Some(number)).collect();
-            }
-        }
-        if watched.is_empty() {
-            let mut highest: Vec<JointKey> = fabric.joints.keys().collect();
-            highest.sort_by(|&a, &b| fabric.joints[b].location.y.total_cmp(&fabric.joints[a].location.y));
-            watched = highest.into_iter().take(3).collect();
-        }
-        self.watched = watched.into_iter().map(|key| Watched { key, stance: fabric.joints[key].location }).collect();
+        self.watched = fabric
+            .joints
+            .iter()
+            .map(|(key, joint)| Watched {
+                key,
+                name: joint.label.map_or_else(|| "?".to_string(), |label| label.to_string()),
+                stance: joint.location,
+            })
+            .collect();
     }
 
     /// Whether a piece has landed on it.
@@ -564,7 +573,10 @@ impl Quake {
         }
         let (tries, breeding) = self.shared(|shared| (shared.breeder.tries, shared.breeding)).unwrap_or_default();
         let playing = match task {
-            Task::Play(_, cue, _) => format!("{} {}", name(task), cue.describe()),
+            Task::Play(index, cue, _) => {
+                let most = self.shared(|shared| shared.breeder.kept.get(*index).map(|kept| kept.most.clone())).flatten();
+                format!("{} {} · {}", name(task), cue.describe(), most.unwrap_or_default())
+            }
             Task::Try(cue) => cue.describe(),
             Task::Wait => "breeding".to_string(),
         };
@@ -671,13 +683,14 @@ impl Quake {
         let expressive = swing / EXPRESSIVE;
         let expressive = if expressive <= 1.0 { expressive } else { (2.0 - expressive).max(0.0) };
         let score = expressive - EFFORT * work;
-        let shape: Vec<f32> = hearing
-            .shape
-            .iter()
-            .zip(&hearing.counts)
-            .flat_map(|(sum, &count)| (*sum / count.max(1) as f32).to_array())
-            .collect();
-        self.found = Some(Kept { cue, score, swing, shape });
+        let paths: Vec<Vec3> = hearing.shape.iter().zip(&hearing.counts).map(|(sum, &count)| *sum / count.max(1) as f32).collect();
+        let reach = |joint: usize| paths[joint * BINS..(joint + 1) * BINS].iter().map(|v| v.length_squared()).sum::<f32>();
+        let most = (0..self.watched.len()).max_by(|&a, &b| reach(a).total_cmp(&reach(b)));
+        let most = most.map_or(String::new(), |joint| {
+            format!("{} {}", self.watched[joint].name, way(&paths[joint * BINS..(joint + 1) * BINS]))
+        });
+        let shape = paths.iter().flat_map(|v| v.to_array()).collect();
+        self.found = Some(Kept { cue, score, swing, most, shape });
         (self.task, self.motor) = (None, None);
     }
 
@@ -894,7 +907,7 @@ mod tests {
         let path = std::env::temp_dir().join("tensegrity-lab-cues").join("remembered.txt");
         let kept: Vec<Kept> = [Cue::rocking(2.0, 30.0), Cue::turning(1.3)]
             .into_iter()
-            .map(|cue| Kept { cue, score: 0.8, swing: 0.04, shape: Vec::new() })
+            .map(|cue| Kept { cue, score: 0.8, swing: 0.04, most: "L12 side".to_string(), shape: Vec::new() })
             .collect();
         remember(&path, &kept);
         let cues = remembered(&path);
@@ -911,12 +924,12 @@ mod tests {
 
     /// A Medium Headless Hug on its wobble table, Quake pressed once: it
     /// breeds cues on copies of itself, keeps several unlike one another
-    /// that swing the hands, and plays them. Pressed again the crank goes
+    /// that swing the piece, and plays them. Pressed again the crank goes
     /// back to its zero, and the piece stands where it stood.
     #[test]
     fn medium_headless_hug_rides_the_wobble_table() {
         let (mut fabric, physics) = medium(FabricName::HeadlessHug);
-        assert_eq!(fabric.quake.as_ref().map(|quake| quake.watched.len()), Some(6), "it watches both hands");
+        assert_eq!(fabric.quake.as_ref().map(|quake| quake.watched.len()), Some(fabric.joints.len()), "it watches every joint");
         fabric.take_motion();
         let before: Vec<Vec3> = fabric.joints.values().map(|joint| joint.location).collect();
         let per_second = Age::iterations_per_second() as usize;
@@ -932,7 +945,7 @@ mod tests {
         }
         let quake = fabric.quake.as_ref().unwrap();
         for kept in quake.kept() {
-            eprintln!("{} scored {:.2}, hands {:.0} mm", kept.cue.describe(), kept.score, kept.swing * 1000.0);
+            eprintln!("{} scored {:.2}, {:.0} mm, most {}", kept.cue.describe(), kept.score, kept.swing * 1000.0, kept.most);
         }
         let kept = quake.kept();
         assert!(kept.len() > 1, "it kept {} cues", kept.len());
@@ -982,11 +995,12 @@ mod tests {
         }
         for (index, kept) in quake.kept().iter().enumerate() {
             eprintln!(
-                "// {} {}: scored {:.2}, hands {:.0} mm\n{:?}",
+                "// {} {}: scored {:.2}, {:.0} mm, most {}\n{:?}",
                 letter(index),
                 kept.cue.describe(),
                 kept.score,
                 kept.swing * 1000.0,
+                kept.most,
                 kept.cue.frames
             );
         }

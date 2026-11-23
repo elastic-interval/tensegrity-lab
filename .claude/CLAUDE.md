@@ -409,12 +409,11 @@ Important integration tests:
   bumps, stretches, widening and crossing, out of sight: each tried
   `TRYING` on a copy of the piece as it stood when Quake was pressed,
   `ROUND` side by side on their own threads (one after another on the
-  web), about eight tries a second. Each is scored for the hands (the
-  plan's `Hand` faces; with none, the highest joint off the symmetry axis
-  or plane with its images; with no symmetry, the three highest joints)
-  swinging about `EXPRESSIVE` against the deck, less for the crank's work
-  (`EFFORT`); it keeps the best of each kind of swing (`Quake::alike` under
-  `DISTINCT`, the hands' way through the loop, wherever it starts), at most
+  web), about eight tries a second. It watches every joint, no sensors
+  chosen: each is scored for the joint swinging most swinging about
+  `EXPRESSIVE` against the deck, less for the crank's work (`EFFORT`); it
+  keeps the best of each kind of swing (`Quake::alike` under `DISTINCT`,
+  every joint's way through the loop, wherever it starts), at most
   `KEPT`, and stops after `STALE` rounds with no find (a new kind, or one
   `NOTABLE` better) or `MOST_TRIES`. The piece itself only plays: each
   find `SHOWING`, then the kept in turn, `PLAYING` each once breeding has
@@ -423,7 +422,9 @@ Important integration tests:
   DMX frames after `|`, and tried first the next time Quake is pressed, so
   breeding carries on from them. The kept cues are named A to F by where they are kept; the
   subtitle names the one playing, with what the stepper is told
-  (`Cue::describe`) and, while it breeds, how many tried:
+  (`Cue::describe`), the joint it moves most and which way (side, up,
+  fore, or two of them: `R62 side+up`) and, while it breeds, how many
+  tried:
   `A 34f 130 149/5 107/8 130/21` is a 34-frame loop from position 130,
   turning back at 149 after 5 frames, at 107 after 8 more, home after 21;
   `B 34f ↻1 128` turns once round each loop.
