@@ -36,7 +36,7 @@ launch it and tell him which buttons do what.
    it crashed (read the log).
 
 4. **Tell him the buttons that matter for what he asked**, from the table below. The buttons
-   along the bottom are the controls, all there all the time and greyed where they don't apply;
+   along the bottom are the controls, only those that apply showing;
    the one key is Esc, which steps back out of the parts view or a selection.
 
 ## Buttons
@@ -47,18 +47,17 @@ stands (Viewing).
 | Button | Does |
 |---|---|
 | Wind | Large only. Cycling: from the front, the side, behind, then off (`src/fabric/wind.rs`) |
-| Quake | Medium only. Breeds DMX cues for the wobble table's stepper on copies of the piece, eight at a time out of sight, while the piece plays each find; once it stops finding, it plays the kept ones A–F in turn; again to stop (`src/fabric/quake.rs`, `src/fabric/cue.rs`) |
-| Take apart | Large only. Headless Hug and Open Claw: taken apart strut by strut on a crane hook, then straight away put together again, fast-forwarded; one button switches it Slow / Fast-forward (`src/build/assembly.rs`) |
+| Quake / Stop quake | Medium only. Breeds DMX cues for the wobble table's stepper on copies of the piece, eight at a time out of sight, while the piece plays each find; it breeds on until pressed again (`src/fabric/quake.rs`, `src/fabric/cue.rs`) |
+| Demo | While Quake runs. Plays the kept cues A–F in turn, 15 s each, breeding waiting, then breeds on |
+| Take apart | Large only. Headless Hug and Open Claw: taken apart strut by strut on a crane hook, then straight away put together again, in real time (`src/build/assembly.rs`) |
 | Start / Stop animation | The animation |
 | Parts | Large only. The parts, full screen; Back to return |
-| Background | The starry sky (the default) or white |
-| Fast-forward / Slow | Ten times real time, or back to real time: the build, the animation, the assembly |
 | Reload | Reload the fabric |
 | Deselect / Back to joint | Step back out of a selection |
 
 The connector hardware always shows at real scale, and only at Large. Small and Medium start
-building in fast-forward. A movie is recorded from the command line
-(`--record <seconds>`).
+building in fast-forward, Large never; there is no button for it. A movie is recorded from the command line
+(`--record <seconds>`); `--white` shows it on white instead of the starry sky.
 
 Click a joint or interval to select it; drag to orbit, wheel to zoom.
 

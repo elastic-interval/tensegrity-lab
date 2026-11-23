@@ -74,6 +74,10 @@ struct Args {
     /// (selects the first fabric for you).
     #[arg(long)]
     cycle: bool,
+
+    /// On a white background instead of the starry sky.
+    #[arg(long)]
+    white: bool,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -130,7 +134,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         (size, None) => (size, None),
     };
 
-    run_with(run_style, args.time_scale, size, model_scale, cycle_names)
+    run_with(run_style, args.time_scale, size, model_scale, cycle_names, args.white)
 }
 
 fn run_with(
@@ -139,6 +143,7 @@ fn run_with(
     size: Size,
     model_scale: Option<f32>,
     cycle: Option<Vec<FabricName>>,
+    white: bool,
 ) -> Result<(), Box<dyn Error>> {
     let mut builder = EventLoop::<LabEvent>::with_user_event();
     let event_loop: EventLoop<LabEvent> = builder.build()?;
@@ -152,6 +157,9 @@ fn run_with(
         Application::new(window_attributes, radio.clone(), time_scale, size, model_scale);
     if let Some(names) = cycle {
         application.set_cycle(names);
+    }
+    if white {
+        application.set_white();
     }
     LabEvent::Run(run_style).send(&radio);
     event_loop.run_app(&mut application)?;
@@ -178,6 +186,7 @@ pub fn run() {
         Size::Large,
         None, // No model scale for WASM
         cycle,
+        false,
     )
     .unwrap();
 }

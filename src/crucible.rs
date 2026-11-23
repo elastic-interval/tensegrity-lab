@@ -15,7 +15,6 @@ use crate::fabric::wind::Wind;
 use crate::fabric::Fabric;
 use glam::Vec3;
 use crate::units::Unit;
-use crate::button_bar::FAST_FORWARD;
 use crate::{ControlState, CrucibleAction, LabEvent, Radio, StateChange};
 use StateChange::*;
 
@@ -39,7 +38,7 @@ pub struct Crucible {
     fabric_plan: Option<FabricPlan>,
     last_stage_label: Option<String>,
     /// What the wobble table's motor was last said to be doing.
-    last_quake_label: Option<String>,
+    last_quake_label: Option<(String, String)>,
     last_executor_stage: Option<ExecutorStage>,
 }
 
@@ -280,7 +279,7 @@ impl Crucible {
                 }
             }
         }
-        let quaking = self.fabric.quake.as_ref().filter(|quake| quake.busy()).map(quake::Quake::describe);
+        let quaking = self.fabric.quake.as_ref().filter(|quake| quake.busy()).map(|quake| (quake.describe(), quake.report()));
         if quaking != self.last_quake_label {
             self.last_quake_label = quaking.clone();
             SetQuaking(quaking).send(&self.radio);
@@ -413,6 +412,13 @@ impl Crucible {
                     fabric.unfreeze();
                 }
             }
+            QuakeDemo => {
+                let fabric = &mut *context.fabric;
+                let age = fabric.age;
+                if let Some(quake) = &mut fabric.quake {
+                    quake.demo(age);
+                }
+            }
             Assemble => match &mut self.stage {
                 Viewing => {
                     let Some(name) = self.fabric_plan.as_ref().map(|plan| plan.name) else {
@@ -421,8 +427,7 @@ impl Crucible {
                     let mut assembly = Assembly::of(context.fabric, name);
                     assembly.take_apart();
                     (context.fabric.wind, context.fabric.quake) = (None, None);
-                    context.send_event(LabEvent::UpdateState(SetControlState(ControlState::Assembling { fast: true })));
-                    context.send_event(LabEvent::SetTimeScale(FAST_FORWARD));
+                    context.send_event(LabEvent::UpdateState(SetControlState(ControlState::Assembling { fast: false })));
                     drop(context);
                     self.physics = Assembly::physics(&self.viewing_physics());
                     self.stage = Assembling(assembly);

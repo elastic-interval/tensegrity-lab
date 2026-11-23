@@ -12,10 +12,12 @@
 //! of the piece swing against the deck, scoring the cue for the joint that
 //! swings most swinging expressively and for how little the crank works,
 //! and the best of each kind of swing, the whole piece's way through the
-//! loop, is kept, unlike one another. The piece itself plays what is kept: each new find a moment,
-//! and once breeding has stopped finding, each in turn.
+//! loop, is kept, unlike one another. Breeding goes on until Quake is
+//! pressed again. The piece itself plays what is kept: each new find a
+//! moment, else each kept in turn a moment; Demo plays them all in turn,
+//! longer, breeding waiting meanwhile.
 
-use crate::fabric::cue::Cue;
+use crate::fabric::cue::{Cue, TOP_TURNS};
 use crate::fabric::dimensions::Hardware;
 use crate::fabric::{Fabric, JointKey};
 use crate::units::{Seconds, Unit, EARTH_GRAVITY};
@@ -55,7 +57,7 @@ pub const CRANK: f32 = 0.008;
 /// mirror plane.
 pub const CRANK_ZERO: f32 = TAU / 4.0;
 /// The stepper's top speed, radians a second.
-const TOP_SPEED: f32 = 4.0 * TAU;
+const TOP_SPEED: f32 = TOP_TURNS * TAU;
 /// Deck and frame, per square metre.
 const DECK_DENSITY: f32 = 15.0;
 /// The deck reaches this far past the farthest foot or guy anchor.
@@ -78,10 +80,6 @@ const SHOWING: Seconds = Seconds(5.0);
 const WAITING: Seconds = Seconds(0.25);
 /// Cues tried side by side, a round of them.
 const ROUND: usize = 8;
-/// Breeding stops after this many rounds finding nothing new or better, or
-/// after this many tries.
-const STALE: u32 = 10;
-const MOST_TRIES: u32 = 400;
 /// A kept cue bettered by this much is a find.
 const NOTABLE: f32 = 0.05;
 /// It keeps at most this many cues.
@@ -89,6 +87,9 @@ const KEPT: usize = 6;
 /// How much the crank's work counts against a cue, against its
 /// swing: a turn every half second costs this much.
 const EFFORT: f32 = 0.3;
+/// How much a quick sway counts against a cue: this much for each sway a
+/// second, so that of two cues swinging as far the slower sway wins.
+const HASTE: f32 = 0.15;
 /// Two swings less alike than this (`Quake::alike`) are of different kinds.
 pub const DISTINCT: f32 = 0.6;
 /// A swing's shape is followed in this many steps through its cue's loop.
@@ -145,6 +146,9 @@ pub struct Kept {
     pub score: f32,
     pub swing: f32,
     pub most: String,
+    /// How quickly the piece sways: its joints' speed against the deck,
+    /// over how far they move, as cycles a second.
+    pub quickness: f32,
     shape: Vec<f32>,
 }
 
@@ -247,15 +251,21 @@ impl Breeder {
 }
 
 /// The breeding, shared with the rounds run out of sight: where each find
-/// was kept, in turn, whether it is still breeding, whether it should
-/// stop, and where what it keeps is remembered.
+/// was kept, in turn, whether it is still breeding, whether it waits for a
+/// demo or should stop, and where what it keeps is remembered.
 #[derive(Debug)]
 struct Shared {
     breeder: Breeder,
     finds: Vec<usize>,
     breeding: bool,
+    paused: bool,
     stop: bool,
+    /// A round is being tried.
+    trying: bool,
     memory: Option<PathBuf>,
+    /// Rounds run, and how many since the last find.
+    rounds: u32,
+    stale: u32,
 }
 
 /// Where the cues kept for the piece `name` are remembered between runs.
@@ -318,17 +328,16 @@ impl Drop for Search {
 }
 
 /// Each cue tried on its own copy of `piece`, side by side.
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 fn trials(piece: &Fabric, physics: &Physics, cues: Vec<Cue>) -> Vec<Option<Kept>> {
-    #[cfg(not(target_arch = "wasm32"))]
-    return std::thread::scope(|scope| {
+    std::thread::scope(|scope| {
         let tries: Vec<_> = cues.into_iter().map(|cue| scope.spawn(move || trial(piece, physics, cue))).collect();
         tries.into_iter().map(|try_| try_.join().unwrap()).collect()
-    });
-    #[cfg(target_arch = "wasm32")]
-    cues.into_iter().map(|cue| trial(piece, physics, cue)).collect()
+    })
 }
 
 /// `cue` tried on a copy of `piece`, for as long as a try lasts.
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 fn trial(piece: &Fabric, physics: &Physics, cue: Cue) -> Option<Kept> {
     let mut fabric = piece.clone();
     let quake = fabric.quake.as_mut()?;
@@ -342,8 +351,9 @@ fn trial(piece: &Fabric, physics: &Physics, cue: Cue) -> Option<Kept> {
     }
 }
 
-/// Breed in rounds, each cue tried on its own copy of `piece`, until it
-/// stops finding or is told to stop.
+/// Breed in rounds, each cue tried on its own copy of `piece`, until told
+/// to stop, waiting while a demo plays.
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 fn breed(shared: Arc<Mutex<Shared>>, piece: Fabric, physics: Physics) {
     let mut stale = 0;
     loop {
@@ -352,10 +362,17 @@ fn breed(shared: Arc<Mutex<Shared>>, piece: Fabric, physics: Physics) {
             if shared.stop {
                 break;
             }
+            if shared.paused {
+                drop(shared);
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                continue;
+            }
+            shared.trying = true;
             (0..ROUND).map(|_| shared.breeder.next()).collect()
         };
         let found = trials(&piece, &physics, cues);
         let mut shared = shared.lock().unwrap();
+        shared.trying = false;
         let before = shared.finds.len();
         for found in found.into_iter().flatten() {
             if let Some(index) = shared.breeder.keep(found) {
@@ -363,11 +380,9 @@ fn breed(shared: Arc<Mutex<Shared>>, piece: Fabric, physics: Physics) {
             }
         }
         stale = if shared.finds.len() > before { 0 } else { stale + 1 };
+        (shared.rounds, shared.stale) = (shared.rounds + 1, stale);
         if let (Some(memory), true) = (&shared.memory, shared.finds.len() > before) {
             remember(memory, &shared.breeder.kept);
-        }
-        if stale >= STALE || shared.breeder.tries >= MOST_TRIES {
-            break;
         }
     }
     shared.lock().unwrap().breeding = false;
@@ -395,6 +410,10 @@ struct Hearing {
     ticks: u32,
     swing: f32,
     work: f32,
+    /// Every joint's distance from where it stands, and its speed, against
+    /// the deck, squared and summed.
+    moved: f32,
+    speed: f32,
     shape: Vec<Vec3>,
     counts: Vec<u32>,
 }
@@ -459,9 +478,11 @@ pub struct Quake {
     /// What the stepper plays, and what comes once it is back at its zero.
     task: Option<Task>,
     next: Option<Task>,
-    /// The breeding, and how many of its finds have been played.
+    /// The breeding, how many of its finds have been played, and the kept
+    /// cue a demo plays.
     search: Search,
     played: usize,
+    demo: Option<usize>,
     /// A cue tried on a copy of the piece, once its try is done.
     found: Option<Kept>,
 }
@@ -494,6 +515,7 @@ impl Quake {
             next: None,
             search: Search::default(),
             played: 0,
+            demo: None,
             found: None,
         }
     }
@@ -559,7 +581,7 @@ impl Quake {
 
     /// What the stepper is doing, for the subtitle, briefly: the kept cue
     /// it plays, by its letter, and what the stepper is told
-    /// (`Cue::describe`), and while it breeds, how many tried.
+    /// (`Cue::describe`), and the joint it moves most.
     pub fn describe(&self) -> String {
         let (Some(motor), Some(task)) = (&self.motor, &self.task) else {
             return "stopped".to_string();
@@ -571,16 +593,54 @@ impl Quake {
         if motor.stopping {
             return self.next.as_ref().map_or("stopping".to_string(), |next| format!("→ {}", name(next)));
         }
-        let (tries, breeding) = self.shared(|shared| (shared.breeder.tries, shared.breeding)).unwrap_or_default();
-        let playing = match task {
+        match task {
             Task::Play(index, cue, _) => {
                 let most = self.shared(|shared| shared.breeder.kept.get(*index).map(|kept| kept.most.clone())).flatten();
                 format!("{} {} · {}", name(task), cue.describe(), most.unwrap_or_default())
             }
             Task::Try(cue) => cue.describe(),
             Task::Wait => "breeding".to_string(),
+        }
+    }
+
+    /// How the breeding goes, for the side of the screen: how far it has
+    /// got, the cues kept with how each did, and what plays now.
+    pub fn report(&self) -> String {
+        let Some((kept, tries, rounds, stale, breeding)) = self.shared(|shared| {
+            (shared.breeder.kept.clone(), shared.breeder.tries, shared.rounds, shared.stale, shared.breeding)
+        }) else {
+            return String::new();
         };
-        if breeding { format!("{playing} · {tries} tried") } else { playing }
+        let mut lines = Vec::new();
+        if self.demo.is_some() {
+            lines.push(format!("Demo: the kept in turn, {:.0} s each,", PLAYING.0));
+            lines.push(format!("then breeding goes on ({tries} tried)"));
+        } else if breeding {
+            lines.push(format!("Breeding, round {}: {tries} cues tried", rounds + 1));
+            lines.push(format!("{ROUND} at a time on copies of the piece,"));
+            lines.push(format!("{:.0} s each, out of sight", TRYING.0));
+            lines.push(format!("Last find {stale} rounds ago"));
+        } else {
+            lines.push(format!("{tries} cues tried in {rounds} rounds"));
+        }
+        lines.push(String::new());
+        lines.push("Kept, each a different swing:".to_string());
+        if kept.is_empty() {
+            lines.push("none yet".to_string());
+        }
+        let playing = self.playing();
+        for (index, kept) in kept.iter().enumerate() {
+            let marker = if playing == Some(index) { "→ " } else { "" };
+            lines.push(format!("{marker}{} {:.2}  {:.0} mm  {}", letter(index), kept.score, kept.swing * 1000.0, kept.most));
+        }
+        lines.push(String::new());
+        lines.push(match &self.task {
+            Some(Task::Play(index, _, seconds)) => format!("Playing {} for {:.0} s", letter(*index), seconds.0),
+            _ => "Waiting for a first find".to_string(),
+        });
+        lines.push(format!("Score: 1 for {:.0} mm of swing,", EXPRESSIVE * 1000.0));
+        lines.push("less for the crank's work and quick sway".to_string());
+        lines.join("\n")
     }
 
     /// The Quake button: it breeds cues on copies of `piece`, as it stands
@@ -590,14 +650,26 @@ impl Quake {
     pub fn advance(&mut self, age: Age, piece: Option<(Fabric, Physics)>, memory: Option<PathBuf>) {
         if self.running() {
             self.then(age, None);
+            self.demo = None;
             if let Some(shared) = &self.search.0 {
-                shared.lock().unwrap().stop = true;
+                let mut shared = shared.lock().unwrap();
+                (shared.stop, shared.paused) = (true, false);
             }
             return;
         }
         let shared = self.search.0.get_or_insert_with(|| {
             let remembered = memory.as_deref().map(remembered).unwrap_or_default();
-            Arc::new(Mutex::new(Shared { breeder: Breeder::new(remembered), finds: Vec::new(), breeding: false, stop: false, memory }))
+            Arc::new(Mutex::new(Shared {
+                breeder: Breeder::new(remembered),
+                finds: Vec::new(),
+                breeding: false,
+                paused: false,
+                stop: false,
+                trying: false,
+                memory,
+                rounds: 0,
+                stale: 0,
+            }))
         });
         let start = {
             let mut shared = shared.lock().unwrap();
@@ -607,10 +679,11 @@ impl Quake {
         };
         if let (true, Some((piece, physics))) = (start, piece) {
             let shared = Arc::clone(shared);
+            // The web has no threads to breed on.
             #[cfg(not(target_arch = "wasm32"))]
             std::thread::spawn(move || breed(shared, piece, physics));
             #[cfg(target_arch = "wasm32")]
-            breed(shared, piece, physics);
+            drop((shared, piece, physics));
         }
         self.go_on(age);
     }
@@ -620,12 +693,47 @@ impl Quake {
         self.then(age, None);
     }
 
-    /// On to what is next: the newest find, a moment, or else the next
-    /// kept cue, a moment while it breeds, or with none yet, waiting for
-    /// one.
+    /// The Demo button: breeding waits while the cues kept play in turn,
+    /// `PLAYING` each, then goes on.
+    pub fn demo(&mut self, age: Age) {
+        let kept = self.kept();
+        let (true, Some(first)) = (self.running(), kept.first()) else {
+            return;
+        };
+        if let Some(shared) = &self.search.0 {
+            shared.lock().unwrap().paused = true;
+        }
+        self.demo = Some(0);
+        self.then(age, Some(Task::Play(0, first.cue.clone(), PLAYING)));
+    }
+
+    /// Whether breeding waits for a demo, no round being tried.
+    pub fn waiting(&self) -> bool {
+        self.shared(|shared| shared.paused && !shared.trying).unwrap_or(false)
+    }
+
+    /// Whether a demo plays.
+    pub fn demoing(&self) -> bool {
+        self.demo.is_some()
+    }
+
+    /// On to what is next: in a demo the next kept cue, or at its end back
+    /// to breeding; while breeding, the newest find, or else the next kept
+    /// cue, a moment each, or with none yet, waiting for one.
     fn go_on(&mut self, age: Age) {
-        let (finds, kept, breeding) =
-            self.shared(|shared| (shared.finds.clone(), shared.breeder.kept.clone(), shared.breeding)).unwrap_or_default();
+        let kept = self.kept();
+        if let Some(index) = self.demo {
+            if index + 1 < kept.len() {
+                self.demo = Some(index + 1);
+                self.then(age, Some(Task::Play(index + 1, kept[index + 1].cue.clone(), PLAYING)));
+                return;
+            }
+            self.demo = None;
+            if let Some(shared) = &self.search.0 {
+                shared.lock().unwrap().paused = false;
+            }
+        }
+        let finds = self.shared(|shared| shared.finds.clone()).unwrap_or_default();
         let next = if finds.len() > self.played {
             self.played = finds.len();
             let index = finds[finds.len() - 1];
@@ -635,7 +743,7 @@ impl Quake {
                 Some(Task::Play(index, ..)) => (index + 1) % kept.len(),
                 _ => 0,
             };
-            Task::Play(index, kept[index].cue.clone(), if breeding { SHOWING } else { PLAYING })
+            Task::Play(index, kept[index].cue.clone(), SHOWING)
         } else {
             Task::Wait
         };
@@ -682,7 +790,8 @@ impl Quake {
         let work = hearing.work / ticks / (2.0 * TAU);
         let expressive = swing / EXPRESSIVE;
         let expressive = if expressive <= 1.0 { expressive } else { (2.0 - expressive).max(0.0) };
-        let score = expressive - EFFORT * work;
+        let quickness = (hearing.speed / hearing.moved.max(1e-12)).sqrt() / TAU;
+        let score = expressive - EFFORT * work - HASTE * quickness;
         let paths: Vec<Vec3> = hearing.shape.iter().zip(&hearing.counts).map(|(sum, &count)| *sum / count.max(1) as f32).collect();
         let reach = |joint: usize| paths[joint * BINS..(joint + 1) * BINS].iter().map(|v| v.length_squared()).sum::<f32>();
         let most = (0..self.watched.len()).max_by(|&a, &b| reach(a).total_cmp(&reach(b)));
@@ -690,7 +799,7 @@ impl Quake {
             format!("{} {}", self.watched[joint].name, way(&paths[joint * BINS..(joint + 1) * BINS]))
         });
         let shape = paths.iter().flat_map(|v| v.to_array()).collect();
-        self.found = Some(Kept { cue, score, swing, most, shape });
+        self.found = Some(Kept { cue, score, swing, most, quickness, shape });
         (self.task, self.motor) = (None, None);
     }
 
@@ -800,13 +909,19 @@ impl Quake {
     /// How far the watched joints swing about where they have stood on the
     /// deck lately, the farthest, remembered as it dies away; and while a
     /// cue plays, once settled in, what it hears.
-    fn watch(&mut self, fabric_joints: impl Fn(JointKey) -> Option<Vec3>, age: Age, dt: f32) {
+    fn watch(&mut self, fabric_joints: impl Fn(JointKey) -> Option<(Vec3, Vec3)>, age: Age, dt: f32) {
         let follow = dt / STANCE_MEMORY.0;
         let mut swing = 0.0f32;
+        let (mut moved, mut speed) = (0.0, 0.0);
         let mut aways = Vec::with_capacity(self.watched.len());
         for watched in &mut self.watched {
-            let away = fabric_joints(watched.key).map_or(Vec3::ZERO, |at| self.deck.on_deck(at) - watched.stance);
+            let (away, relative) = fabric_joints(watched.key).map_or((Vec3::ZERO, Vec3::ZERO), |(at, velocity)| {
+                let arm = at - self.deck.offset;
+                let carried = self.velocity + Vec3::new(self.spin * arm.z, 0.0, -self.spin * arm.x);
+                (self.deck.on_deck(at) - watched.stance, velocity - carried)
+            });
             swing = swing.max(away.length());
+            (moved, speed) = (moved + away.length_squared(), speed + relative.length_squared());
             watched.stance += away * follow;
             aways.push(away);
         }
@@ -824,6 +939,7 @@ impl Quake {
         hearing.ticks += 1;
         hearing.swing += response;
         hearing.work += motor.speed.abs();
+        (hearing.moved, hearing.speed) = (hearing.moved + moved, hearing.speed + speed);
         let bin = ((elapsed / loop_seconds).fract() * BINS as f32) as usize % BINS;
         for (joint, away) in aways.into_iter().enumerate() {
             hearing.shape[joint * BINS + bin] += away;
@@ -879,7 +995,7 @@ impl Fabric {
         }
         (quake.pull, quake.pull_twist) = (pull, twist);
         let joints = &self.joints;
-        quake.watch(|key| joints.get(key).map(|joint| joint.location), self.age, Age::iteration_duration().f32());
+        quake.watch(|key| joints.get(key).map(|joint| (joint.location, joint.velocity)), self.age, Age::iteration_duration().f32());
     }
 }
 
@@ -907,7 +1023,7 @@ mod tests {
         let path = std::env::temp_dir().join("tensegrity-lab-cues").join("remembered.txt");
         let kept: Vec<Kept> = [Cue::rocking(2.0, 30.0), Cue::turning(1.3)]
             .into_iter()
-            .map(|cue| Kept { cue, score: 0.8, swing: 0.04, most: "L12 side".to_string(), shape: Vec::new() })
+            .map(|cue| Kept { cue, score: 0.8, swing: 0.04, most: "L12 side".to_string(), quickness: 1.0, shape: Vec::new() })
             .collect();
         remember(&path, &kept);
         let cues = remembered(&path);
@@ -934,15 +1050,24 @@ mod tests {
         let before: Vec<Vec3> = fabric.joints.values().map(|joint| joint.location).collect();
         let per_second = Age::iterations_per_second() as usize;
         press(&mut fabric, &physics);
-        while fabric.quake.as_ref().unwrap().breeding() {
+        while fabric.quake.as_ref().unwrap().tries() < 160 {
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
+        let age = fabric.age;
+        fabric.quake.as_mut().unwrap().demo(age);
+        assert!(fabric.quake.as_ref().unwrap().demoing(), "the demo plays");
         let mut ticks = 0;
         while fabric.quake.as_ref().unwrap().playing().is_none() {
             fabric.iterate(&physics);
             ticks += 1;
             assert!(ticks < 60 * per_second, "it played what it kept within a minute");
         }
+        while !fabric.quake.as_ref().unwrap().waiting() {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        let tries = fabric.quake.as_ref().unwrap().tries();
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        assert_eq!(fabric.quake.as_ref().unwrap().tries(), tries, "breeding waits while the demo plays");
         let quake = fabric.quake.as_ref().unwrap();
         for kept in quake.kept() {
             eprintln!("{} scored {:.2}, {:.0} mm, most {}", kept.cue.describe(), kept.score, kept.swing * 1000.0, kept.most);
@@ -974,18 +1099,19 @@ mod tests {
     }
 
     /// Breed cues for a Medium piece (`PROBE` names the fabric, Headless
-    /// Hug by default) until it stops finding, and print those kept as DMX
-    /// loops, for the electronics.
+    /// Hug by default; `TRIES` how many, 200 by default), and print those
+    /// kept as DMX loops, for the electronics.
     #[test]
     #[ignore]
     fn breed_wobble_cues() {
         let name: FabricName = std::env::var("PROBE").ok().and_then(|name| name.parse().ok()).unwrap_or(FabricName::HeadlessHug);
+        let tries: u32 = std::env::var("TRIES").ok().and_then(|tries| tries.parse().ok()).unwrap_or(200);
         let (mut fabric, physics) = medium(name);
         let started = std::time::Instant::now();
         press(&mut fabric, &physics);
         let quake = fabric.quake.as_ref().unwrap();
         let mut reported = 0;
-        while quake.breeding() {
+        while quake.tries() < tries {
             std::thread::sleep(std::time::Duration::from_millis(100));
             if quake.tries() != reported {
                 reported = quake.tries();
@@ -995,11 +1121,12 @@ mod tests {
         }
         for (index, kept) in quake.kept().iter().enumerate() {
             eprintln!(
-                "// {} {}: scored {:.2}, {:.0} mm, most {}\n{:?}",
+                "// {} {}: scored {:.2}, {:.0} mm, {:.1}/s, most {}\n{:?}",
                 letter(index),
                 kept.cue.describe(),
                 kept.score,
                 kept.swing * 1000.0,
+                kept.quickness,
                 kept.most,
                 kept.cue.frames
             );

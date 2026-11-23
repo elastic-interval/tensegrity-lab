@@ -32,7 +32,7 @@ pub struct TextState {
     experiment_title: String,
     control_state: ControlState,
     stage_label: String,
-    quaking: Option<String>,
+    quaking: Option<(String, String)>,
     fabric_stats: Option<FabricStats>,
     movement_analysis: Option<String>,
     sections: [Option<OwnedSection>; SectionName::count()],
@@ -164,7 +164,7 @@ impl TextState {
             );
 
             // Add state subtitle below title (normal size, not small)
-            let subtitle = self.quaking.clone().unwrap_or_else(|| self.stage_label.clone());
+            let subtitle = self.quaking.as_ref().map_or_else(|| self.stage_label.clone(), |(subtitle, _)| subtitle.clone());
             self.update_section(SectionName::TopSubtitle, Normal(subtitle));
         }
 
@@ -189,7 +189,9 @@ impl TextState {
             return;
         }
 
-        if !self.mobile_device {
+        if let (Some((_, report)), false) = (&self.quaking, self.mobile_device) {
+            self.update_section(SectionName::Right, Normal(report.clone()));
+        } else if !self.mobile_device {
             // What the selection is shows in the scene, on its labels.
             self.update_section(
                 SectionName::Right,

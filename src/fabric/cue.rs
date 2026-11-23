@@ -17,6 +17,10 @@ pub const DMX_RATE: f32 = 44.0;
 pub const ZERO: u8 = 128;
 /// The shortest and longest loops bred, in frames.
 const FRAMES: (usize, usize) = (16, 176);
+/// The stepper's top speed, turns a second.
+pub const TOP_TURNS: f32 = 4.0;
+/// How far the stepper can go in a frame, in DMX values.
+const FARTHEST: f32 = 256.0 * TOP_TURNS / DMX_RATE;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Cue {
@@ -135,7 +139,7 @@ impl Cue {
 
     /// Where breeding starts: rocking at a spread of speeds, and turning.
     pub fn seeds() -> Vec<Cue> {
-        let rocking = [1.0, 1.3, 1.6, 2.0, 2.3, 2.6, 2.9].map(|hertz| Cue::rocking(hertz, 30.0));
+        let rocking = [0.6, 0.8, 1.0, 1.3, 1.6, 2.0, 2.3, 2.6, 2.9].map(|hertz| Cue::rocking(hertz, 30.0));
         let turning = [1.3, 2.1, 2.6].map(Cue::turning);
         rocking.into_iter().chain(turning).collect()
     }
@@ -150,10 +154,23 @@ impl Cue {
         }
     }
 
+    /// Whether the stepper can follow it, from each frame to the next.
+    pub fn followable(&self) -> bool {
+        let frames = self.frames.len();
+        (0..frames).all(|i| step(self.frames[i], self.frames[(i + 1) % frames]).abs() <= FARTHEST)
+    }
+
+    /// A child the stepper can follow (`mutation`), or failing that, the
+    /// cue itself.
+    pub fn mutated(&self, other: Option<&Cue>, random: &mut impl Rng) -> Cue {
+        (0..10).map(|_| self.mutation(other, random)).find(Cue::followable).unwrap_or_else(|| self.clone())
+    }
+
     /// A child: a bump somewhere in the loop, or the loop stretched (slower
     /// or quicker), or its rocking made wider or narrower, or part of
-    /// `other` crossed in.
-    pub fn mutated(&self, other: Option<&Cue>, random: &mut impl Rng) -> Cue {
+    /// `other` crossed in, blended in and out over a few frames.
+    fn mutation(&self, other: Option<&Cue>, random: &mut impl Rng) -> Cue {
+        const BLEND: f32 = 4.0;
         let frames = self.frames.len();
         match random.gen_range(0..4) {
             1 => {
@@ -170,15 +187,16 @@ impl Cue {
                 Cue {
                     frames: (0..frames)
                         .map(|i| {
-                            let inside = (i + frames - from) % frames;
-                            let mix = if inside < length { 1.0 } else { 0.0 };
+                            let inside = ((i + frames - from) % frames) as f32;
+                            let edge = inside.min(length as f32 - inside);
+                            let mix = if inside < length as f32 { (edge / BLEND).min(1.0) } else { 0.0 };
                             moved(self.frames[i], step(self.frames[i], other.frames[i]) * mix)
                         })
                         .collect(),
                 }
             }
             _ => {
-                let (middle, width) = (random.gen_range(0.0..frames as f32), random.gen_range(1.0..(frames as f32 / 4.0).max(1.5)));
+                let (middle, width) = (random.gen_range(0.0..frames as f32), random.gen_range(2.0..(frames as f32 / 4.0).max(2.5)));
                 let height = random.gen_range(-24.0..24.0);
                 Cue {
                     frames: (0..frames)

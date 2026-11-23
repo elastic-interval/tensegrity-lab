@@ -85,6 +85,8 @@ pub struct Application {
     size: Size,
     model_scale: Option<f32>,
     cycle: Option<CycleState>,
+    /// On a white background instead of the starry sky.
+    white: bool,
     #[cfg(not(target_arch = "wasm32"))]
     native: NativeState,
 }
@@ -142,9 +144,15 @@ impl Application {
             size,
             model_scale: model_scale.map(|n| 1.0 / n),
             cycle: None,
+            white: false,
             #[cfg(not(target_arch = "wasm32"))]
             native: NativeState::default(),
         }
+    }
+
+    /// Show the fabric on a white background instead of the starry sky.
+    pub fn set_white(&mut self) {
+        self.white = true;
     }
 
     /// Enable Show mode: after each fabric finishes, wait `CYCLE_DWELL`
@@ -173,7 +181,8 @@ impl Application {
     }
 
     fn redraw(&mut self) {
-        let buttons = self.button_bar.buttons(&self.control_state);
+        let quaking = self.crucible.fabric.quake.as_ref().is_some_and(|quake| quake.running());
+        let buttons = self.button_bar.buttons(&self.control_state, quaking);
         self.with_scene(|scene| scene.set_buttons(buttons));
 
         if self.last_motion.elapsed() >= MOTION_INTERVAL {
@@ -295,6 +304,9 @@ impl ApplicationHandler<LabEvent> for Application {
                 if self.cycle.is_some() {
                     StateChange::SetShowMode(true).send(&self.radio);
                 }
+                if self.white {
+                    StateChange::ToggleBackground.send(&self.radio);
+                }
             }
             Run(run_style) => {
                 self.run_style = run_style;
@@ -325,7 +337,8 @@ impl ApplicationHandler<LabEvent> for Application {
                         }
                         let fabric_plan = fabric_library::get_fabric_plan(*fabric_name).at_size(self.size);
                         CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
-                        // A model is built to be seen built, not watched growing.
+                        // Small and Medium are built in fast-forward, Large
+                        // never: it is watched growing.
                         if self.size != Size::Large {
                             SetTimeScale(FAST_FORWARD).send(&self.radio);
                         }

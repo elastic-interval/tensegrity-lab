@@ -179,8 +179,9 @@ build, and not again afterwards: animation keeps them.
   10 ms updates (up to 3 a frame), each `time_scale × iterations_per_second
   × 10 ms` iterations, so fabric time keeps pace with the wall clock at any
   frame rate; the frame rate is only displayed. `time_scale` is 1 except
-  while Fast-forward hurries a build (it goes back to 1 when the build ends).
-  There is no speed control. A frame over 100 ms drops that time rather than
+  while a Small or Medium build is fast-forwarded (it goes back to 1 when
+  the build ends); Large is never fast-forwarded. There is no speed
+  control, and no fast-forward button. A frame over 100 ms drops that time rather than
   catching up, and a frame spends at most about 25 ms on physics beyond its
   first update (`PHYSICS_BUDGET`), so fast-forward goes only as fast as the
   physics allows.
@@ -274,9 +275,10 @@ need to adjust mass or rigidity multipliers at runtime.
   (the parts view's strip); a button acts on release over it. The one key
   is Esc (native only), stepping back out of the parts view or a selection
   (`Application::step_back`): `ButtonBar` (`src/button_bar.rs`) registers
-  every button with its label, the stages it's enabled in and the event it
-  sends. The bar holds still, disabled buttons greyed; only physics
-  testing's and brick baking's buttons come and go with their tools.
+  every button with its label, the stages it shows in and the event it
+  sends. Only the buttons that apply show. Reload only in Viewing; Quake
+  only in Viewing, Stop quake and Demo in its place while the wobble table
+  quakes, with no Reload or Start animation meanwhile.
 - `sky_renderer.rs`, `surface_renderer.rs`, `text_renderer.rs` — chrome.
 - `shader.wgsl` — shared WGSL for fabric pipelines.
 
@@ -392,11 +394,11 @@ Important integration tests:
   cables with the wind from five directions. `Fabric::wind` is `None` in
   every build, so the wind never changes one.
 - `src/fabric/quake.rs` — `medium_headless_hug_rides_the_wobble_table`:
-  Quake pressed once, it breeds, keeps more than one cue, unlike one
-  another, and plays them; pressed again the crank goes back to its zero
-  and the piece stands where it stood. The ignored `breed_wobble_cues`
-  (`PROBE` the fabric) breeds until it stops finding and prints the kept
-  cues as DMX loops for the electronics.
+  Quake pressed once, it breeds and keeps more than one cue, unlike one
+  another; Demo plays them while breeding waits; pressed again the crank
+  goes back to its zero and the piece stands where it stood. The ignored
+  `breed_wobble_cues` (`PROBE` the fabric, `TRIES` how many) prints the
+  kept cues as DMX loops for the electronics.
   The table is a hexagonal deck hung on three ties, so it sways and twists
   but can't tilt. A stepper in the middle of the base turns a crank of fixed
   radius (`CRANK`), and a Dyneema cable from its pin to each of the deck's
@@ -406,25 +408,31 @@ Important integration tests:
   piece's mirror plane; it goes from one to the next the short way round,
   no faster than `TOP_SPEED`, so a cue can rock, turn, or anything between.
   It breeds them: from seeds rocking and turning at a spread of speeds, by
-  bumps, stretches, widening and crossing, out of sight: each tried
+  bumps, stretches, widening and crossing blended at its seams, none the
+  stepper couldn't follow (`Cue::followable`), out of sight: each tried
   `TRYING` on a copy of the piece as it stood when Quake was pressed,
   `ROUND` side by side on their own threads (one after another on the
   web), about eight tries a second. It watches every joint, no sensors
   chosen: each is scored for the joint swinging most swinging about
-  `EXPRESSIVE` against the deck, less for the crank's work (`EFFORT`); it
+  `EXPRESSIVE` against the deck, less for the crank's work (`EFFORT`) and
+  for quick sway (`HASTE`, against every joint's speed over how far it
+  moves), so the slower sways win; it
   keeps the best of each kind of swing (`Quake::alike` under `DISTINCT`,
   every joint's way through the loop, wherever it starts), at most
-  `KEPT`, and stops after `STALE` rounds with no find (a new kind, or one
-  `NOTABLE` better) or `MOST_TRIES`. The piece itself only plays: each
-  find `SHOWING`, then the kept in turn, `PLAYING` each once breeding has
-  stopped. Each time it finds, the kept cues are written to
+  `KEPT`, breeding on until Quake is pressed again. The piece itself only
+  plays: each find (a new kind, or one `NOTABLE` better) `SHOWING`, else
+  the kept in turn, `SHOWING` each. Demo, shown only while it quakes,
+  plays the kept in turn, `PLAYING` each, breeding waiting meanwhile, then
+  breeds on. Each time it finds, the kept cues are written to
   `cues/<fabric>.txt` (native only; `quake::cues_file`), one a line with the
   DMX frames after `|`, and tried first the next time Quake is pressed, so
   breeding carries on from them. The kept cues are named A to F by where they are kept; the
   subtitle names the one playing, with what the stepper is told
   (`Cue::describe`), the joint it moves most and which way (side, up,
-  fore, or two of them: `R62 side+up`) and, while it breeds, how many
-  tried:
+  fore, or two of them: `R62 side+up`). While Quake runs nothing can be
+  selected, and the right of the screen tells how breeding goes
+  (`Quake::report`): the round, how many tried, rounds since a find, the
+  cues kept with score, swing and joint, and what plays. A cue reads:
   `A 34f 130 149/5 107/8 130/21` is a 34-frame loop from position 130,
   turning back at 149 after 5 frames, at 107 after 8 more, home after 21;
   `B 34f ↻1 128` turns once round each loop.

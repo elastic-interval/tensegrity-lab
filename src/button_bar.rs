@@ -20,15 +20,12 @@ struct Entry {
     label: &'static str,
     shows_in: fn(&ControlState) -> bool,
     press: Press,
-    /// On the bar all the time, disabled where it doesn't apply; otherwise
-    /// it shows only where it applies, the buttons of a tool of its own.
-    fixed: bool,
+    /// Shown only while the wobble table quakes, or only while it doesn't.
+    quaking: Option<bool>,
 }
 
-/// Every button in the app, in the order they line up along the bottom. The
-/// bar holds still: its buttons are all there all the time, each enabled
-/// only in the stages it applies to. Physics testing and brick baking are
-/// tools of their own, their buttons showing only while they run.
+/// Every button in the app, in the order they line up along the bottom,
+/// each showing only in the stages it applies to.
 pub struct ButtonBar {
     entries: Vec<Entry>,
 }
@@ -48,31 +45,37 @@ impl ButtonBar {
                 |s| matches!(s, Viewing { animation_available: true, .. }),
                 Crucible(ToAnimating),
             );
+            bar.entries.last_mut().unwrap().quaking = Some(false);
             bar.once("Stop animation", |s| matches!(s, Animating { .. }), Crucible(ToViewing));
         }
         if size == Size::Large {
             bar.once("Wind", |s| matches!(s, Viewing { .. } | Animating { .. }), Crucible(CycleWind));
         }
         if size == Size::Medium {
-            bar.once("Quake", |s| matches!(s, Viewing { .. } | Animating { .. }), Crucible(Quake));
+            let table = |s: &ControlState| matches!(s, Viewing { .. });
+            bar.once("Quake", table, Crucible(Quake));
+            bar.entries.last_mut().unwrap().quaking = Some(false);
+            bar.once("Stop quake", table, Crucible(Quake));
+            bar.entries.last_mut().unwrap().quaking = Some(true);
+            bar.once("Demo", table, Crucible(QuakeDemo));
+            bar.entries.last_mut().unwrap().quaking = Some(true);
         }
         if size == Size::Large {
             bar.once("Take apart", |s| matches!(s, Viewing { assembly_available: true, .. }), Crucible(Assemble));
         }
-        bar.tool(
+        bar.once(
             "Physics test",
             |s| matches!(s, Viewing { physics_testing_available: true, .. }),
             Crucible(ToPhysicsTesting),
         );
-        bar.tool("Exit test", |s| matches!(s, PhysicsTesting), Crucible(ToViewing));
-        bar.tool(
+        bar.once("Exit test", |s| matches!(s, PhysicsTesting), Crucible(ToViewing));
+        bar.once(
             "Movement stats",
             |s| matches!(s, PhysicsTesting),
             Crucible(TesterDo(TesterAction::ToggleMovementSampler)),
         );
-        bar.tool("Color by role", |s| matches!(s, PhysicsTesting), UpdateState(StateChange::ToggleColorByRole));
-        bar.tool("Jump", |s| matches!(s, PhysicsTesting), Crucible(CentralizeFabric(Some(Meters(1.0)))));
-        bar.once("Background", |_| true, UpdateState(StateChange::ToggleBackground));
+        bar.once("Color by role", |s| matches!(s, PhysicsTesting), UpdateState(StateChange::ToggleColorByRole));
+        bar.once("Jump", |s| matches!(s, PhysicsTesting), Crucible(CentralizeFabric(Some(Meters(1.0)))));
         if size == Size::Large {
             bar.once(
                 "Parts",
@@ -80,14 +83,9 @@ impl ButtonBar {
                 UpdateState(StateChange::TogglePartsView),
             );
         }
-        bar.tool("Next brick", |s| matches!(s, Baking), NextBrick);
-        bar.once(
-            "Fast-forward",
-            |s| matches!(s, Building | Assembling { fast: false } | Animating { fast: false }),
-            SetTimeScale(FAST_FORWARD),
-        );
-        bar.once("Slow", |s| matches!(s, Assembling { fast: true } | Animating { fast: true }), SetTimeScale(1.0));
-        bar.once("Reload", |s| !matches!(s, Baking | Building), RebuildFabric);
+        bar.once("Next brick", |s| matches!(s, Baking), NextBrick);
+        bar.once("Reload", |s| matches!(s, Viewing { .. }), RebuildFabric);
+        bar.entries.last_mut().unwrap().quaking = Some(false);
         for (label, feature) in [("Mass", TweakFeature::MassScale), ("Rigidity", TweakFeature::RigidityScale)] {
             bar.entries.push(Entry {
                 label,
@@ -96,41 +94,30 @@ impl ButtonBar {
                     down: Crucible(TesterDo(TesterAction::ScaleTweak(feature, 0.9))),
                     up: Crucible(TesterDo(TesterAction::ScaleTweak(feature, 1.1))),
                 },
-                fixed: false,
+                quaking: None,
             });
         }
         bar
     }
 
-    /// The buttons in `control_state`, in groups to keep together: all the
-    /// bar's, those that don't apply disabled, and a tool's while it applies.
-    pub fn buttons(&self, control_state: &ControlState) -> Vec<Vec<Button<LabEvent>>> {
+    /// The buttons that apply in `control_state`, the wobble table
+    /// `quaking` or not, in groups to keep together.
+    pub fn buttons(&self, control_state: &ControlState, quaking: bool) -> Vec<Vec<Button<LabEvent>>> {
         self.entries
             .iter()
-            .filter_map(|entry| {
-                let enabled = (entry.shows_in)(control_state);
-                if !enabled && !entry.fixed {
-                    return None;
-                }
-                let button = |label: &str, event: &LabEvent| {
-                    let button = Button::new(label, event.clone());
-                    if enabled { button } else { button.disabled() }
-                };
-                Some(match &entry.press {
-                    Press::Once(event) => vec![button(entry.label, event)],
-                    Press::Step { down, up } => {
-                        vec![button("−", down), Button::caption(entry.label), button("+", up)]
-                    }
-                })
+            .filter(|entry| (entry.shows_in)(control_state) && entry.quaking.is_none_or(|when| when == quaking))
+            .map(|entry| match &entry.press {
+                Press::Once(event) => vec![Button::new(entry.label, event.clone())],
+                Press::Step { down, up } => vec![
+                    Button::new("−", down.clone()),
+                    Button::caption(entry.label),
+                    Button::new("+", up.clone()),
+                ],
             })
             .collect()
     }
 
     fn once(&mut self, label: &'static str, shows_in: fn(&ControlState) -> bool, event: LabEvent) {
-        self.entries.push(Entry { label, shows_in, press: Press::Once(event), fixed: true });
-    }
-
-    fn tool(&mut self, label: &'static str, shows_in: fn(&ControlState) -> bool, event: LabEvent) {
-        self.entries.push(Entry { label, shows_in, press: Press::Once(event), fixed: false });
+        self.entries.push(Entry { label, shows_in, press: Press::Once(event), quaking: None });
     }
 }

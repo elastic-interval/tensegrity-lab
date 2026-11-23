@@ -36,6 +36,8 @@ pub struct Scene {
     parts_view: Option<PartsView>,
     last_part: usize,
     pick_allowed: bool,
+    /// No picking while the wobble table breeds and plays.
+    quaking: bool,
     model_scale: Option<f32>,
     radio: Radio,
 }
@@ -69,6 +71,7 @@ impl Scene {
             parts_view: None,
             last_part: 0,
             pick_allowed: false,
+            quaking: false,
             model_scale,
             radio,
         }
@@ -166,6 +169,13 @@ impl Scene {
                     }
                 }
             },
+            SetQuaking(quaking) => {
+                let starting = quaking.is_some() && !self.quaking;
+                self.quaking = quaking.is_some();
+                if starting && !matches!(self.camera.current_pick(), Pick::Nothing) {
+                    LabEvent::Crucible(crate::CrucibleAction::ClearSelection).send(&self.radio);
+                }
+            }
             SetAnimating(_) => {}
             ResetView => {
                 self.render_style = Normal;
@@ -322,7 +332,7 @@ impl Scene {
             &self.render_style,
             self.show_attachment_points,
         );
-        let preview = if self.pick_allowed && !cfg!(target_arch = "wasm32") {
+        let preview = if self.pick_allowed && !self.quaking && !cfg!(target_arch = "wasm32") {
             self.camera.preview()
         } else {
             None
@@ -379,7 +389,7 @@ impl Scene {
         // When picking is not allowed (or always on the web — pure mouse-driven, no
         // selection), convert pick intents to Reset (release without picking). Camera
         // orbit/zoom (Moved/Pressed/Zoomed) still pass through.
-        let pointer_changed = if !self.pick_allowed || cfg!(target_arch = "wasm32") {
+        let pointer_changed = if !self.pick_allowed || self.quaking || cfg!(target_arch = "wasm32") {
             match pointer_changed {
                 PointerChange::Released(_) => PointerChange::Released(PickIntent::Reset),
                 PointerChange::TouchReleased(_) => PointerChange::TouchReleased(PickIntent::Reset),
