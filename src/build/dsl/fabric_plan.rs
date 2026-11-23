@@ -19,6 +19,16 @@ use crate::fabric::FabricDimensions;
 
 use crate::units::{Hertz, Percent, Seconds};
 
+/// A plan's fabric as built Large, up to its pretensing: how tall, how far
+/// it reaches from its middle, and how far across the corners a wobble
+/// table it stands on would be, past its spread and its guy lines' anchors.
+#[derive(Clone, Copy, Debug)]
+struct Built {
+    height: f32,
+    reach: f32,
+    table: f32,
+}
+
 #[derive(Debug, Clone)]
 pub struct FabricPlan {
     pub name: FabricName,
@@ -63,15 +73,20 @@ impl FabricPlan {
         self
     }
 
-    /// This plan made at `size`. Medium is built small enough to stand about
+    /// This plan made at `size`, knowing how far it reaches once built, for
+    /// the camera to keep back from the start. Medium is built small enough to stand about
     /// `MEDIUM_HEIGHT` tall, its lengths in metres shrunk with it, and made
     /// in its own materials from pretensing on (`FabricDimensions::medium`);
     /// it has no node plates, so no bridles, and its hinges are made by
     /// hand. Small is shown from the Large fabric.
     pub fn at_size(mut self, size: Size) -> Self {
+        let Built { height, reach, table } = self.built();
+        self.dimensions.reach = Some(Meters(reach));
         if size == Size::Medium {
-            let (shrink, table) = self.medium_shrink();
-            self.dimensions.table = Some(Meters(table));
+            let shrink = MEDIUM_HEIGHT.f32() / height;
+            self.dimensions.reach = Some(Meters(reach * shrink));
+            self.dimensions.table = Some(Meters(table * shrink));
+            self.dimensions = self.dimensions.drawn_medium();
             self.dimensions.scale = self.dimensions.scale * shrink;
             self.dimensions.altitude = self.dimensions.altitude * shrink;
             // Things fall faster the smaller they are, in time going as the
@@ -91,23 +106,20 @@ impl FabricPlan {
         self
     }
 
-    /// How much smaller than Large to build it, for it to stand about
-    /// `MEDIUM_HEIGHT` tall, and how far across its table's corners: from
-    /// building it Large, unseen, up to its pretensing, once for each
-    /// fabric. The table reaches past the piece's spread and its guy lines'
-    /// anchors.
-    fn medium_shrink(&self) -> (f32, f32) {
-        static SHRINKS: OnceLock<Mutex<HashMap<FabricName, (f32, f32)>>> = OnceLock::new();
-        let shrinks = SHRINKS.get_or_init(Default::default);
-        if let Some(&found) = shrinks.lock().unwrap().get(&self.name) {
+    /// The fabric as it is built, Large, up to its pretensing: unseen,
+    /// once for each fabric.
+    fn built(&self) -> Built {
+        static BUILT: OnceLock<Mutex<HashMap<FabricName, Built>>> = OnceLock::new();
+        let built = BUILT.get_or_init(Default::default);
+        if let Some(&found) = built.lock().unwrap().get(&self.name) {
             return found;
         }
         let mut executor = FabricPlanExecutor::new(self.clone());
         while matches!(executor.stage(), ExecutorStage::Building) {
             let _ = executor.iterate();
         }
-        let fabric = &executor.fabric;
-        let shrink = MEDIUM_HEIGHT.f32() / fabric.height().f32();
+        let fabric = &mut executor.fabric;
+        fabric.update_bounding_radius();
         let middle = fabric.joints.values().fold(Vec3::ZERO, |sum, joint| sum + joint.location) / fabric.joints.len() as f32;
         let spread = fabric.joints.values().fold(Vec2::ZERO, |most, joint| {
             most.max(Vec2::new((joint.location.x - middle.x).abs(), (joint.location.z - middle.z).abs()))
@@ -117,9 +129,13 @@ impl FabricPlan {
             let (outward, along) = guy.ground_offset;
             most.max((spread.x + outward.f32().abs()).hypot(along.f32().abs()))
         });
-        let table = (spread.length().max(anchors) * shrink + DECK_MARGIN) * 1.05;
-        shrinks.lock().unwrap().insert(self.name, (shrink, table));
-        (shrink, table)
+        let found = Built {
+            height: fabric.height().f32(),
+            reach: fabric.bounding_radius(),
+            table: spread.length().max(anchors) * 1.05 + DECK_MARGIN / MEDIUM_HEIGHT.f32() * fabric.height().f32(),
+        };
+        built.lock().unwrap().insert(self.name, found);
+        found
     }
 
     pub fn animate(self) -> AnimateBuilder {

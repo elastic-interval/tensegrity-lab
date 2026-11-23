@@ -5,7 +5,7 @@ use crate::connector::ConnectorDimensions;
 use crate::fabric::physics::Physics;
 use crate::fabric::interval::Role;
 use crate::fabric::material::Material;
-use crate::units::{Grams, GramsPerMeter, Meters, Newtons, Unit};
+use crate::units::{Degrees, Grams, GramsPerMeter, Meters, Newtons, Unit};
 
 /// Masses counted from a fabric's real parts, in place of a flat mass per
 /// joint. A strut's tubes are spread over its length and each end carries its
@@ -151,6 +151,12 @@ pub struct FabricDimensions {
     pub size: Size,
     /// A Medium piece's wobble table, this far across its corners.
     pub table: Option<Meters>,
+    /// How far it reaches from its middle once built, when known, for the
+    /// camera to keep that far back while it grows.
+    pub reach: Option<Meters>,
+    /// Turned this far about the vertical from the start of a build on a
+    /// table, so its symmetry stands square to the table's three hangers.
+    pub table_turn: Degrees,
 }
 
 impl Default for FabricDimensions {
@@ -171,6 +177,8 @@ impl Default for FabricDimensions {
             connectors_shown: false,
             size: Size::Large,
             table: None,
+            reach: None,
+            table_turn: Degrees(0.0),
         }
     }
 }
@@ -210,6 +218,12 @@ impl FabricDimensions {
         self
     }
 
+    /// On a wobble table, turned `turn` from the way it is built.
+    pub fn with_table_turn(mut self, turn: Degrees) -> Self {
+        self.table_turn = turn;
+        self
+    }
+
     /// Show the connector hardware as soon as the fabric is built.
     pub fn with_connectors_shown(mut self) -> Self {
         self.connectors_shown = true;
@@ -220,14 +234,21 @@ impl FabricDimensions {
     /// struts and cords drawn their own thickness. A Medium plan is built
     /// small (`FabricPlan::at_size`) and turned Medium just before
     /// pretensing.
-    pub fn medium(mut self) -> Self {
-        self.size = Size::Medium;
+    pub fn medium(self) -> Self {
+        let mut medium = self.drawn_medium();
+        medium.size = Size::Medium;
+        medium.strut_mass = None;
+        medium.with_hardware(Hardware::MEDIUM)
+    }
+
+    /// Drawn as a Medium piece, from the start of its build: struts and
+    /// cords their own thickness, and no connector hardware.
+    pub fn drawn_medium(mut self) -> Self {
         self.connector = None;
         self.connectors_shown = false;
-        self.strut_mass = None;
         self.push_radius = Meters(0.004);
         self.pull_radius = Meters(0.00075);
-        self.with_hardware(Hardware::MEDIUM)
+        self
     }
 
     /// Equip the fabric with physical connector hardware (default dimensions),

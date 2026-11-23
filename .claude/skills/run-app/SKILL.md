@@ -26,8 +26,10 @@ launch it and tell him which buttons do what.
 
    Fabric names, exactly as `--fabric` takes them (`FabricName` in
    `src/build/dsl/fabric_library.rs`): `Headless Hug`, `Open Claw`, `Halo by Crane`,
-   `Twisted Infinity`, `Propeller`, `Diamond`. With no `--fabric` it opens Open Claw;
-   `--cycle` walks through them all.
+   `Twisted Infinity`, `Propeller`, `Diamond`, `Quadruped`. With no `--fabric` it opens Open Claw;
+   `--cycle` walks through them all. `--size medium` makes it about 1.5 m tall in the 2021
+   Headless Hug's materials, on the wobble table; `--size small` is a model (see the
+   `run-scale-model` skill). Gerald's own launcher is `scripts/lab.sh` (`scripts/lab.sh hh medium`).
 
 3. **Confirm it started:** `pgrep -fl "tensegrity_lab --fabric"` shows the process, and
    `app.log` holds no panic. When the background task finishes, the window was closed (exit 0) or
@@ -44,17 +46,18 @@ stands (Viewing).
 
 | Button | Does |
 |---|---|
-| Wind | Cycling: from the front, the side, behind, then off (`src/fabric/wind.rs`) |
-| Quake | Start / stop the ground shaking, up to half of g (`src/fabric/quake.rs`) |
-| Take apart | Headless Hug and Open Claw: taken apart strut by strut on a crane hook, then straight away put together again, fast-forwarded; one button switches it Slow / Fast-forward (`src/build/assembly.rs`) |
+| Wind | Large only. Cycling: from the front, the side, behind, then off (`src/fabric/wind.rs`) |
+| Quake | Medium only. Starts the wobble table's stepper breeding DMX cues for the hands, playing the kept ones A–F every eight tries; again to stop (`src/fabric/quake.rs`, `src/fabric/cue.rs`) |
+| Take apart | Large only. Headless Hug and Open Claw: taken apart strut by strut on a crane hook, then straight away put together again, fast-forwarded; one button switches it Slow / Fast-forward (`src/build/assembly.rs`) |
 | Start / Stop animation | The animation |
-| Parts | The parts, full screen; Back to return |
+| Parts | Large only. The parts, full screen; Back to return |
 | Background | The starry sky (the default) or white |
 | Fast-forward / Slow | Ten times real time, or back to real time: the build, the animation, the assembly |
 | Reload | Reload the fabric |
 | Deselect / Back to joint | Step back out of a selection |
 
-The connector hardware always shows at real scale. A movie is recorded from the command line
+The connector hardware always shows at real scale, and only at Large. Small and Medium start
+building in fast-forward. A movie is recorded from the command line
 (`--record <seconds>`).
 
 Click a joint or interval to select it; drag to orbit, wheel to zoom.

@@ -105,6 +105,10 @@ node plates and hinges, with no flat joint mass (Headless Hug).
 
 `Size` (`src/fabric/dimensions.rs`, `--size`) says how big a fabric is made,
 from one plan for all three (`FabricPlan::at_size`):
+the plan is first built Large unseen up to its pretensing, once for each
+fabric, so it is known how far the fabric will reach (`FabricDimensions::reach`)
+and the camera keeps that far back from the start of the build, with
+nothing to make up when it is done.
 - **Large** — the plan as designed, with its connectors.
 - **Medium** — about 1.5 m tall (`MEDIUM_HEIGHT`), built as the 2021 Headless
   Hug was: 8×1 mm aluminium tube, an M6 bolt set per strut end, 1.5 mm
@@ -413,8 +417,7 @@ Important integration tests:
   of B, `?` a seed), with what the stepper is told (`Cue::describe`):
   `A 34f 130 149/5 107/8 130/21` is a 34-frame loop from position 130,
   turning back at 149 after 5 frames, at 107 after 8 more, home after 21;
-  `B 34f ↻1 128` turns once round each loop. A kept one adds what the hands
-  do.
+  `B 34f ↻1 128` turns once round each loop.
   The piece's feet go with the deck and pull on it. It is drawn with its
   mechanism showing: at alternate corners (`HANG_CORNERS`, one behind the
   piece and two before it, so the table has its mirror symmetry and it

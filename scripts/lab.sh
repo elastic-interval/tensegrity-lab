@@ -1,56 +1,91 @@
 #!/bin/bash
-# Opens the lab on one of the sculptures. Run it with no arguments for a
-# menu, or name one straight away:
+# Opens the lab on one of the sculptures, at one of its sizes, over and over.
+# It shows a menu; press a letter to open that one. While it is open, press
+# any key here to close it and come back to the menu, or another letter to
+# go straight to that one. Closing the window comes back to the menu too.
+# Q quits.
 #
-#   scripts/lab.sh            menu
-#   scripts/lab.sh hh         Headless Hug
-#   scripts/lab.sh oc         Open Claw
-#   scripts/lab.sh quad       Quadruped (on the quadruped branch)
-#   scripts/lab.sh model      Headless Hug as a 1:10 scale model
-#   scripts/lab.sh model 12   ... or any other scale, here 1:12
+#   Large   as designed
+#   Medium  about 1.5 m, in the 2021 Headless Hug's materials, on the
+#           wobble table (Quake breeds its movements)
+#   Small   a 1:10 scale model, every length in model millimetres
 
 cd "$(dirname "$0")/.." || exit 1
 
-choice="$1"
-scale="${2:-10}"
+fabrics=("Headless Hug" "Open Claw" "Quadruped")
+sizes=(large medium small)
+letters=(A B C D E F G H I)
 
-if [ -z "$choice" ]; then
+menu() {
+    echo
     echo "Tensegrity Lab ($(git branch --show-current))"
     echo
-    echo "  1) Headless Hug"
-    echo "  2) Open Claw"
-    echo "  3) Quadruped"
-    echo "  4) Headless Hug as a scale model (1:10)"
+    local index=0
+    for fabric in "${fabrics[@]}"; do
+        for size in "${sizes[@]}"; do
+            printf "  %s) %-13s %s\n" "${letters[$index]}" "$fabric" "$size"
+            index=$((index + 1))
+        done
+    done
+    echo "  Q) quit"
     echo
-    read -r -p "Which one? [1-4] " choice
-fi
+}
 
-case "$choice" in
-    1 | hh) fabric="Headless Hug"; title="Headless Hug" ;;
-    2 | oc) fabric="Open Claw"; title="Open Claw" ;;
-    3 | quad) fabric="Quadruped"; title="Quadruped" ;;
-    4 | model) fabric="Headless Hug"; title="Headless Hug, scale model 1:$scale"; model=1 ;;
-    *)
-        echo "Choose 1-4, or one of: hh, oc, quad, model [scale]"
-        exit 1
-        ;;
-esac
+# The fabric and size for a letter, or nothing for any other key.
+chosen() {
+    local key
+    key=$(echo "$1" | tr '[:lower:]' '[:upper:]')
+    for index in "${!letters[@]}"; do
+        if [ "${letters[$index]}" = "$key" ]; then
+            fabric="${fabrics[$((index / 3))]}"
+            size="${sizes[$((index % 3))]}"
+            return 0
+        fi
+    done
+    return 1
+}
 
-if [ "$fabric" = "Quadruped" ] && ! grep -q "Quadruped" src/build/dsl/fabric_library.rs; then
-    echo "The Quadruped is on the quadruped branch, and this is $(git branch --show-current)."
-    echo "Switch with:  git checkout quadruped"
-    exit 1
-fi
+# Opens `fabric` at `size`, and waits for it to close or a key to be pressed.
+# A letter pressed meanwhile is left in `next`.
+run() {
+    echo "Building..."
+    if ! cargo build --release --quiet; then
+        echo "The build failed; see the errors above."
+        return
+    fi
+    echo "Opening $fabric, $size. Press a key to close it, or another letter to switch."
+    ./target/release/tensegrity_lab --fabric "$fabric" --size "$size" > /dev/null 2>&1 &
+    local app=$!
+    next=""
+    while kill -0 "$app" 2> /dev/null; do
+        if read -r -s -n 1 -t 1 key; then
+            kill "$app" 2> /dev/null
+            wait "$app" 2> /dev/null
+            if chosen "$key"; then
+                next="$key"
+            fi
+            return
+        fi
+    done
+    wait "$app" 2> /dev/null
+}
 
-echo "Building..."
-if ! cargo build --release --quiet; then
-    echo "The build failed; see the errors above."
-    exit 1
-fi
-
-echo "Opening $title. Close the window to come back here."
-if [ -n "$model" ]; then
-    ./target/release/tensegrity_lab --fabric "$fabric" --model-scale "$scale"
-else
-    ./target/release/tensegrity_lab --fabric "$fabric"
-fi
+next=""
+while true; do
+    if [ -z "$next" ]; then
+        menu
+        read -r -s -n 1 -p "Press a letter: " key || exit 0
+        echo
+    else
+        key="$next"
+    fi
+    case "$key" in
+        q | Q) exit 0 ;;
+    esac
+    if chosen "$key"; then
+        run
+    else
+        next=""
+        echo "No $key on the menu."
+    fi
+done

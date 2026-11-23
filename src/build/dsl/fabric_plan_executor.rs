@@ -9,7 +9,6 @@ use crate::fabric::physics::Physics;
 use crate::fabric::interval::Role;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::fabric::dimensions::Size;
-use crate::build::dsl::brick_dsl::Side;
 use crate::fabric::quake::Quake;
 use crate::fabric::{Fabric, JointKey};
 use crate::units::{Meters, Seconds, Unit};
@@ -167,7 +166,7 @@ pub struct FabricPlanExecutor {
     settle_cables_added: bool,
     /// The joints at the tips of the plan's hands, for the wobble table to
     /// watch.
-    hands: Vec<(JointKey, Side)>,
+    hands: Vec<JointKey>,
 }
 
 impl FabricPlanExecutor {
@@ -413,11 +412,11 @@ impl FabricPlanExecutor {
         if let Some(plan_runner) = &self.plan_runner {
             use crate::build::dsl::brick_dsl::FaceLabel;
             for (label, &face) in plan_runner.face_labels() {
-                if let FaceLabel::Hand(side) = label {
-                    self.hands.extend(self.fabric.face(face).radial_joints(&self.fabric).map(|joint| (joint, *side)));
+                if matches!(label, FaceLabel::Hand(_)) {
+                    self.hands.extend(self.fabric.face(face).radial_joints(&self.fabric));
                 }
             }
-            self.hands.sort_by_key(|&(joint, _)| joint);
+            self.hands.sort();
         }
 
         // Remove faces

@@ -10,6 +10,7 @@ use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::units::{Meters, Seconds, Unit, IMMEDIATE, MOMENT};
 use crate::{Age, LabEvent, StateChange};
+use glam::Quat;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Clone, Debug, Copy, PartialEq)]
@@ -115,6 +116,12 @@ impl PlanRunner {
         let (next_stage, seconds) = match self.stage {
             Initialize => {
                 self.build_phase.init(fabric);
+                if fabric.dimensions.table.is_some() {
+                    let turn = Quat::from_rotation_y(-fabric.dimensions.table_turn.0.to_radians());
+                    for joint in fabric.joints.values_mut() {
+                        joint.location = turn * joint.location;
+                    }
+                }
                 (BuildApproach, MOMENT)
             }
             BuildStep => {

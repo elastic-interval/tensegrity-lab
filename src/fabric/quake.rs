@@ -13,9 +13,9 @@
 //! keeps the best of each kind of swing, unlike one another. Every so often
 //! it plays what it has kept, each in turn, then breeds on.
 
-use crate::build::dsl::brick_dsl::Side;
 use crate::fabric::cue::Cue;
 use crate::fabric::dimensions::Hardware;
+use crate::fabric::joint::JointLabel;
 use crate::fabric::{Fabric, JointKey};
 use crate::units::{Seconds, Unit, EARTH_GRAVITY};
 use crate::Age;
@@ -122,14 +122,13 @@ fn wrapped(angle: f32) -> f32 {
     (angle + PI).rem_euclid(TAU) - PI
 }
 
-/// A cue kept: how well it did, how far the hands swung, what they did,
-/// and the shape of their swing (`Quake::shape`).
+/// A cue kept: how well it did, how far the hands swung, and the shape of
+/// their swing (`Quake::alike`).
 #[derive(Clone, Debug)]
 pub struct Kept {
     pub cue: Cue,
     pub score: f32,
     pub swing: f32,
-    pub motion: String,
     shape: Vec<f32>,
 }
 
@@ -146,12 +145,10 @@ fn letter(index: usize) -> char {
     (b'A' + index as u8) as char
 }
 
-/// A joint the motor watches: which hand it is on, and where it has stood
-/// on the deck lately.
+/// A joint the motor watches, and where it has stood on the deck lately.
 #[derive(Clone, Debug)]
 struct Watched {
     key: JointKey,
-    side: Option<Side>,
     stance: Vec3,
 }
 
@@ -271,19 +268,25 @@ impl Quake {
     }
 
     /// The piece `fabric` landed on the table: its weight on the ties, and
-    /// `hands` watched, or with none its three highest joints.
-    pub fn mount(&mut self, fabric: &Fabric, hands: &[(JointKey, Side)]) {
+    /// `hands` watched, or with none the highest joint off its symmetry
+    /// axis or plane, with its images.
+    pub fn mount(&mut self, fabric: &Fabric, hands: &[JointKey]) {
         let piece = fabric.joints.values().map(|joint| joint.accumulated_mass.f32()).sum::<f32>() / 1000.0;
         self.weight = (self.mass + piece) * EARTH_GRAVITY.f32();
-        let mut watched: Vec<(JointKey, Option<Side>)> =
-            hands.iter().filter(|(key, _)| fabric.joints.contains_key(*key)).map(|&(key, side)| (key, Some(side))).collect();
+        let mut watched: Vec<JointKey> = hands.iter().copied().filter(|&key| fabric.joints.contains_key(key)).collect();
         if watched.is_empty() {
-            let mut highest: Vec<(JointKey, f32)> = fabric.joints.iter().map(|(key, joint)| (key, joint.location.y)).collect();
-            highest.sort_by(|a, b| b.1.total_cmp(&a.1));
-            watched = highest.into_iter().take(3).map(|(key, _)| (key, None)).collect();
+            let twin = |key: JointKey| match fabric.joints[key].label {
+                Some(JointLabel::Twin { number, .. }) => Some(number),
+                _ => None,
+            };
+            let highest = fabric.joints.keys().filter(|&key| twin(key).is_some()).max_by(|&a, &b| {
+                fabric.joints[a].location.y.total_cmp(&fabric.joints[b].location.y)
+            });
+            if let Some(number) = highest.and_then(twin) {
+                watched = fabric.joints.keys().filter(|&key| twin(key) == Some(number)).collect();
+            }
         }
-        self.watched =
-            watched.into_iter().map(|(key, side)| Watched { key, side, stance: fabric.joints[key].location }).collect();
+        self.watched = watched.into_iter().map(|key| Watched { key, stance: fabric.joints[key].location }).collect();
     }
 
     /// Whether a piece has landed on it.
@@ -320,8 +323,8 @@ impl Quake {
 
     /// What the stepper is doing, for the subtitle, briefly: the kept cue
     /// it plays, by its letter, or the one it tries, a child of a kept one
-    /// (`B′`) or a seed (`?`), what the stepper is told (`Cue::describe`),
-    /// and for one kept, what the hands do.
+    /// (`B′`) or a seed (`?`), and what the stepper is told
+    /// (`Cue::describe`).
     pub fn describe(&self) -> String {
         let (Some(motor), Some(task)) = (&self.motor, &self.task) else {
             return "stopped".to_string();
@@ -338,7 +341,7 @@ impl Quake {
             Task::Try(cue, _) => format!("{} {}", name(task), cue.describe()),
             Task::Play(index) => {
                 let kept = &self.kept[*index];
-                format!("{} {} · {}", name(task), kept.cue.describe(), kept.motion)
+                format!("{} {}", name(task), kept.cue.describe())
             }
         }
     }
@@ -446,7 +449,7 @@ impl Quake {
             .zip(&hearing.counts)
             .flat_map(|(sum, &count)| (*sum / count.max(1) as f32).to_array())
             .collect();
-        let found = Kept { motion: self.motion(&shape), cue, score, swing, shape };
+        let found = Kept { cue, score, swing, shape };
         if swing > EXPRESSIVE / 2.0 {
             match self.kept.iter().position(|kept| Self::alike(&kept.shape, &found.shape) >= DISTINCT) {
                 Some(index) if found.score > self.kept[index].score => self.kept[index] = found,
@@ -483,34 +486,6 @@ impl Quake {
                 dot.abs() / (na * nb)
             })
             .fold(0.0, f32::max)
-    }
-
-    /// What the hands do in a swing's `shape`, in words: which way they go
-    /// most, and whether together or against each other.
-    fn motion(&self, shape: &[f32]) -> String {
-        let way = |joint: usize, bin: usize| Vec3::from_slice(&shape[(joint * BINS + bin) * 3..][..3]);
-        let mut spread = Vec3::ZERO;
-        for joint in 0..self.watched.len() {
-            for bin in 0..BINS {
-                spread += way(joint, bin).abs();
-            }
-        }
-        let axis = if spread.x >= spread.y && spread.x >= spread.z { 0 } else if spread.z >= spread.y { 2 } else { 1 };
-        let hand = |side: Side, bin: usize| {
-            let joints: Vec<usize> = (0..self.watched.len()).filter(|&j| self.watched[j].side == Some(side)).collect();
-            joints.iter().map(|&joint| way(joint, bin)[axis]).sum::<f32>() / joints.len().max(1) as f32
-        };
-        let together: f32 = (0..BINS).map(|bin| hand(Side::Left, bin) * hand(Side::Right, bin)).sum();
-        let handed = self.watched.iter().any(|watched| watched.side.is_some());
-        match (axis, !handed || together >= 0.0) {
-            (0, true) => "swaying side to side",
-            (0, false) => "opening and closing",
-            (2, true) => "rocking back and forth",
-            (2, false) => "swinging back and forth in turn",
-            (_, true) => "bobbing up and down",
-            (_, false) => "waving up and down in turn",
-        }
-        .to_string()
     }
 
     /// Whether the stepper is playing, not stopping.
@@ -717,7 +692,7 @@ mod tests {
         }
         let quake = fabric.quake.as_ref().unwrap();
         for kept in quake.kept() {
-            eprintln!("{} scored {:.2}, hands {:.0} mm, {}", kept.cue.describe(), kept.score, kept.swing * 1000.0, kept.motion);
+            eprintln!("{} scored {:.2}, hands {:.0} mm", kept.cue.describe(), kept.score, kept.swing * 1000.0);
         }
         assert!(quake.kept().len() > 1, "it kept {} cues", quake.kept().len());
         for (index, a) in quake.kept().iter().enumerate() {
@@ -766,12 +741,11 @@ mod tests {
         }
         for (index, kept) in fabric.quake.as_ref().unwrap().kept().iter().enumerate() {
             eprintln!(
-                "// {} {}: scored {:.2}, hands {:.0} mm, {}\n{:?}",
+                "// {} {}: scored {:.2}, hands {:.0} mm\n{:?}",
                 letter(index),
                 kept.cue.describe(),
                 kept.score,
                 kept.swing * 1000.0,
-                kept.motion,
                 kept.cue.frames
             );
         }

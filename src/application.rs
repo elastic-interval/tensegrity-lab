@@ -26,7 +26,6 @@ use crate::animation_export::AnimationExporter;
 use crate::build::dsl::fabric_library::FabricName;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::physics_gpu::GpuBatch;
-#[cfg(not(target_arch = "wasm32"))]
 use crate::units::Seconds;
 
 /// State that only exists in the native build: animation export, its
@@ -80,12 +79,18 @@ pub struct Application {
     control_state: ControlState,
     pointer_handler: PointerHandler,
     time_scale: f32,
+    /// What `time_scale` is easing up to: going faster, it speeds up over
+    /// `SPEEDING_UP`, so the camera keeps up with what it shows.
+    time_scale_goal: f32,
     size: Size,
     model_scale: Option<f32>,
     cycle: Option<CycleState>,
     #[cfg(not(target_arch = "wasm32"))]
     native: NativeState,
 }
+
+/// How long going ten times faster takes to get up to speed.
+const SPEEDING_UP: Seconds = Seconds(2.0);
 
 impl Application {
     /// What Esc does: leave the parts view, or step out of a selection as
@@ -133,6 +138,7 @@ impl Application {
             last_motion: Instant::now(),
             control_state: ControlState::Waiting,
             time_scale,
+            time_scale_goal: time_scale,
             size,
             model_scale: model_scale.map(|n| 1.0 / n),
             cycle: None,
@@ -540,7 +546,7 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             FabricBuilt(fabric_stats) => {
                 // Reset time scale to normal when construction completes
-                self.time_scale = 1.0;
+                (self.time_scale, self.time_scale_goal) = (1.0, 1.0);
                 StateChange::SetFabricName(self.size.title(&fabric_stats.name)).send(&self.radio);
                 StateChange::SetFabricStats(Some(fabric_stats)).send(&self.radio);
                 StateChange::SetControlState(self.crucible.viewing_state()).send(&self.radio);
@@ -591,9 +597,10 @@ impl ApplicationHandler<LabEvent> for Application {
                 }
             }
             SetTimeScale(scale) => {
-                self.time_scale = scale.clamp(0.1, 100.0);
+                self.time_scale_goal = scale.clamp(0.1, 100.0);
+                self.time_scale = self.time_scale.min(self.time_scale_goal);
                 if let ControlState::Assembling { fast } | ControlState::Animating { fast } = &mut self.control_state {
-                    *fast = self.time_scale > 1.0;
+                    *fast = self.time_scale_goal > 1.0;
                 }
             }
             UpdateState(app_change) => {
@@ -611,8 +618,8 @@ impl ApplicationHandler<LabEvent> for Application {
                         // Viewing never runs fast; an animation keeps the
                         // speed it had, a selection in it notwithstanding.
                         match &mut self.control_state {
-                            ControlState::Viewing { .. } => self.time_scale = 1.0,
-                            ControlState::Animating { fast } => *fast = self.time_scale > 1.0,
+                            ControlState::Viewing { .. } => (self.time_scale, self.time_scale_goal) = (1.0, 1.0),
+                            ControlState::Animating { fast } => *fast = self.time_scale_goal > 1.0,
                             _ => {}
                         }
                     }
@@ -859,6 +866,10 @@ impl ApplicationHandler<LabEvent> for Application {
         let capped_elapsed = std::cmp::min(elapsed, Duration::from_millis(33)); // ~30 FPS cap for native
 
         self.accumulated_time += capped_elapsed;
+        if self.time_scale < self.time_scale_goal {
+            let speeding = FAST_FORWARD.powf(capped_elapsed.as_secs_f32() / SPEEDING_UP.0);
+            self.time_scale = (self.time_scale * speeding).min(self.time_scale_goal);
+        }
 
         // Define update interval (how often physics steps are taken)
         let update_interval = Duration::from_millis(10);

@@ -3,6 +3,7 @@ use crate::build::dsl::fabric_dsl::{on, *};
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::connector::strut::HEADLESS_HUG_TUBES;
 use crate::fabric::dimensions::Hardware;
+use crate::units::Degrees;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
@@ -40,7 +41,8 @@ impl FabricName {
                     FabricDimensions::default()
                         .with_scale(M(0.80))
                         .with_connector()
-                        .with_connectors_shown(),
+                        .with_connectors_shown()
+                        .with_table_turn(Degrees(45.8)),
                 )
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([

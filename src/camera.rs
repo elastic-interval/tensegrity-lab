@@ -44,7 +44,15 @@ const TENDENCY_RATE: f32 = 0.8;
 /// Closest the camera follows a fabric while it is being built, in fabric
 /// scales: it watches the structure grow out of the seed instead of starting
 /// at the seed and racing back as the bricks appear.
+/// Where the plan says how far the fabric will reach once built, as far as
+/// will frame it then, so there is nothing to make up when it is done.
 const MIN_BUILD_DISTANCE: f32 = 25.0;
+/// How far back to frame a fabric, as a part of how far it reaches.
+const FRAMING: f32 = 2.2;
+
+fn build_distance(fabric: &Fabric) -> f32 {
+    fabric.dimensions.reach.map_or(MIN_BUILD_DISTANCE * fabric.scale(), |reach| reach.f32() * FRAMING)
+}
 const NEAR_PLANE: f32 = 0.1;
 // Wheel zoom stops this close to what it looks at: some strut widths away,
 // and well clear of the near plane, which would cut into it.
@@ -389,9 +397,7 @@ impl Camera {
     pub fn update(&mut self, dt: f32, fabric: &Fabric, framing: Framing) -> bool {
         if !self.is_placed() {
             let min_distance = match framing {
-                Framing::Construction { .. } | Framing::Show { constructing: true } => {
-                    MIN_BUILD_DISTANCE * fabric.scale()
-                }
+                Framing::Construction { .. } | Framing::Show { constructing: true } => build_distance(fabric),
                 Framing::Still | Framing::Show { constructing: false } => 0.0,
             };
             self.jump_to_fabric_at_least(fabric, min_distance);
@@ -486,7 +492,7 @@ impl Camera {
     /// and altitude from the approach zoom, which would pull toward the seed.
     fn follow_construction(&mut self, fabric: &Fabric, building: bool) {
         self.approach.active = false;
-        let min_distance = if building { MIN_BUILD_DISTANCE * fabric.scale() } else { 0.0 };
+        let min_distance = if building { build_distance(fabric) } else { 0.0 };
         let (goal_pos, goal_look_at) =
             self.framing_for(fabric, /*preserve_angle*/ true, min_distance);
         self.tendency = Some((goal_pos, goal_look_at));
@@ -1155,7 +1161,7 @@ impl Target {
             Target::FabricMidpoint => {
                 // For fabric overview, calculate distance based on bounding sphere
                 // Assuming 45-degree FOV, distance = radius / tan(22.5°) ≈ radius * 2.4
-                radius * 2.8
+                radius * FRAMING
             }
             Target::AroundJoint(_) => {
                 // Zoom in closer for joint details
