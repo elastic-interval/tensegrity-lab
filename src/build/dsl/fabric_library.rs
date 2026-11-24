@@ -448,7 +448,7 @@ pub fn quadruped_plan(shape: QuadrupedShape) -> FabricPlan {
         ])
         .down(Sec(1.0), [fore_left, fore_right, hind_left, hind_right])
         .pretense(Sec(0.3), Pct(0.2))
-        .surface_grippy()
+        .surface_frozen()
         .fall(Sec(1.5))
         .settle(Sec(10.0))
         // Diagonals across the top and the bottom of the body, each from one

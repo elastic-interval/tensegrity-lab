@@ -167,7 +167,7 @@ impl Cue {
         ((cycles as f32 * DMX_RATE / hertz).round() as usize, cycles)
     }
 
-    /// Where breeding starts: rocking at a spread of speeds about the
+    /// Where evolving starts: rocking at a spread of speeds about the
     /// front, the side and a diagonal; a few cycles of rocking and then
     /// holding still while the piece rings on; and turning.
     pub fn seeds() -> Vec<Cue> {

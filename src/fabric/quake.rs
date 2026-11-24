@@ -12,10 +12,10 @@
 //! of the piece swing against the deck, scoring the cue for the joint that
 //! swings most swinging expressively and for how little the crank works,
 //! and the best of each kind of swing, the whole piece's way through the
-//! loop, is kept, unlike one another. Breeding goes on until Quake is
+//! loop, is kept, unlike one another. Evolving goes on until Quake is
 //! pressed again. The piece itself plays what is kept: each new find a
 //! moment, else each kept in turn a moment; Demo plays them all in turn,
-//! longer, breeding waiting meanwhile.
+//! longer, evolution waiting meanwhile.
 
 use crate::fabric::cue::{Cue, TOP_TURNS};
 use crate::fabric::dimensions::Hardware;
@@ -73,7 +73,7 @@ const DAMPING: f32 = 0.05;
 /// the crank's pin smoothly instead of with every jerk of the stepper: each
 /// table's springs are chosen for its deck to sway on them, by itself, this
 /// many times a second, well above the piece's own swings.
-const DECK_SWAY: f32 = 3.5;
+const DECK_SWAY: f32 = 7.0;
 /// Each cable's tension with the deck still and the crank at its zero.
 /// Enough that none goes slack drawing the deck round.
 const CABLE_PRETENSION: f32 = 300.0;
@@ -199,10 +199,10 @@ enum Task {
     Wait,
 }
 
-/// The breeding: the seeds still to try, the cues kept, unlike one another,
+/// The evolution: the seeds still to try, the cues kept, unlike one another,
 /// each named by where it is kept, and how many have been tried.
 #[derive(Clone, Debug)]
-struct Breeder {
+struct Evolution {
     seeds: VecDeque<Cue>,
     kept: Vec<Kept>,
     /// How many times what is kept has changed.
@@ -211,11 +211,11 @@ struct Breeder {
     random: ChaCha8Rng,
 }
 
-impl Breeder {
-    /// Breeding from `remembered` cues, tried first, and then the seeds.
-    fn new(remembered: Vec<Cue>) -> Breeder {
+impl Evolution {
+    /// Evolving from `remembered` cues, tried first, and then the seeds.
+    fn new(remembered: Vec<Cue>) -> Evolution {
         let seeds = remembered.into_iter().chain(Cue::seeds()).collect();
-        Breeder { seeds, kept: Vec::new(), changes: 0, tries: 0, random: ChaCha8Rng::seed_from_u64(1) }
+        Evolution { seeds, kept: Vec::new(), changes: 0, tries: 0, random: ChaCha8Rng::seed_from_u64(1) }
     }
 
     /// The next cue to try: a seed, or a child of those kept.
@@ -277,14 +277,14 @@ impl Breeder {
     }
 }
 
-/// The breeding, shared with the rounds run out of sight: where each find
-/// was kept, in turn, whether it is still breeding, whether it waits for a
+/// The evolution, shared with the rounds run out of sight: where each find
+/// was kept, in turn, whether it is still evolving, whether it waits for a
 /// demo or should stop, and where what it keeps is remembered.
 #[derive(Debug)]
 struct Shared {
-    breeder: Breeder,
+    evolution: Evolution,
     finds: Vec<usize>,
-    breeding: bool,
+    evolving: bool,
     paused: bool,
     stop: bool,
     /// A round is being tried.
@@ -335,8 +335,8 @@ fn remember(path: &Path, kept: &[Kept]) {
     }
 }
 
-/// The piece's link to its breeding. A copy of the piece has none, and when
-/// the piece goes, its breeding stops.
+/// The piece's link to its evolution. A copy of the piece has none, and when
+/// the piece goes, its evolution stops.
 #[derive(Debug, Default)]
 struct Search(Option<Arc<Mutex<Shared>>>);
 
@@ -378,10 +378,10 @@ fn trial(piece: &Fabric, physics: &Physics, cue: Cue) -> Option<Kept> {
     }
 }
 
-/// Breed in rounds, each cue tried on its own copy of `piece`, until told
+/// Evolve in rounds, each cue tried on its own copy of `piece`, until told
 /// to stop, waiting while a demo plays.
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
-fn breed(shared: Arc<Mutex<Shared>>, piece: Fabric, physics: Physics) {
+fn evolve(shared: Arc<Mutex<Shared>>, piece: Fabric, physics: Physics) {
     let mut stale = 0;
     loop {
         let cues: Vec<Cue> = {
@@ -395,24 +395,24 @@ fn breed(shared: Arc<Mutex<Shared>>, piece: Fabric, physics: Physics) {
                 continue;
             }
             shared.trying = true;
-            (0..ROUND).map(|_| shared.breeder.next()).collect()
+            (0..ROUND).map(|_| shared.evolution.next()).collect()
         };
         let found = trials(&piece, &physics, cues);
         let mut shared = shared.lock().unwrap();
         shared.trying = false;
-        let (before, changes) = (shared.finds.len(), shared.breeder.changes);
+        let (before, changes) = (shared.finds.len(), shared.evolution.changes);
         for found in found.into_iter().flatten() {
-            if let Some(index) = shared.breeder.keep(found) {
+            if let Some(index) = shared.evolution.keep(found) {
                 shared.finds.push(index);
             }
         }
         stale = if shared.finds.len() > before { 0 } else { stale + 1 };
         (shared.rounds, shared.stale) = (shared.rounds + 1, stale);
-        if let (Some(memory), true) = (&shared.memory, shared.breeder.changes > changes) {
-            remember(memory, &shared.breeder.kept);
+        if let (Some(memory), true) = (&shared.memory, shared.evolution.changes > changes) {
+            remember(memory, &shared.evolution.kept);
         }
     }
-    shared.lock().unwrap().breeding = false;
+    shared.lock().unwrap().evolving = false;
 }
 
 /// A kept cue's name: A to F, by where it is kept.
@@ -519,7 +519,7 @@ pub struct Quake {
     /// What the stepper plays, and what comes once it is back at its zero.
     task: Option<Task>,
     next: Option<Task>,
-    /// The breeding, how many of its finds have been played, and the kept
+    /// The evolution, how many of its finds have been played, and the kept
     /// cue a demo plays.
     search: Search,
     played: usize,
@@ -609,25 +609,25 @@ impl Quake {
         self.response
     }
 
-    /// What the breeding has come to: the cues kept, where each find was
-    /// kept in turn, how many tried, and whether it is still breeding.
+    /// What the evolution has come to: the cues kept, where each find was
+    /// kept in turn, how many tried, and whether it is still evolving.
     fn shared<T>(&self, look: impl FnOnce(&Shared) -> T) -> Option<T> {
         self.search.0.as_ref().map(|shared| look(&shared.lock().unwrap()))
     }
 
     /// The cues kept so far, A first.
     pub fn kept(&self) -> Vec<Kept> {
-        self.shared(|shared| shared.breeder.kept.clone()).unwrap_or_default()
+        self.shared(|shared| shared.evolution.kept.clone()).unwrap_or_default()
     }
 
     /// How many cues it has tried.
     pub fn tries(&self) -> u32 {
-        self.shared(|shared| shared.breeder.tries).unwrap_or(0)
+        self.shared(|shared| shared.evolution.tries).unwrap_or(0)
     }
 
-    /// Whether it is still breeding.
-    pub fn breeding(&self) -> bool {
-        self.shared(|shared| shared.breeding).unwrap_or(false)
+    /// Whether it is still evolving.
+    pub fn evolving(&self) -> bool {
+        self.shared(|shared| shared.evolving).unwrap_or(false)
     }
 
     /// The kept cue it plays, if it plays one.
@@ -654,28 +654,28 @@ impl Quake {
         }
         match task {
             Task::Play(index, cue, _) => {
-                let most = self.shared(|shared| shared.breeder.kept.get(*index).map(|kept| kept.most.clone())).flatten();
+                let most = self.shared(|shared| shared.evolution.kept.get(*index).map(|kept| kept.most.clone())).flatten();
                 format!("{} {} · {}", name(task), cue.describe(), most.unwrap_or_default())
             }
             Task::Try(cue) => cue.describe(),
-            Task::Wait => "breeding".to_string(),
+            Task::Wait => "evolving".to_string(),
         }
     }
 
-    /// How the breeding goes, for the side of the screen: how far it has
+    /// How the evolution goes, for the side of the screen: how far it has
     /// got, the cues kept with how each did, and what plays now.
     pub fn report(&self) -> String {
-        let Some((kept, tries, rounds, stale, breeding)) = self.shared(|shared| {
-            (shared.breeder.kept.clone(), shared.breeder.tries, shared.rounds, shared.stale, shared.breeding)
+        let Some((kept, tries, rounds, stale, evolving)) = self.shared(|shared| {
+            (shared.evolution.kept.clone(), shared.evolution.tries, shared.rounds, shared.stale, shared.evolving)
         }) else {
             return String::new();
         };
         let mut lines = Vec::new();
         if self.demo.is_some() {
             lines.push(format!("Demo: the kept in turn, {:.0} s each,", PLAYING.0));
-            lines.push(format!("then breeding goes on ({tries} tried)"));
-        } else if breeding {
-            lines.push(format!("Breeding, round {}: {tries} cues tried", rounds + 1));
+            lines.push(format!("then evolving goes on ({tries} tried)"));
+        } else if evolving {
+            lines.push(format!("Evolving, round {}: {tries} cues tried", rounds + 1));
             lines.push(format!("{ROUND} at a time on copies of the piece,"));
             lines.push(format!("{:.0} s each, out of sight", TRYING.0));
             lines.push(format!("Last find {stale} rounds ago"));
@@ -702,7 +702,7 @@ impl Quake {
         lines.join("\n")
     }
 
-    /// The Quake button: it breeds cues on copies of `piece`, as it stands
+    /// The Quake button: it evolves cues on copies of `piece`, as it stands
     /// now, playing what it keeps, until pressed again. With a `memory`,
     /// the cues kept there before are tried first, and what it keeps is
     /// kept there.
@@ -729,9 +729,9 @@ impl Quake {
         let shared = self.search.0.get_or_insert_with(|| {
             let remembered = memory.as_deref().map(remembered).unwrap_or_default();
             Arc::new(Mutex::new(Shared {
-                breeder: Breeder::new(remembered),
+                evolution: Evolution::new(remembered),
                 finds: Vec::new(),
-                breeding: false,
+                evolving: false,
                 paused: false,
                 stop: false,
                 trying: false,
@@ -742,15 +742,15 @@ impl Quake {
         });
         let start = {
             let mut shared = shared.lock().unwrap();
-            let start = !shared.breeding;
-            (shared.breeding, shared.stop) = (true, false);
+            let start = !shared.evolving;
+            (shared.evolving, shared.stop) = (true, false);
             start
         };
         if let (true, Some((piece, physics))) = (start, piece) {
             let shared = Arc::clone(shared);
-            // The web has no threads to breed on.
+            // The web has no threads to evolve on.
             #[cfg(not(target_arch = "wasm32"))]
-            std::thread::spawn(move || breed(shared, piece, physics));
+            std::thread::spawn(move || evolve(shared, piece, physics));
             #[cfg(target_arch = "wasm32")]
             drop((shared, piece, physics));
         }
@@ -762,7 +762,7 @@ impl Quake {
         self.then(age, None);
     }
 
-    /// The Demo button: breeding waits while the cues kept play in turn,
+    /// The Demo button: evolving waits while the cues kept play in turn,
     /// `PLAYING` each, then goes on.
     pub fn demo(&mut self, age: Age) {
         let kept = self.kept();
@@ -776,7 +776,7 @@ impl Quake {
         self.then(age, Some(Task::Play(0, first.cue.clone(), PLAYING)));
     }
 
-    /// Whether breeding waits for a demo, no round being tried.
+    /// Whether evolving waits for a demo, no round being tried.
     pub fn waiting(&self) -> bool {
         self.shared(|shared| shared.paused && !shared.trying).unwrap_or(false)
     }
@@ -787,7 +787,7 @@ impl Quake {
     }
 
     /// On to what is next: in a demo the next kept cue, or at its end back
-    /// to breeding; while breeding, the newest find, or else the next kept
+    /// to evolving; while evolving, the newest find, or else the next kept
     /// cue, a moment each, or with none yet, waiting for one.
     fn go_on(&mut self, age: Age) {
         let kept = self.kept();
@@ -1116,7 +1116,7 @@ mod tests {
         remember(&path, &kept);
         let cues = remembered(&path);
         assert_eq!(cues, kept.iter().map(|kept| kept.cue.clone()).collect::<Vec<_>>());
-        assert_eq!(Breeder::new(cues).next(), kept[0].cue);
+        assert_eq!(Evolution::new(cues).next(), kept[0].cue);
     }
 
     /// Quake pressed on `fabric`, as the button does.
@@ -1127,7 +1127,7 @@ mod tests {
     }
 
     /// A Medium Headless Hug on its wobble table, Quake pressed once: it
-    /// breeds cues on copies of itself, keeps several unlike one another
+    /// evolves cues on copies of itself, keeps several unlike one another
     /// that swing the piece, and plays them. Pressed again the crank goes
     /// back to its zero, and the piece stands where it stood.
     #[test]
@@ -1155,7 +1155,7 @@ mod tests {
         }
         let tries = fabric.quake.as_ref().unwrap().tries();
         std::thread::sleep(std::time::Duration::from_secs(2));
-        assert_eq!(fabric.quake.as_ref().unwrap().tries(), tries, "breeding waits while the demo plays");
+        assert_eq!(fabric.quake.as_ref().unwrap().tries(), tries, "evolving waits while the demo plays");
         let quake = fabric.quake.as_ref().unwrap();
         for kept in quake.kept() {
             eprintln!("{} scored {:.2}, {:.0} mm, most {}", kept.cue.describe(), kept.score, kept.swing * 1000.0, kept.most);
@@ -1186,12 +1186,12 @@ mod tests {
         assert!(settled < 0.03, "it ended {:.0} mm from where it stood", settled * 1000.0);
     }
 
-    /// Breed cues for a Medium piece (`PROBE` names the fabric, Headless
+    /// Evolve cues for a Medium piece (`PROBE` names the fabric, Headless
     /// Hug by default; `TRIES` how many, 200 by default), and print those
     /// kept as DMX loops, for the electronics.
     #[test]
     #[ignore]
-    fn breed_wobble_cues() {
+    fn evolve_wobble_cues() {
         let name: FabricName = std::env::var("PROBE").ok().and_then(|name| name.parse().ok()).unwrap_or(FabricName::HeadlessHug);
         let tries: u32 = std::env::var("TRIES").ok().and_then(|tries| tries.parse().ok()).unwrap_or(200);
         let (mut fabric, physics) = medium(name);

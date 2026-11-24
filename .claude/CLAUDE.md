@@ -341,7 +341,7 @@ src/
 │   ├── vulcanize.rs
 │   ├── wind.rs         # Gusting wind: drag on every member (Wind button, wind tests)
 │   ├── quake.rs        # The wobble table under a Medium piece (Quake button)
-│   ├── cue.rs          # DMX cues for the table's stepper, and their breeding
+│   ├── cue.rs          # DMX cues for the table's stepper, and their evolution
 │   ├── site.rs         # Building site: ground that lets go, pinned struts, crane hook (Fabric::site)
 │   └── fabric_sampler.rs
 │
@@ -396,10 +396,10 @@ Important integration tests:
   cables with the wind from five directions. `Fabric::wind` is `None` in
   every build, so the wind never changes one.
 - `src/fabric/quake.rs` — `medium_headless_hug_rides_the_wobble_table`:
-  Quake pressed once, it breeds and keeps more than one cue, unlike one
-  another; Demo plays them while breeding waits; pressed again the crank
+  Quake pressed once, it evolves and keeps more than one cue, unlike one
+  another; Demo plays them while evolving waits; pressed again the crank
   goes back to its zero and the piece stands where it stood. The ignored
-  `breed_wobble_cues` (`PROBE` the fabric, `TRIES` how many) prints the
+  `evolve_wobble_cues` (`PROBE` the fabric, `TRIES` how many) prints the
   kept cues as DMX loops for the electronics.
   The table is a hexagonal deck hung on three ties, so it sways and twists
   but can't tilt. A stepper in the middle of the base turns a crank of fixed
@@ -414,7 +414,7 @@ Important integration tests:
   crank's position 0–255 with 128 its zero, pointing forward along the
   piece's mirror plane; it goes from one to the next the short way round,
   no faster than `TOP_SPEED`, so a cue can rock, turn, or anything between.
-  It breeds them: from seeds rocking about the front (drawing the deck
+  It evolves them: from seeds rocking about the front (drawing the deck
   side to side), the side (fore and aft) and a diagonal, rocking a few
   cycles then holding still while the piece rings on (`Cue::pulsing`), and
   turning, at a spread of speeds, by
@@ -429,21 +429,21 @@ Important integration tests:
   moves), so the slower sways win; it
   keeps the best of each kind of swing (`Quake::alike` under `DISTINCT`,
   every joint's way through the loop, wherever it starts), at most
-  `KEPT`, breeding on until Quake is pressed again. The piece itself only
+  `KEPT`, evolving on until Quake is pressed again. The piece itself only
   plays: each find (a new kind, or one `NOTABLE` better) `SHOWING`, else
   the kept in turn, `SHOWING` each, every one from rest: between cues the
   piece and the deck are put back as they stood when Quake was pressed
   (`Rest`), still. Stopping, the crank goes back to its zero gently
   (`RETURNING`). Demo, shown only while it quakes,
-  plays the kept in turn, `PLAYING` each, breeding waiting meanwhile, then
-  breeds on. After every round that changes what is kept, the kept cues are written to
+  plays the kept in turn, `PLAYING` each, evolution waiting meanwhile, then
+  evolves on. After every round that changes what is kept, the kept cues are written to
   `cues/<fabric>.txt` (native only; `quake::cues_file`), one a line with the
   DMX frames after `|`, and tried first the next time Quake is pressed, so
-  breeding carries on from them. The kept cues are named A to F by where they are kept; the
+  evolution carries on from them. The kept cues are named A to F by where they are kept; the
   subtitle names the one playing, with what the stepper is told
   (`Cue::describe`), the joint it moves most and which way (side, up,
   fore, or two of them: `R62 side+up`). While Quake runs nothing can be
-  selected, and the right of the screen tells how breeding goes
+  selected, and the right of the screen tells how the evolution goes
   (`Quake::report`): the round, how many tried, rounds since a find, the
   cues kept with score, swing and joint, and what plays. A cue reads:
   `A 34f 130 149/5 107/8 130/21` is a 34-frame loop from position 130,

@@ -36,7 +36,7 @@ pub struct Scene {
     parts_view: Option<PartsView>,
     last_part: usize,
     pick_allowed: bool,
-    /// No picking while the wobble table breeds and plays.
+    /// No picking while the wobble table evolves and plays.
     quaking: bool,
     model_scale: Option<f32>,
     radio: Radio,

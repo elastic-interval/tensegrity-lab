@@ -28,9 +28,9 @@ pub enum CrucibleAction {
     CentralizeFabric(Option<Meters>),
     /// Step the wind: from the front, the side, behind, then off.
     CycleWind,
-    /// Start the wobble table breeding cues, or stop it.
+    /// Start the wobble table evolving cues, or stop it.
     Quake,
-    /// Play the wobble table's kept cues in turn, then breed on.
+    /// Play the wobble table's kept cues in turn, then evolve on.
     QuakeDemo,
     /// Take the standing figure apart strut by strut, or put it together again.
     Assemble,
@@ -59,7 +59,7 @@ pub enum StateChange {
     SetControlState(ControlState),
     SetStageLabel(String),
     /// What the wobble table's motor is doing, shown over the stage label,
-    /// and how its breeding goes, shown at the right; `None` when it stands
+    /// and how its evolution goes, shown at the right; `None` when it stands
     /// still.
     SetQuaking(Option<(String, String)>),
     ResetView,
