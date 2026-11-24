@@ -47,7 +47,7 @@ stands (Viewing).
 | Button | Does |
 |---|---|
 | Wind | Large only. Cycling: from the front, the side, behind, then off (`src/fabric/wind.rs`) |
-| Quake / Stop quake | Medium only. Evolves DMX cues for the wobble table's stepper on copies of the piece, eight at a time out of sight, while the piece plays each find; it evolves on until pressed again (`src/fabric/quake.rs`, `src/fabric/cue.rs`) |
+| Quake / Stop quake | Medium only. Evolves DMX cues for the wobble table's three steppers on copies of the piece, eight at a time out of sight, while the piece plays each find; it evolves on until pressed again (`src/fabric/quake.rs`, `src/fabric/cue.rs`) |
 | Demo | While Quake runs. Plays the kept cues A–F in turn, 15 s each, evolution waiting, then evolves on |
 | Take apart | Large only. Headless Hug and Open Claw: taken apart strut by strut on a crane hook, then straight away put together again, in real time (`src/build/assembly.rs`) |
 | Start / Stop animation | Large only. The animation |

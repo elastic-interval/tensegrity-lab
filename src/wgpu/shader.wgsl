@@ -290,7 +290,6 @@ struct Ground {
     fill: vec4<f32>,
     shift: vec4<f32>,
     deck: vec4<f32>,
-    pin: vec4<f32>,
 };
 @group(1) @binding(0) var<uniform> ground: Ground;
 
@@ -578,15 +577,12 @@ struct DeckVertexOutput {
 };
 
 // The wobble table: what moves with the deck (w one) is turned and moved as
-// the deck is, what is on the cam's pin (w two) goes with the pin, and the
-// base (w zero) stays.
+// the deck is, and the base (w zero) stays.
 @vertex
 fn deck_vertex(@location(0) pos: vec4<f32>, @location(1) color: vec4<f32>) -> DeckVertexOutput {
     var output: DeckVertexOutput;
     var p = pos.xyz;
-    if (pos.w > 1.5) {
-        p = p + ground.pin.xyz;
-    } else if (pos.w > 0.5) {
+    if (pos.w > 0.5) {
         let c = cos(ground.deck.z);
         let s = sin(ground.deck.z);
         p = vec3<f32>(c * p.x + s * p.z, p.y, -s * p.x + c * p.z) + vec3<f32>(ground.deck.x, 0.0, ground.deck.y);

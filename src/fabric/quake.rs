@@ -1,23 +1,25 @@
 //! The wobble table a Medium piece stands on: a hexagonal deck hung on three
 //! short ties, at alternate corners, from arms rising off a fixed hexagonal
 //! base. Hung so, the deck can't tilt; it sways on its ties like a pendulum
-//! and twists about its middle. A stepper motor in the middle of the base
-//! turns a crank, and a cable from the crank's pin to each of the deck's
-//! hooks draws the deck after the pin. The piece's feet stand on the deck
-//! and go with it, and pull on it in turn.
+//! and twists about its middle. At the other three corners a stepper on
+//! the base turns a drum, and a cable loop from the drum, through a pulley
+//! either side, to a lug under the deck draws the deck along its edge, one
+//! way or the other. All three drawing the same way twist the deck; drawing
+//! so that they add up to nothing, they sway it. The piece's feet stand on
+//! the deck and go with it, and pull on it in turn.
 //!
-//! The stepper plays cues (`Cue`), DMX loops of the crank's position, bred
-//! out of sight: each tried on a copy of the piece as it stood when Quake
+//! The steppers play cues (`Cue`), DMX loops of the drums' positions,
+//! evolved out of sight: each tried on a copy of the piece as it stood when Quake
 //! was pressed, `ROUND` at a time side by side. A try watches every joint
 //! of the piece swing against the deck, scoring the cue for the joint that
-//! swings most swinging expressively and for how little the crank works,
+//! swings most swinging expressively and for how little the drums work,
 //! and the best of each kind of swing, the whole piece's way through the
 //! loop, is kept, unlike one another. Evolving goes on until Quake is
 //! pressed again. The piece itself plays what is kept: each new find a
 //! moment, else each kept in turn a moment; Demo plays them all in turn,
 //! longer, evolution waiting meanwhile.
 
-use crate::fabric::cue::{Cue, TOP_TURNS};
+use crate::fabric::cue::{Cue, PER_VALUE, TOP_SPEED, ZERO};
 use crate::fabric::dimensions::Hardware;
 use crate::fabric::{Fabric, JointKey};
 use crate::units::{Seconds, Unit, EARTH_GRAVITY};
@@ -49,15 +51,11 @@ pub const HOOK_REACH: f32 = 0.1;
 /// the piece and two before it, either side, so the table has the piece's
 /// own mirror symmetry and the piece faces between two of them.
 pub const HANG_CORNERS: [usize; 3] = [0, 2, 4];
-/// The pin's height above the base.
-pub const CAM_HEIGHT: f32 = 0.05;
-/// The crank on the stepper's shaft: its pin this far from the axis.
-pub const CRANK: f32 = 0.008;
-/// The crank's zero: pointing forward, the way the piece faces, along its
-/// mirror plane.
-pub const CRANK_ZERO: f32 = TAU / 4.0;
-/// The stepper's top speed, radians a second.
-const TOP_SPEED: f32 = TOP_TURNS * TAU;
+/// The steppers stand at the other corners: one before the piece and two
+/// behind it, either side.
+pub const DRUM_CORNERS: [usize; 3] = [1, 3, 5];
+/// From a lug to the pulley either side of it, along the deck's edge.
+pub const LOOP_LEG: f32 = 0.15;
 /// Deck and frame, per square metre.
 const DECK_DENSITY: f32 = 15.0;
 /// The deck is this much larger across than the smallest that holds every
@@ -69,14 +67,11 @@ const FOOTING: f32 = 0.02;
 pub const SMALLEST: f32 = 0.4;
 /// How much of its swing the deck loses each cycle, as a damping ratio.
 const DAMPING: f32 = 0.05;
-/// A spring in each cable, in series with its cord, so the deck follows
-/// the crank's pin smoothly instead of with every jerk of the stepper: each
+/// A spring in each cable loop, in series with its cord, so the deck
+/// follows the drums smoothly instead of with every jerk of a stepper: each
 /// table's springs are chosen for its deck to sway on them, by itself, this
 /// many times a second, well above the piece's own swings.
 const DECK_SWAY: f32 = 7.0;
-/// Each cable's tension with the deck still and the crank at its zero.
-/// Enough that none goes slack drawing the deck round.
-const CABLE_PRETENSION: f32 = 300.0;
 /// How far the joint swinging most should swing against the deck:
 /// expressive, no more.
 const EXPRESSIVE: f32 = 0.04;
@@ -86,8 +81,8 @@ const SETTLING_IN: Seconds = Seconds(4.0);
 /// A cue kept is played this long, and one just found this long.
 const PLAYING: Seconds = Seconds(15.0);
 const SHOWING: Seconds = TRYING;
-/// Stopping, the crank goes back to its zero this fast, radians a second.
-const RETURNING: f32 = TAU;
+/// Stopping, the drums go back to their middles this fast, metres a second.
+const RETURNING: f32 = 0.05;
 /// With nothing kept yet, it looks again this often.
 const WAITING: Seconds = Seconds(0.25);
 /// Cues tried side by side, a round of them.
@@ -96,9 +91,10 @@ const ROUND: usize = 8;
 const NOTABLE: f32 = 0.05;
 /// It keeps at most this many cues.
 const KEPT: usize = 6;
-/// How much the crank's work counts against a cue, against its
-/// swing: a turn every half second costs this much.
+/// How much the drums' work counts against a cue, against its swing:
+/// drums drawing `EFFORT_SPEED` on average cost this much.
 const EFFORT: f32 = 0.3;
+const EFFORT_SPEED: f32 = 0.1;
 /// How much a quick sway counts against a cue: this much for each sway a
 /// second, so that of two cues swinging as far the slower sway wins.
 const HASTE: f32 = 0.15;
@@ -133,30 +129,20 @@ pub fn hook_foot() -> f32 {
     -DECK_THICKNESS - HEAD_CLEARANCE - TIE_LENGTH
 }
 
-/// The stepper's axis.
-pub fn cam_axis() -> Vec3 {
-    Vec3::new(0.0, -DECK_HEIGHT + BASE_THICKNESS + CAM_HEIGHT, 0.0)
+/// Which way drum `drum` draws its lug when its DMX value rises: along
+/// the deck's edge, all three the same way round.
+pub fn drum_along(drum: usize) -> Vec3 {
+    let angle = corner_angle(DRUM_CORNERS[drum]);
+    Vec3::new(-angle.sin(), 0.0, angle.cos())
 }
 
-/// How far the pin is from the stepper's axis, the crank at `angle` from
-/// its zero.
-pub fn crank_pin(angle: f32) -> Vec3 {
-    let angle = CRANK_ZERO + angle;
-    Vec3::new(angle.cos(), 0.0, angle.sin()) * CRANK
-}
-
-/// Where each hook's cable is tied, at its foot's inner corner, on the deck
-/// at rest.
-pub fn cable_ends(radius: f32) -> [Vec3; 3] {
-    HANG_CORNERS.map(|corner| {
+/// Where each drum's lug is, at its foot, where its cable loop is tied, on
+/// the deck at rest.
+pub fn lugs(radius: f32) -> [Vec3; 3] {
+    DRUM_CORNERS.map(|corner| {
         let angle = corner_angle(corner);
         Vec3::new(angle.cos(), 0.0, angle.sin()) * (TIE_RADIUS * radius - HOOK_REACH) + Vec3::Y * hook_foot()
     })
-}
-
-/// `angle` brought round to between a half turn back and a half turn on.
-fn wrapped(angle: f32) -> f32 {
-    (angle + PI).rem_euclid(TAU) - PI
 }
 
 /// A cue kept: how well it did, how far the joint that swung most swung,
@@ -190,8 +176,8 @@ fn way(motion: &[Vec3]) -> String {
     }
 }
 
-/// What the stepper does: try a cue, on a copy of the piece, play one kept
-/// for so long, or wait at its zero for one to be found.
+/// What the steppers do: try a cue, on a copy of the piece, play one kept
+/// for so long, or wait in their middles for one to be found.
 #[derive(Clone, Debug, PartialEq)]
 enum Task {
     Try(Cue),
@@ -300,8 +286,8 @@ pub fn cues_file(name: &str) -> PathBuf {
     PathBuf::from("cues").join(format!("{}.txt", name.to_lowercase().replace(' ', "-")))
 }
 
-/// The cues remembered in `path`: each line a kept cue, what the stepper
-/// is told after `|`.
+/// The cues remembered in `path`: each line a kept cue, what the steppers
+/// are told after `|`.
 fn remembered(path: &Path) -> Vec<Cue> {
     let Ok(text) = std::fs::read_to_string(path) else {
         return Vec::new();
@@ -316,9 +302,9 @@ fn remembered(path: &Path) -> Vec<Cue> {
 /// swung, what it is (`Cue::describe`), and after `|` its DMX frames.
 fn remember(path: &Path, kept: &[Kept]) {
     let mut text = String::from("# Wobble table cues, kept by Quake and tried first next time.\n");
-    text += "# name score swing, the joint moved most and which way | stepper | DMX frames, 44 a second, 128 the crank's zero\n";
+    text += "# name score swing, the joint moved most and which way | the deck's ways, mm | DMX frames, 44 a second,\n";
+    text += "# each the three drums' values, 128 their middles: the one before the piece, then the others round the way they draw\n";
     for (index, kept) in kept.iter().enumerate() {
-        let frames: Vec<String> = kept.cue.frames.iter().map(u8::to_string).collect();
         text += &format!(
             "{} {:.2} {:.0}mm {} | {} | {}\n",
             letter(index),
@@ -326,7 +312,7 @@ fn remember(path: &Path, kept: &[Kept]) {
             kept.swing * 1000.0,
             kept.most,
             kept.cue.describe(),
-            frames.join(" ")
+            kept.cue.written()
         );
     }
     let written = path.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|_| std::fs::write(path, text));
@@ -443,7 +429,7 @@ struct Watched {
 }
 
 /// What it hears while a cue plays, once it has settled in: the swing of
-/// the joint swinging most, the crank's work, and every joint's way from
+/// the joint swinging most, the drums' work, and every joint's way from
 /// where it stands through the loop, `BINS` steps of it for each.
 #[derive(Clone, Debug, Default)]
 struct Hearing {
@@ -461,23 +447,22 @@ struct Hearing {
 #[derive(Clone, Debug)]
 struct Motor {
     since: Age,
-    /// Bringing its crank back to its zero, to stop.
+    /// Bringing its drums back to their middles, to stop.
     stopping: bool,
-    /// The crank's angle from its zero, and how fast it turned last tick.
-    angle: f32,
-    speed: f32,
+    /// How far each drum has drawn its cable from its middle, and how fast
+    /// it drew last tick, metres and metres a second.
+    drums: [f32; 3],
+    speeds: [f32; 3],
     hearing: Hearing,
 }
 
 /// Where the deck is: moved this far from where it hangs still and turned
-/// this far about its middle, and how far the pin is from the stepper's
-/// axis.
+/// this far about its middle.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Deck {
     pub offset: Vec3,
     pub turn: f32,
     pub radius: f32,
-    pub pin: Vec3,
 }
 
 impl Deck {
@@ -501,9 +486,8 @@ pub struct Quake {
     mass: f32,
     /// What hangs on the ties: the deck and the piece, newtons.
     weight: f32,
-    /// Each cable's rest length, and its stiffness, newtons a metre.
-    cables: [f32; 3],
-    cable_stiffness: f32,
+    /// Each cable loop's stiffness along the deck's edge, newtons a metre.
+    loop_stiffness: f32,
     motor: Option<Motor>,
     /// What the piece's feet pulled on the deck with this tick, and the
     /// twist it gave.
@@ -516,7 +500,8 @@ pub struct Quake {
     /// Each joint standing on the deck: where on the deck, and where it was
     /// put.
     standing: SecondaryMap<JointKey, (Vec3, Vec3)>,
-    /// What the stepper plays, and what comes once it is back at its zero.
+    /// What the steppers play, and what comes once they are back in their
+    /// middles.
     task: Option<Task>,
     next: Option<Task>,
     /// The evolution, how many of its finds have been played, and the kept
@@ -532,25 +517,23 @@ pub struct Quake {
 }
 
 impl Quake {
-    /// A table `radius` across its corners, still, its crank at its zero,
-    /// nothing on it yet.
+    /// A table `radius` across its corners, still, its drums in their
+    /// middles, nothing on it yet. A loop draws with both its legs, each
+    /// from the lug to a pulley; three along the edge hold the deck from
+    /// swaying half again as stiffly as one.
     pub fn of_radius(radius: f32) -> Quake {
         let area = 1.5 * 3.0f32.sqrt() * radius * radius;
         let mass = DECK_DENSITY * area;
-        let home = cam_axis() + crank_pin(0.0);
-        let spans = cable_ends(radius).map(|end| end.distance(home));
-        let ea = Hardware::MEDIUM.cable_stiffness.0;
-        let cord = ea / (spans.iter().sum::<f32>() / 3.0);
+        let cord = 2.0 * Hardware::MEDIUM.cable_stiffness.0 / LOOP_LEG;
         let ties = mass * EARTH_GRAVITY.f32() / TIE_LENGTH;
-        let cable_stiffness = ((mass * (TAU * DECK_SWAY).powi(2) - ties) / 1.5).clamp(ties, cord);
+        let loop_stiffness = ((mass * (TAU * DECK_SWAY).powi(2) - ties) / 1.5).clamp(ties, cord);
         Quake {
-            deck: Deck { radius, pin: crank_pin(0.0), ..Deck::default() },
+            deck: Deck { radius, ..Deck::default() },
             velocity: Vec3::ZERO,
             spin: 0.0,
             mass,
             weight: mass * EARTH_GRAVITY.f32(),
-            cables: spans.map(|span| span - CABLE_PRETENSION / cable_stiffness),
-            cable_stiffness,
+            loop_stiffness,
             motor: None,
             pull: Vec3::ZERO,
             pull_twist: 0.0,
@@ -575,8 +558,7 @@ impl Quake {
         let feet = fabric.joints.values().filter(|joint| joint.location.y < FOOTING).map(|joint| self.deck.on_deck(joint.location));
         let fitting = (ROOM * smallest_hexagon(feet)).max(SMALLEST);
         let fitted = Quake::of_radius(fitting);
-        (self.deck.radius, self.mass, self.cables, self.cable_stiffness) =
-            (fitting, fitted.mass, fitted.cables, fitted.cable_stiffness);
+        (self.deck.radius, self.mass, self.loop_stiffness) = (fitting, fitted.mass, fitted.loop_stiffness);
         let piece = fabric.joints.values().map(|joint| joint.accumulated_mass.f32()).sum::<f32>() / 1000.0;
         self.weight = (self.mass + piece) * EARTH_GRAVITY.f32();
     }
@@ -638,8 +620,8 @@ impl Quake {
         }
     }
 
-    /// What the stepper is doing, for the subtitle, briefly: the kept cue
-    /// it plays, by its letter, and what the stepper is told
+    /// What the steppers are doing, for the subtitle, briefly: the kept cue
+    /// they play, by its letter, and what they are told
     /// (`Cue::describe`), and the joint it moves most.
     pub fn describe(&self) -> String {
         let (Some(motor), Some(task)) = (&self.motor, &self.task) else {
@@ -698,7 +680,7 @@ impl Quake {
             _ => "Waiting for a first find".to_string(),
         });
         lines.push(format!("Score: 1 for {:.0} mm of swing,", EXPRESSIVE * 1000.0));
-        lines.push("less for the crank's work and quick sway".to_string());
+        lines.push("less for the drums' work and quick sway".to_string());
         lines.join("\n")
     }
 
@@ -757,7 +739,7 @@ impl Quake {
         self.go_on(age);
     }
 
-    /// Bring the crank back to its zero and stop.
+    /// Bring the drums back to their middles and stop.
     pub fn stop(&mut self, age: Age) {
         self.then(age, None);
     }
@@ -819,9 +801,9 @@ impl Quake {
         self.then(age, Some(next));
     }
 
-    /// Bring the crank back to its zero, then do `next`.
     /// On to `next` from rest, the piece put back as it stood when Quake
-    /// was pressed; or with nothing next, bring the crank back to its zero.
+    /// was pressed; or with nothing next, bring the drums back to their
+    /// middles.
     fn then(&mut self, age: Age, next: Option<Task>) {
         self.next = next;
         match &mut self.motor {
@@ -841,7 +823,7 @@ impl Quake {
             let shape = vec![Vec3::ZERO; self.watched.len() * BINS];
             let counts = vec![0; self.watched.len() * BINS];
             let hearing = Hearing { shape, counts, ..Hearing::default() };
-            self.motor = Some(Motor { since: age, stopping: false, angle: 0.0, speed: 0.0, hearing });
+            self.motor = Some(Motor { since: age, stopping: false, drums: [0.0; 3], speeds: [0.0; 3], hearing });
         }
     }
 
@@ -863,7 +845,7 @@ impl Quake {
         let hearing = &motor.hearing;
         let ticks = hearing.ticks.max(1) as f32;
         let swing = hearing.swing / ticks;
-        let work = hearing.work / ticks / (2.0 * TAU);
+        let work = hearing.work / ticks / EFFORT_SPEED;
         let expressive = swing / EXPRESSIVE;
         let expressive = if expressive <= 1.0 { expressive } else { (2.0 - expressive).max(0.0) };
         let quickness = (hearing.speed / hearing.moved.max(1e-12)).sqrt() / TAU;
@@ -901,12 +883,12 @@ impl Quake {
             .fold(0.0, f32::max)
     }
 
-    /// Whether the stepper is playing, not stopping.
+    /// Whether the steppers are playing, not stopping.
     pub fn running(&self) -> bool {
         self.motor.as_ref().is_some_and(|motor| !motor.stopping)
     }
 
-    /// Whether the stepper is playing, or bringing its crank back to zero.
+    /// Whether the steppers are playing, or bringing their drums back.
     pub fn busy(&self) -> bool {
         self.motor.is_some()
     }
@@ -916,27 +898,27 @@ impl Quake {
         self.motor.is_some() || self.velocity.length() > 1e-3 || self.spin.abs() > 1e-3
     }
 
-    /// The stepper this tick: after its cue's position, or back to its zero,
-    /// as fast as it can go; and done with the cue once it has had its time.
-    fn turn_crank(&mut self, age: Age, dt: f32) {
+    /// The steppers this tick: each drum after its cue's position, or back
+    /// to its middle, as fast as it can go; and done with the cue once it
+    /// has had its time.
+    fn turn_drums(&mut self, age: Age, dt: f32) {
         let Some(motor) = &self.motor else {
             return;
         };
         let elapsed = age.elapsed_since(motor.since).0;
-        let (target, fastest) = match (motor.stopping, self.cue()) {
-            (false, Some(cue)) => (Cue::angle(cue.value(elapsed)), TOP_SPEED),
-            _ => (0.0, RETURNING),
+        let (targets, fastest) = match (motor.stopping, self.cue()) {
+            (false, Some(cue)) => (cue.value(elapsed).map(|value| (value - ZERO as f32) * PER_VALUE), TOP_SPEED),
+            _ => ([0.0; 3], RETURNING),
         };
         let motor = self.motor.as_mut().unwrap();
-        let toward = wrapped(target - motor.angle);
-        let turned = toward.clamp(-fastest * dt, fastest * dt);
-        motor.angle += turned;
-        motor.speed = turned / dt;
-        self.deck.pin = crank_pin(motor.angle);
+        for ((drum, speed), target) in motor.drums.iter_mut().zip(&mut motor.speeds).zip(targets) {
+            let drawn = (target - *drum).clamp(-fastest * dt, fastest * dt);
+            *drum += drawn;
+            *speed = drawn / dt;
+        }
         if motor.stopping {
-            if wrapped(motor.angle).abs() < 1e-4 {
+            if motor.drums.iter().all(|drum| drum.abs() < 1e-6) {
                 self.motor = None;
-                self.deck.pin = crank_pin(0.0);
                 self.begin(age);
             }
             return;
@@ -951,26 +933,25 @@ impl Quake {
         }
     }
 
-    /// One tick of the deck: the stepper, the ties pulling it back, the
-    /// cables, damping, and what the piece's feet pulled with.
+    /// One tick of the deck: the steppers, the ties pulling it back, the
+    /// cable loops, damping, and what the piece's feet pulled with.
     fn step(&mut self, age: Age, dt: f32) {
-        self.turn_crank(age, dt);
+        self.turn_drums(age, dt);
         let stiffness = self.weight / TIE_LENGTH;
         let tie_radius = TIE_RADIUS * self.deck.radius;
         let twist_stiffness = stiffness * tie_radius * tie_radius;
         let inertia = self.mass * 5.0 / 12.0 * self.deck.radius * self.deck.radius;
-        let held = stiffness + 1.5 * self.cable_stiffness;
+        let held = stiffness + 1.5 * self.loop_stiffness;
         let sway_damping = 2.0 * DAMPING * (held * self.mass).sqrt();
         let twist_damping = 2.0 * DAMPING * (twist_stiffness * inertia).sqrt();
 
         let mut force = self.pull - self.deck.offset * stiffness - self.velocity * sway_damping;
         let mut torque = self.pull_twist - self.deck.turn * twist_stiffness - self.spin * twist_damping;
-        let pin = cam_axis() + self.deck.pin;
-        for (end, rest) in cable_ends(self.deck.radius).into_iter().zip(self.cables) {
-            let at = self.deck.carry(end);
-            let toward = pin - at;
-            let tension = (self.cable_stiffness * (toward.length() - rest)).max(0.0);
-            let pull = Vec3::new(toward.x, 0.0, toward.z) / toward.length() * tension;
+        let drums = self.motor.as_ref().map_or([0.0; 3], |motor| motor.drums);
+        for (drum, lug) in lugs(self.deck.radius).into_iter().enumerate() {
+            let along = drum_along(drum);
+            let at = self.deck.carry(lug);
+            let pull = along * self.loop_stiffness * (drums[drum] - (at - lug).dot(along));
             let arm = at - self.deck.offset;
             force += pull;
             torque += arm.z * pull.x - arm.x * pull.z;
@@ -1014,7 +995,7 @@ impl Quake {
         let hearing = &mut motor.hearing;
         hearing.ticks += 1;
         hearing.swing += response;
-        hearing.work += motor.speed.abs();
+        hearing.work += motor.speeds.iter().map(|speed| speed.abs()).sum::<f32>() / 3.0;
         (hearing.moved, hearing.speed) = (hearing.moved + moved, hearing.speed + speed);
         let bin = ((elapsed / loop_seconds).fract() * BINS as f32) as usize % BINS;
         for (joint, away) in aways.into_iter().enumerate() {
@@ -1095,6 +1076,7 @@ mod tests {
     use crate::fabric::dimensions::Size;
     use crate::fabric::physics::presets::VIEWING;
     use crate::fabric::physics::Physics;
+    use crate::fabric::cue::{FORE, SIDE};
 
     fn medium(name: FabricName) -> (Fabric, Physics) {
         let mut executor = FabricPlanExecutor::new(fabric_library::get_fabric_plan(name).at_size(Size::Medium));
@@ -1109,7 +1091,7 @@ mod tests {
     #[test]
     fn kept_cues_are_remembered() {
         let path = std::env::temp_dir().join("tensegrity-lab-cues").join("remembered.txt");
-        let kept: Vec<Kept> = [Cue::rocking(2.0, 30.0), Cue::turning(1.3)]
+        let kept: Vec<Kept> = [Cue::rocking(SIDE, 2.0), Cue::swaying(SIDE, FORE, 1.3)]
             .into_iter()
             .map(|cue| Kept { cue, score: 0.8, swing: 0.04, most: "L12 side".to_string(), quickness: 1.0, shape: Vec::new() })
             .collect();
@@ -1128,8 +1110,8 @@ mod tests {
 
     /// A Medium Headless Hug on its wobble table, Quake pressed once: it
     /// evolves cues on copies of itself, keeps several unlike one another
-    /// that swing the piece, and plays them. Pressed again the crank goes
-    /// back to its zero, and the piece stands where it stood.
+    /// that swing the piece, and plays them. Pressed again the drums go
+    /// back to their middles, and the piece stands where it stood.
     #[test]
     fn medium_headless_hug_rides_the_wobble_table() {
         let (mut fabric, physics) = medium(FabricName::HeadlessHug);
@@ -1209,14 +1191,14 @@ mod tests {
         }
         for (index, kept) in quake.kept().iter().enumerate() {
             eprintln!(
-                "// {} {}: scored {:.2}, {:.0} mm, {:.1}/s, most {}\n{:?}",
+                "// {} {}: scored {:.2}, {:.0} mm, {:.1}/s, most {}\n{}",
                 letter(index),
                 kept.cue.describe(),
                 kept.score,
                 kept.swing * 1000.0,
                 kept.quickness,
                 kept.most,
-                kept.cue.frames
+                kept.cue.written()
             );
         }
     }

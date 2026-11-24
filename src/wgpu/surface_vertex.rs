@@ -1,6 +1,6 @@
 use crate::fabric::quake::{
-    cable_ends, cam_axis, corner_angle, hook_foot, CRANK, BASE_THICKNESS, DECK_THICKNESS, HANG_CORNERS, HEAD_CLEARANCE,
-    HOOK_REACH, TIE_RADIUS,
+    corner_angle, drum_along, hook_foot, lugs, BASE_THICKNESS, DECK_THICKNESS, HANG_CORNERS, HEAD_CLEARANCE, HOOK_REACH,
+    LOOP_LEG, TIE_RADIUS,
 };
 use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
@@ -37,32 +37,33 @@ impl SurfaceVertex {
     }
 }
 
-/// The wobble table, in the deck's own frame: the deck and the hooks
-/// hanging under it, which move; the base on the floor, the arms rising from
-/// it and the motor in its middle, which stay; the ties between hooks and
-/// arms; and the cam's crank and its cables to the hooks, which turn with
-/// the cam.
+/// The wobble table, in the deck's own frame: the deck, and the hooks and
+/// lugs hanging under it, which move; the base on the floor, the arms rising
+/// from it and the steppers with their pulleys, which stay; the ties between
+/// hooks and arms, and the cable loops from each lug round its pulleys to
+/// its stepper's drum.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable, Default)]
 pub struct DeckVertex {
-    /// Its fourth says what it moves with: one the deck, two the cam's
-    /// pin, zero nothing.
+    /// Its fourth says what it moves with: one the deck, zero nothing.
     position: [f32; 4],
     color: [f32; 4],
 }
 
 const STAYS: f32 = 0.0;
 const ON_DECK: f32 = 1.0;
-const ON_PIN: f32 = 2.0;
 
 /// Half the width of a hook's or an arm's square tube, of a tie or cable,
-/// of the motor and of the crank's pin.
+/// of a stepper and of a pulley's post.
 const TUBE: f32 = 0.0125;
 const TIE: f32 = 0.003;
 const MOTOR: f32 = 0.03;
-const PIN: f32 = 0.004;
+const POST: f32 = 0.006;
+/// How far under the lugs' feet each stepper's beam runs, between its
+/// pulleys.
+const BEAM_DROP: f32 = 0.03;
 
-const DECK_COLOR: [f32; 3] = [0.30, 0.22, 0.15];
+const DECK_COLOR: [f32; 3] = [0.10, 0.075, 0.05];
 const BASE_COLOR: [f32; 3] = [0.12, 0.12, 0.13];
 const HOOK_COLOR: [f32; 3] = [0.45, 0.46, 0.5];
 const ARM_COLOR: [f32; 3] = [0.25, 0.27, 0.32];
@@ -93,12 +94,19 @@ impl DeckVertex {
             bar(&mut vertices, arm[1] + out * TUBE, arm[2], TUBE, ARM_COLOR, (STAYS, STAYS));
             bar(&mut vertices, at(tie_radius, foot), at(tie_radius, head), TIE, TIE_COLOR, (ON_DECK, STAYS));
         }
-        let axis = cam_axis();
-        bar(&mut vertices, Vec3::new(0.0, base_top, 0.0), axis, MOTOR, MOTOR_COLOR, (STAYS, STAYS));
-        prism(&mut vertices, CRANK * 1.3, axis.y - PIN, axis.y, MOTOR_COLOR, STAYS);
-        bar(&mut vertices, axis - Vec3::Y * PIN, axis + Vec3::Y * PIN, PIN, CABLE_COLOR, (ON_PIN, ON_PIN));
-        for end in cable_ends(radius) {
-            bar(&mut vertices, axis, end, TIE, CABLE_COLOR, (ON_PIN, ON_DECK));
+        let beam = foot - BEAM_DROP;
+        for (drum, lug) in lugs(radius).into_iter().enumerate() {
+            let along = drum_along(drum);
+            let at = |y: f32| Vec3::new(lug.x, y, lug.z);
+            bar(&mut vertices, at(deck_bottom), lug, TUBE, HOOK_COLOR, (ON_DECK, ON_DECK));
+            bar(&mut vertices, at(base_top), at(beam), MOTOR, MOTOR_COLOR, (STAYS, STAYS));
+            bar(&mut vertices, at(beam) - along * LOOP_LEG, at(beam) + along * LOOP_LEG, TUBE, ARM_COLOR, (STAYS, STAYS));
+            for side in [-1.0, 1.0] {
+                let pulley = lug + along * side * LOOP_LEG;
+                bar(&mut vertices, Vec3::new(pulley.x, base_top, pulley.z), pulley, POST, ARM_COLOR, (STAYS, STAYS));
+                bar(&mut vertices, lug, pulley, TIE, CABLE_COLOR, (ON_DECK, STAYS));
+                bar(&mut vertices, pulley, at(beam), TIE, CABLE_COLOR, (STAYS, STAYS));
+            }
         }
         vertices
     }

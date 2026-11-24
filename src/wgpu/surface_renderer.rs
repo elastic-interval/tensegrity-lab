@@ -32,17 +32,15 @@ struct Ground {
     shift: [f32; 4],
     /// The wobble table's deck: moved by x and z, turned by the third.
     deck: [f32; 4],
-    /// How far the cam's pin is from its axis.
-    pin: [f32; 4],
 }
 
 impl Ground {
     fn for_background(white: bool, shift: Vec3) -> [Ground; 1] {
         let shift = shift.extend(0.0).into();
         [if white {
-            Ground { line: [0.35, 0.35, 0.35, 1.0], fill: [0.85, 0.85, 0.85, 0.6], shift, deck: [0.0; 4], pin: [0.0; 4] }
+            Ground { line: [0.35, 0.35, 0.35, 1.0], fill: [0.85, 0.85, 0.85, 0.6], shift, deck: [0.0; 4] }
         } else {
-            Ground { line: [0.18, 0.19, 0.2, 1.0], fill: [0.012, 0.013, 0.016, 0.9], shift, deck: [0.0; 4], pin: [0.0; 4] }
+            Ground { line: [0.18, 0.19, 0.2, 1.0], fill: [0.012, 0.013, 0.016, 0.9], shift, deck: [0.0; 4] }
         }]
     }
 }
@@ -198,7 +196,7 @@ impl SurfaceRenderer {
             self.deck = None;
             return;
         };
-        let pose = [deck.offset.x, deck.offset.z, deck.turn, 0.0, deck.pin.x, deck.pin.y, deck.pin.z, 0.0];
+        let pose = [deck.offset.x, deck.offset.z, deck.turn, 0.0];
         let offset = std::mem::offset_of!(Ground, deck) as u64;
         queue.write_buffer(&self.ground_buffer, offset, cast_slice(&pose));
         if self.deck.as_ref().is_none_or(|(_, _, radius)| *radius != deck.radius) {
