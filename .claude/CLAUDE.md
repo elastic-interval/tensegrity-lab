@@ -180,8 +180,9 @@ build, and not again afterwards: animation keeps them.
   × 10 ms` iterations, so fabric time keeps pace with the wall clock at any
   frame rate; the frame rate is only displayed. `time_scale` is 1 except
   while a Small or Medium build is fast-forwarded (it goes back to 1 when
-  the build ends); Large is never fast-forwarded. There is no speed
-  control, and no fast-forward button. A frame over 100 ms drops that time rather than
+  the build ends), or at Large while Fast-forward is pressed (ten times,
+  `FAST_FORWARD`) during the build, an animation or taking apart; Slow
+  goes back to real time. A frame over 100 ms drops that time rather than
   catching up, and a frame spends at most about 25 ms on physics beyond its
   first update (`PHYSICS_BUDGET`), so fast-forward goes only as fast as the
   physics allows.

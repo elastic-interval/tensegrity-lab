@@ -87,6 +87,14 @@ impl ButtonBar {
             );
         }
         bar.once("Next brick", |s| matches!(s, Baking), NextBrick);
+        if size == Size::Large {
+            bar.once(
+                "Fast-forward",
+                |s| matches!(s, Building | Assembling { fast: false } | Animating { fast: false }),
+                SetTimeScale(FAST_FORWARD),
+            );
+            bar.once("Slow", |s| matches!(s, Assembling { fast: true } | Animating { fast: true }), SetTimeScale(1.0));
+        }
         bar.once("Choose", |s| matches!(s, Viewing { .. }), ToggleChoosing);
         bar.entries.last_mut().unwrap().quaking = Some(false);
         for (label, feature) in [("Mass", TweakFeature::MassScale), ("Rigidity", TweakFeature::RigidityScale)] {

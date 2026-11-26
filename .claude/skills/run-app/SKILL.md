@@ -51,12 +51,13 @@ stands (Viewing).
 | Demo | While Quake runs. Plays the kept cues A–F in turn, 15 s each, evolution waiting, then evolves on |
 | Take apart | Large only. Headless Hug and Open Claw: taken apart strut by strut on a crane hook, then straight away put together again, in real time (`src/build/assembly.rs`) |
 | Start / Stop animation | Large only. The animation |
+| Fast-forward / Slow | Large only. Ten times real time, or back to it: the build, the animation, taking apart |
 | Choose | In Viewing. A button for each fabric, to build it at the same size, and Back |
 | Parts | Large only. The parts, full screen; Back to return |
 | Deselect / Back to joint | Step back out of a selection |
 
 The connector hardware always shows at real scale, and only at Large. Small and Medium start
-building in fast-forward, Large never; there is no button for it. A movie is recorded from the command line
+building in fast-forward. A movie is recorded from the command line
 (`--record <seconds>`); `--white` shows it on white instead of the starry sky.
 
 Click a joint or interval to select it; drag to orbit, wheel to zoom.
