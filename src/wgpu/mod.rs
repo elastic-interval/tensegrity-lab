@@ -31,9 +31,17 @@ pub mod fabric_renderer;
 pub mod connector_renderer;
 pub mod sky_renderer;
 pub mod surface_renderer;
+pub mod shadow_renderer;
 pub mod surface_vertex;
 pub mod text_renderer;
 pub mod text_state;
+
+/// The shader's uniforms, in floats: the MVP matrix, the eye, the
+/// gallery's glows, and its spots' views, places and aims.
+pub const UNIFORM_FLOATS: usize = 16 + 4 + 12 + 48 + 12 + 12;
+/// The gallery's spots, each with its shadow map this many texels across.
+pub const SPOTS: u32 = 3;
+pub const SHADOW_SIZE: u32 = 1024;
 
 // Reusable primitive state for all renderers
 pub const DEFAULT_PRIMITIVE_STATE: wgpu::PrimitiveState = wgpu::PrimitiveState {
@@ -93,6 +101,11 @@ pub struct Wgpu {
     pub uniform_bind_group_layout: wgpu::BindGroupLayout,
     pub uniform_bind_group: wgpu::BindGroup,
     pub depth_texture: wgpu::Texture,
+    /// The gallery's spots' shadow maps, one layer each, and how they are
+    /// read.
+    pub shadow_texture: wgpu::Texture,
+    shadow_view: wgpu::TextureView,
+    shadow_sampler: wgpu::Sampler,
 }
 
 impl Debug for Wgpu {
@@ -184,32 +197,64 @@ impl Wgpu {
     ) -> Wgpu {
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("MVP"),
-            // The MVP matrix, the eye's position, and the gallery's lights.
-            contents: cast_slice(&[0.0f32; 32]),
+            contents: cast_slice(&[0.0f32; UNIFORM_FLOATS]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let uniform_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Uniform Bind Group Layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                }],
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Depth,
+                            view_dimension: wgpu::TextureViewDimension::D2Array,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
+                        count: None,
+                    },
+                ],
             });
-        let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &uniform_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            }],
-            label: Some("Uniform Bind Group"),
+        let shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Shadow Maps"),
+            size: wgpu::Extent3d { width: SHADOW_SIZE, height: SHADOW_SIZE, depth_or_array_layers: SPOTS },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
         });
+        let shadow_view = shadow_texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            ..Default::default()
+        });
+        let shadow_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Shadow Sampler"),
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            compare: Some(wgpu::CompareFunction::LessEqual),
+            ..Default::default()
+        });
+        let uniform_bind_group =
+            Self::bind_uniforms(&device, &uniform_bind_group_layout, &uniform_buffer, &shadow_view, &shadow_sampler);
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
@@ -225,7 +270,34 @@ impl Wgpu {
             uniform_bind_group,
             shader,
             depth_texture,
+            shadow_texture,
+            shadow_view,
+            shadow_sampler,
         }
+    }
+
+    fn bind_uniforms(
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+        uniforms: &wgpu::Buffer,
+        shadow_view: &wgpu::TextureView,
+        shadow_sampler: &wgpu::Sampler,
+    ) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout,
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: uniforms.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(shadow_view) },
+                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(shadow_sampler) },
+            ],
+            label: Some("Uniform Bind Group"),
+        })
+    }
+
+    /// A bind group like the shared one, but reaching `uniforms` of its own,
+    /// `UNIFORM_FLOATS` long, for a camera of its own.
+    pub fn bind_own_uniforms(&self, uniforms: &wgpu::Buffer) -> wgpu::BindGroup {
+        Self::bind_uniforms(&self.device, &self.uniform_bind_group_layout, uniforms, &self.shadow_view, &self.shadow_sampler)
     }
 
     pub fn create_and_send(mobile_device: bool, window: Arc<Window>, radio: Radio) {
@@ -316,6 +388,20 @@ impl Wgpu {
         let lights: Vec<f32> = lights.iter().flat_map(|light| light.to_array()).collect();
         let offset = size_of::<Mat4>() as u64 + 16;
         self.queue.write_buffer(&self.uniform_buffer, offset, cast_slice(&lights));
+    }
+
+    /// The gallery's spots: each one's view, for its shadow map; where it
+    /// is and how bright (none, zero); and which way it shines and the
+    /// cosine of its cone's half angle.
+    pub fn update_spots(&self, views: [Mat4; 3], places: [Vec4; 3], aims: [Vec4; 3]) {
+        let mut floats: Vec<f32> = views.iter().flat_map(|view| view.to_cols_array()).collect();
+        floats.extend(places.iter().chain(&aims).flat_map(|v| v.to_array()));
+        let offset = (size_of::<Mat4>() + 16 + 48) as u64;
+        self.queue.write_buffer(&self.uniform_buffer, offset, cast_slice(&floats));
+    }
+
+    pub fn shader(&self) -> &wgpu::ShaderModule {
+        &self.shader
     }
 
     /// The window's drawable size in physical pixels.

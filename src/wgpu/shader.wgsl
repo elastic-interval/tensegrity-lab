@@ -5,11 +5,25 @@ struct Uniforms {
     // The gallery's lights, in its tables: where, and how bright. With the
     // first one bright, the gallery is dark but for them.
     lights: array<vec4<f32>, 3>,
+    // The gallery's spots, one on each table: as each sees, for its shadow
+    // map; where it is and how bright (none, zero); which way it shines,
+    // and the cosine of its cone's half angle.
+    spot_views: array<mat4x4<f32>, 3>,
+    spot_places: array<vec4<f32>, 3>,
+    spot_aims: array<vec4<f32>, 3>,
 };
 @binding(0) @group(0) var<uniform> uniforms: Uniforms;
+@group(0) @binding(1) var shadow_maps: texture_depth_2d_array;
+@group(0) @binding(2) var shadow_sampler: sampler_comparison;
 
 const GLOW_COLOR: vec3<f32> = vec3<f32>(1.0, 0.82, 0.6);
 const GALLERY_AMBIENT: f32 = 0.02;
+const SPOT_COLOR: vec3<f32> = vec3<f32>(1.0, 0.95, 0.88);
+// How quickly a spot's light falls off with distance, and how far its cone
+// softens at the edge, in cosine.
+const SPOT_FALLOFF: f32 = 0.3;
+const SPOT_EDGE: f32 = 0.03;
+const SHADOW_BIAS: f32 = 0.0003;
 
 fn in_gallery() -> bool {
     return uniforms.lights[0].w > 0.0;
@@ -26,6 +40,22 @@ fn glow(p: vec3<f32>, normal: vec3<f32>, wrap: f32) -> vec3<f32> {
             let distance = length(to);
             let facing = max((dot(normal, to / distance) + wrap) / (1.0 + wrap), 0.0);
             sum += GLOW_COLOR * light.w * facing / (1.0 + distance * distance);
+        }
+    }
+    for (var i = 0; i < 3; i++) {
+        let place = uniforms.spot_places[i];
+        let aim = uniforms.spot_aims[i];
+        let to = place.xyz - p;
+        let distance = length(to);
+        let toward = to / distance;
+        let cone = smoothstep(aim.w, aim.w + SPOT_EDGE, dot(-toward, aim.xyz));
+        let seen = uniforms.spot_views[i] * vec4<f32>(p, 1.0);
+        let at = seen.xyz / seen.w;
+        let uv = vec2<f32>(at.x * 0.5 + 0.5, 0.5 - at.y * 0.5);
+        let lit = textureSampleCompareLevel(shadow_maps, shadow_sampler, uv, i, at.z - SHADOW_BIAS);
+        let facing = max((dot(normal, toward) + wrap) / (1.0 + wrap), 0.0);
+        if (place.w > 0.0 && seen.w > 0.0) {
+            sum += SPOT_COLOR * place.w * facing * cone * lit / (1.0 + SPOT_FALLOFF * distance * distance);
         }
     }
     return sum;

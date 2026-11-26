@@ -289,9 +289,11 @@ pub fn cues_file(name: &str) -> PathBuf {
 /// The cues remembered in `path`: each line a kept cue, what the steppers
 /// are told after `|`.
 pub fn remembered(path: &Path) -> Vec<Cue> {
-    let Ok(text) = std::fs::read_to_string(path) else {
-        return Vec::new();
-    };
+    std::fs::read_to_string(path).map(|text| kept_cues(&text)).unwrap_or_default()
+}
+
+/// The cues kept in `text`, as written in a cues file.
+pub fn kept_cues(text: &str) -> Vec<Cue> {
     text.lines()
         .filter(|line| !line.starts_with('#'))
         .filter_map(|line| Cue::parse(line.rsplit_once('|')?.1))

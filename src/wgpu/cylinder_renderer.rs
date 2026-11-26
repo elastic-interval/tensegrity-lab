@@ -237,12 +237,22 @@ impl CylinderRenderer {
         render_pass: &mut wgpu::RenderPass<'a>,
         bind_group: &'a wgpu::BindGroup,
     ) {
+        self.draw(render_pass, &self.render_pipeline, bind_group);
+    }
+
+    /// Draw the cylinders with `pipeline`, as for a shadow map.
+    pub fn draw<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        pipeline: &'a wgpu::RenderPipeline,
+        bind_group: &'a wgpu::BindGroup,
+    ) {
         // Skip if no instances to render
         if self.num_instances == 0 || self.instance_buffer.is_none() {
             return;
         }
 
-        render_pass.set_pipeline(&self.render_pipeline);
+        render_pass.set_pipeline(pipeline);
         render_pass.set_bind_group(0, bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_vertex_buffer(1, self.instance_buffer.as_ref().unwrap().slice(..));

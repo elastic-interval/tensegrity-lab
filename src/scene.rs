@@ -3,9 +3,11 @@ use crate::wgpu::button::{Button, Buttons, Press};
 use crate::fabric::quake::DECK_HEIGHT;
 use crate::fabric::Fabric;
 use crate::gallery::{self, Gallery};
+use glam::Mat4;
 use crate::wgpu::surface_vertex::DeckVertex;
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::parts_view::PartsView;
+use crate::wgpu::shadow_renderer::ShadowRenderer;
 use crate::wgpu::sky_renderer::SkyRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::label_renderer::LabelRenderer;
@@ -28,6 +30,7 @@ pub struct Scene {
     sky_renderer: SkyRenderer,
     fabric_renderer: FabricRenderer,
     surface_renderer: SurfaceRenderer,
+    shadow_renderer: ShadowRenderer,
     text_renderer: TextRenderer,
     label_renderer: LabelRenderer,
     buttons: Buttons<LabEvent>,
@@ -51,6 +54,7 @@ impl Scene {
         let sky_renderer = wgpu.create_sky_renderer();
         let fabric_renderer = wgpu.create_fabric_renderer();
         let surface_renderer = wgpu.create_surface_renderer();
+        let shadow_renderer = ShadowRenderer::new(&wgpu);
         let text_renderer = wgpu.create_text_renderer(mobile_device, model_scale);
         let label_renderer = LabelRenderer::new(&wgpu);
         let buttons = Buttons::new(&wgpu);
@@ -65,6 +69,7 @@ impl Scene {
             sky_renderer,
             fabric_renderer,
             surface_renderer,
+            shadow_renderer,
             text_renderer,
             label_renderer,
             buttons,
@@ -231,14 +236,18 @@ impl Scene {
     }
 
     /// With `chrome`, the sky behind and the highlight, labels, buttons and
-    /// text over the fabric.
-    fn render(&mut self, show_surface: bool, chrome: bool) -> Result<(), wgpu::SurfaceError> {
+    /// text over the fabric; with `shadows`, the gallery's shadow maps first,
+    /// as its spots see.
+    fn render(&mut self, show_surface: bool, chrome: bool, shadows: Option<[Mat4; 3]>) -> Result<(), wgpu::SurfaceError> {
         let surface_texture = self.wgpu.get_surface_texture()?;
         let view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
         let depth_view = self.wgpu.create_depth_view();
         let mut encoder = self.wgpu.create_encoder();
+        if let Some(views) = shadows {
+            self.shadow_renderer.render(&self.wgpu, &mut encoder, &self.fabric_renderer, views);
+        }
 
         // First pass: render sky (no depth testing, clears the screen), or
         // just white.
@@ -370,7 +379,7 @@ impl Scene {
             self.surface_renderer
                 .update_radius(&self.wgpu.queue, fabric.bounding_radius());
         }
-        self.render(has_surface, true)?;
+        self.render(has_surface, true, None)?;
         Ok(())
     }
 
@@ -383,6 +392,8 @@ impl Scene {
         let placed: Vec<_> = gallery.pieces.iter().map(|piece| (&piece.fabric, piece.place)).collect();
         self.fabric_renderer.update_placed(&self.wgpu, &placed);
         self.wgpu.update_lights(gallery.lights());
+        let spots = gallery.spots();
+        self.wgpu.update_spots(spots.views, spots.places, spots.aims);
         let mut vertices = DeckVertex::room(gallery::WIDTH, gallery::DEPTH, gallery::WALL_HEIGHT, -DECK_HEIGHT);
         for piece in &gallery.pieces {
             if let Some(deck) = piece.fabric.deck() {
@@ -392,7 +403,7 @@ impl Scene {
             }
         }
         self.surface_renderer.set_gallery(&self.wgpu.device, &vertices);
-        self.render(false, false)
+        self.render(false, false, Some(spots.views))
     }
 
     pub fn resize(&mut self, PhysicalSize { width, height }: PhysicalSize<u32>) {

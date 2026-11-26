@@ -89,18 +89,14 @@ pub(super) fn camera_matrix(center: Vec3, radius: f32, azimuth: f32, elevation: 
 /// A uniform buffer for a camera matrix and the bind group reaching it. The
 /// shader's uniforms also hold the eye, which these views leave at zero.
 pub(super) fn create_camera(wgpu: &Wgpu) -> (wgpu::Buffer, wgpu::BindGroup) {
-    let mut uniforms = [0.0f32; 20];
+    let mut uniforms = [0.0f32; crate::wgpu::UNIFORM_FLOATS];
     uniforms[..16].copy_from_slice(&Mat4::IDENTITY.to_cols_array());
     let camera = wgpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Part View Camera"),
         contents: bytemuck::cast_slice(&uniforms),
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });
-    let bind_group = wgpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("Part View Bind Group"),
-        layout: &wgpu.uniform_bind_group_layout,
-        entries: &[wgpu::BindGroupEntry { binding: 0, resource: camera.as_entire_binding() }],
-    });
+    let bind_group = wgpu.bind_own_uniforms(&camera);
     (camera, bind_group)
 }
 

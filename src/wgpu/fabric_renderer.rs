@@ -46,6 +46,16 @@ impl FabricRenderer {
         self.cylinder_renderer.update_placed(wgpu, fabrics);
     }
 
+    /// The cylinders drawn with `pipeline`, as for a shadow map.
+    pub fn render_shadow<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        pipeline: &'a wgpu::RenderPipeline,
+        bind_group: &'a wgpu::BindGroup,
+    ) {
+        self.cylinder_renderer.draw(render_pass, pipeline, bind_group);
+    }
+
     pub fn render<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
