@@ -98,6 +98,20 @@ const EFFORT_SPEED: f32 = 0.1;
 /// How much a quick sway counts against a cue: this much for each sway a
 /// second, so that of two cues swinging as far the slower sway wins.
 const HASTE: f32 = 0.15;
+/// How a cue tried is scored: how far the joint swinging most should
+/// swing, and how much the drums' work and a quick sway count against it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Scoring {
+    pub expressive: f32,
+    pub effort: f32,
+    pub haste: f32,
+}
+
+impl Scoring {
+    /// What the Quake button scores by.
+    pub const QUAKE: Scoring = Scoring { expressive: EXPRESSIVE, effort: EFFORT, haste: HASTE };
+}
+
 /// Two swings less alike than this (`Quake::alike`) are of different kinds.
 pub const DISTINCT: f32 = 0.6;
 /// A swing's shape is followed in this many steps through its cue's loop.
@@ -189,6 +203,7 @@ enum Task {
 /// each named by where it is kept, and how many have been tried.
 #[derive(Clone, Debug)]
 struct Evolution {
+    scoring: Scoring,
     seeds: VecDeque<Cue>,
     kept: Vec<Kept>,
     /// How many times what is kept has changed.
@@ -199,9 +214,9 @@ struct Evolution {
 
 impl Evolution {
     /// Evolving from `remembered` cues, tried first, and then the seeds.
-    fn new(remembered: Vec<Cue>) -> Evolution {
+    fn new(remembered: Vec<Cue>, scoring: Scoring) -> Evolution {
         let seeds = remembered.into_iter().chain(Cue::seeds()).collect();
-        Evolution { seeds, kept: Vec::new(), changes: 0, tries: 0, random: ChaCha8Rng::seed_from_u64(1) }
+        Evolution { scoring, seeds, kept: Vec::new(), changes: 0, tries: 0, random: ChaCha8Rng::seed_from_u64(1) }
     }
 
     /// The next cue to try: a seed, or a child of those kept.
@@ -233,7 +248,7 @@ impl Evolution {
     /// is a find: a new kind, or `NOTABLE` better.
     fn keep(&mut self, found: Kept) -> Option<usize> {
         self.tries += 1;
-        if found.swing <= EXPRESSIVE / 2.0 || found.score <= 0.0 {
+        if found.swing <= self.scoring.expressive / 2.0 || found.score <= 0.0 {
             return None;
         }
         let alike: Vec<usize> =
@@ -516,6 +531,7 @@ pub struct Quake {
     /// The piece at rest, and whether to put it back so this tick.
     rest: Option<Rest>,
     restoring: bool,
+    scoring: Scoring,
 }
 
 impl Quake {
@@ -550,6 +566,7 @@ impl Quake {
             found: None,
             rest: None,
             restoring: false,
+            scoring: Scoring::QUAKE,
         }
     }
 
@@ -590,6 +607,12 @@ impl Quake {
 
     pub fn deck(&self) -> Deck {
         self.deck
+    }
+
+    /// Score the cues it tries by `scoring` rather than as the Quake button
+    /// does, before it starts evolving.
+    pub fn score_by(&mut self, scoring: Scoring) {
+        self.scoring = scoring;
     }
 
     /// How far the watched joints have swung against the deck lately.
@@ -685,7 +708,7 @@ impl Quake {
             Some(Task::Play(index, _, seconds)) => format!("Playing {} for {:.0} s, from rest", letter(*index), seconds.0),
             _ => "Waiting for a first find".to_string(),
         });
-        lines.push(format!("Score: 1 for {:.0} mm of swing,", EXPRESSIVE * 1000.0));
+        lines.push(format!("Score: 1 for {:.0} mm of swing,", self.scoring.expressive * 1000.0));
         lines.push("less for the drums' work and quick sway".to_string());
         lines.join("\n")
     }
@@ -717,7 +740,7 @@ impl Quake {
         let shared = self.search.0.get_or_insert_with(|| {
             let remembered = memory.as_deref().map(remembered).unwrap_or_default();
             Arc::new(Mutex::new(Shared {
-                evolution: Evolution::new(remembered),
+                evolution: Evolution::new(remembered, self.scoring),
                 finds: Vec::new(),
                 evolving: false,
                 paused: false,
@@ -857,10 +880,11 @@ impl Quake {
         let ticks = hearing.ticks.max(1) as f32;
         let swing = hearing.swing / ticks;
         let work = hearing.work / ticks / EFFORT_SPEED;
-        let expressive = swing / EXPRESSIVE;
+        let Scoring { expressive: target, effort, haste } = self.scoring;
+        let expressive = swing / target;
         let expressive = if expressive <= 1.0 { expressive } else { (2.0 - expressive).max(0.0) };
         let quickness = (hearing.speed / hearing.moved.max(1e-12)).sqrt() / TAU;
-        let score = expressive - EFFORT * work - HASTE * quickness;
+        let score = expressive - effort * work - haste * quickness;
         let paths: Vec<Vec3> = hearing.shape.iter().zip(&hearing.counts).map(|(sum, &count)| *sum / count.max(1) as f32).collect();
         let reach = |joint: usize| paths[joint * BINS..(joint + 1) * BINS].iter().map(|v| v.length_squared()).sum::<f32>();
         let most = (0..self.watched.len()).max_by(|&a, &b| reach(a).total_cmp(&reach(b)));
@@ -1133,7 +1157,7 @@ mod tests {
         remember(&path, &kept);
         let cues = remembered(&path);
         assert_eq!(cues, kept.iter().map(|kept| kept.cue.clone()).collect::<Vec<_>>());
-        assert_eq!(Evolution::new(cues).next(), kept[0].cue);
+        assert_eq!(Evolution::new(cues, Scoring::QUAKE).next(), kept[0].cue);
     }
 
     /// Quake pressed on `fabric`, as the button does.

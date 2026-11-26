@@ -47,24 +47,24 @@ const STATIONS: [Station; 3] = [
         at: [4.5, 4.0],
         facing: 0.0,
         taller: 1.25,
-        pretension: 0.1,
-        sensors: ["A19", "B19", "C19"],
+        pretension: 0.02,
+        sensors: ["C19", "A14", "B11"],
     },
     Station {
         name: FabricName::HeadlessHug,
         at: [0.0, 6.0],
         facing: 180.0,
         taller: 1.25,
-        pretension: 1.0,
-        sensors: ["R62", "L62", "R25"],
+        pretension: 0.25,
+        sensors: ["R62", "L62", "R47"],
     },
     Station {
         name: FabricName::Quadruped,
         at: [-4.5, 4.0],
         facing: 0.0,
-        taller: 1.0,
-        pretension: 1.0,
-        sensors: ["R2", "L2", "L38"],
+        taller: 1.25,
+        pretension: 0.25,
+        sensors: ["L2", "R2", "R43"],
     },
 ];
 /// The room, across and deep, and its walls' height, metres.
@@ -408,8 +408,14 @@ impl Gallery {
 /// The piece at `station` built at Medium, as tall and as tight as it
 /// says, on its table.
 fn medium(station: &Station) -> (Fabric, Physics) {
-    let mut plan = fabric_library::get_fabric_plan(station.name).at_medium_height(MEDIUM_HEIGHT * station.taller);
-    plan.pretense_phase.pretenst = Percent(plan.pretense_phase.pretenst.0 * station.pretension);
+    medium_made(station, station.taller, station.pretension)
+}
+
+/// The piece at `station` built at Medium, `taller` than Medium, keeping
+/// `pretension` of its Medium pretension.
+fn medium_made(station: &Station, taller: f32, pretension: f32) -> (Fabric, Physics) {
+    let mut plan = fabric_library::get_fabric_plan(station.name).at_medium_height(MEDIUM_HEIGHT * taller);
+    plan.pretense_phase.pretenst = Percent(plan.pretense_phase.pretenst.0 * pretension);
     let mut executor = FabricPlanExecutor::new(plan);
     while !executor.is_complete() {
         let _ = executor.iterate();
@@ -431,6 +437,11 @@ fn cues(name: FabricName) -> Vec<Cue> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fabric::quake::Scoring;
+
+    /// How the gallery's cues are evolved: a swing seen from across the
+    /// room, half again the Quake button's, still slow.
+    const SCORING: Scoring = Scoring { expressive: 0.06, ..Scoring::QUAKE };
 
     /// Where to place each gallery piece's movement sensors: every joint's
     /// movement measured, as an accelerometer on it would feel it, while
@@ -492,6 +503,128 @@ mod tests {
         }
     }
 
+    /// How each gallery piece moves at a spread of pretensions (`PRETENSIONS`,
+    /// fractions of its Medium pretension; `PROBE` names one piece, `TALLER`
+    /// makes it so much taller than Medium instead of as its station says;
+    /// `CUES` a folder of kept cues to play instead of the seeds): how
+    /// tall it stands and how many cables are slack at rest, and for each
+    /// seed cue, played from rest, the joint swinging farthest and how far
+    /// either way about its own middle, how far that middle leans from where
+    /// it stood, how quickly the piece sways (cycles a second, as
+    /// `Kept::quickness`), how many more cables go slack than at rest, at
+    /// most and on average, how often a guy line hangs slack, and how low
+    /// it sank. At rest it tells each guy line's strain, per mille.
+    #[test]
+    #[ignore]
+    fn measure_gallery_motion() {
+        use crate::fabric::cue::{FORE, TWIST};
+        const SETTLING: f32 = 4.0;
+        const LISTENING: f32 = 12.0;
+        const READING: usize = 50;
+        let probe: Option<FabricName> = std::env::var("PROBE").ok().and_then(|name| name.parse().ok());
+        let pretensions: Vec<f32> = std::env::var("PRETENSIONS")
+            .ok()
+            .map(|list| list.split(',').filter_map(|value| value.parse().ok()).collect())
+            .unwrap_or(vec![1.0, 0.5, 0.25, 0.1]);
+        let speeds = [0.4, 0.6, 0.8, 1.0, 1.3, 1.6, 2.0];
+        let seeds: Vec<(String, Cue)> = [(SIDE, "side"), (FORE, "fore"), (TWIST, "twist")]
+            .into_iter()
+            .flat_map(|(way, name)| speeds.map(|hertz| (format!("{name} {hertz}Hz"), Cue::rocking(way, hertz))))
+            .collect();
+        let taller: Option<f32> = std::env::var("TALLER").ok().and_then(|taller| taller.parse().ok());
+        let folder = std::env::var("CUES").ok();
+        let guys = |fabric: &Fabric| -> Vec<f32> {
+            let guys = fabric.intervals.values().filter(|interval| interval.has_role(crate::fabric::interval::Role::GuyLine));
+            guys.map(|interval| interval.strain).collect()
+        };
+        let slack = |fabric: &Fabric| fabric.intervals.values().filter(|interval| interval.role.is_pull_like() && interval.strain <= 0.0).count();
+        for station in STATIONS.iter().filter(|station| probe.is_none_or(|probe| probe == station.name)) {
+            for &pretension in &pretensions {
+                let (fabric, physics) = medium_made(station, taller.unwrap_or(station.taller), pretension);
+                let (standing, at_rest) = (fabric.height().0, slack(&fabric));
+                let cables = fabric.intervals.values().filter(|interval| interval.role.is_pull_like()).count();
+                let strains: Vec<String> = guys(&fabric).iter().map(|strain| format!("{:.2}", strain * 1000.0)).collect();
+                let pushing = |key| fabric.intervals.values().any(|interval| interval.has_role(crate::fabric::interval::Role::Pushing) && interval.touches(key));
+                let feet: Vec<Vec3> = fabric.joints.iter().filter(|(key, joint)| joint.location.y < 0.02 && pushing(*key)).map(|(_, joint)| joint.location).collect();
+                let between = feet.iter().sum::<Vec3>() / feet.len().max(1) as f32;
+                let mass: f32 = fabric.joints.values().map(|joint| joint.accumulated_mass.f32()).sum();
+                let gravity = fabric.joints.values().map(|joint| joint.location * joint.accumulated_mass.f32()).sum::<Vec3>() / mass;
+                eprintln!(
+                    "{} at {pretension}: {standing:.2} m tall, {at_rest} of {cables} cables slack at rest, centre of gravity {:+.0} mm fore of the feet, guy lines {}",
+                    station.name,
+                    (gravity.z - between.z) * 1000.0,
+                    strains.join(" ")
+                );
+                let per_second = crate::Age::iterations_per_second() as usize;
+                let seeds = match &folder {
+                    Some(folder) => {
+                        let file = std::path::PathBuf::from(folder).join(quake::cues_file(&station.name.to_string()).file_name().unwrap());
+                        let cues = quake::remembered(&file).into_iter().enumerate();
+                        cues.map(|(index, cue)| (format!("{} {}", (b'A' + index as u8) as char, cue.describe()), cue)).collect()
+                    }
+                    None => seeds.clone(),
+                };
+                let rows: Vec<String> = std::thread::scope(|scope| {
+                    let tries: Vec<_> = seeds
+                        .iter()
+                        .map(|(name, cue)| {
+                            let (mut fabric, physics) = (fabric.clone(), &physics);
+                            scope.spawn(move || {
+                                let rest: Vec<Vec3> = fabric.joints.values().map(|joint| joint.location).collect();
+                                let age = fabric.age;
+                                fabric.quake.as_mut().unwrap().play(age, cue.clone());
+                                let mut bounds = vec![(Vec3::MAX, Vec3::MIN, Vec3::ZERO); rest.len()];
+                                let mut previous: Vec<Option<Vec3>> = vec![None; rest.len()];
+                                let (mut moved, mut speed, mut lowest) = (0.0f32, 0.0f32, f32::MAX);
+                                let (mut readings, mut slack_sum, mut most_slack, mut guys_slack) = (0, 0, 0, 0);
+                                let dt = READING as f32 * crate::Age::iteration_duration().f32();
+                                for tick in 0..((SETTLING + LISTENING) * per_second as f32) as usize {
+                                    fabric.iterate(physics);
+                                    if tick < SETTLING as usize * per_second || tick % READING != 0 {
+                                        continue;
+                                    }
+                                    let deck = fabric.deck().unwrap();
+                                    let back = Quat::from_rotation_y(-deck.turn);
+                                    for (((bound, last), joint), rest) in bounds.iter_mut().zip(&mut previous).zip(fabric.joints.values()).zip(&rest) {
+                                        let away = back * (joint.location - deck.offset) - *rest;
+                                        *bound = (bound.0.min(away), bound.1.max(away), bound.2 + away);
+                                        moved += away.length_squared();
+                                        if let Some(last) = last.replace(away) {
+                                            speed += ((away - last) / dt).length_squared();
+                                        }
+                                    }
+                                    let slack = slack(&fabric).saturating_sub(at_rest);
+                                    readings += 1;
+                                    slack_sum += slack;
+                                    guys_slack += guys(&fabric).iter().any(|&strain| strain <= 0.0) as usize;
+                                    most_slack = most_slack.max(slack);
+                                    lowest = lowest.min(fabric.height().0);
+                                }
+                                let swing = |&(low, high, _): &(Vec3, Vec3, Vec3)| (high - low).length() / 2.0;
+                                let joints: Vec<_> = fabric.joints.values().collect();
+                                let most = (0..joints.len()).max_by(|&a, &b| swing(&bounds[a]).total_cmp(&swing(&bounds[b]))).unwrap();
+                                let label = joints[most].label.map_or("?".to_string(), |label| label.to_string());
+                                format!(
+                                    "  {name:28} {label:>5} swing {:4.0} mm  lean {:3.0} mm  {:.2}/s  slack +{most_slack} (mean {:.1})  sank {:.0} mm  guys slack {:.0}%",
+                                    swing(&bounds[most]) * 1000.0,
+                                    (bounds[most].2 / readings as f32).length() * 1000.0,
+                                    (speed / moved.max(1e-12)).sqrt() / std::f32::consts::TAU,
+                                    slack_sum as f32 / readings as f32,
+                                    (standing - lowest) * 1000.0,
+                                    100.0 * guys_slack as f32 / readings as f32
+                                )
+                            })
+                        })
+                        .collect();
+                    tries.into_iter().map(|try_| try_.join().unwrap()).collect()
+                });
+                for row in rows {
+                    eprintln!("{row}");
+                }
+            }
+        }
+    }
+
     /// Evolve cues for each gallery piece at its size (`PROBE` names one,
     /// all by default; `TRIES` how many each, 300 by default), carrying on
     /// from those in `cues/gallery/`, and keep them there. Built in, they
@@ -501,9 +634,17 @@ mod tests {
     fn evolve_gallery_cues() {
         let probe: Option<FabricName> = std::env::var("PROBE").ok().and_then(|name| name.parse().ok());
         let tries: u32 = std::env::var("TRIES").ok().and_then(|tries| tries.parse().ok()).unwrap_or(300);
+        let given = |name: &str| std::env::var(name).ok().and_then(|value| value.parse().ok());
+        let scoring = Scoring {
+            expressive: given("EXPRESSIVE").unwrap_or(SCORING.expressive),
+            effort: given("EFFORT").unwrap_or(SCORING.effort),
+            haste: given("HASTE").unwrap_or(SCORING.haste),
+        };
+        let folder = std::env::var("CUES").unwrap_or("cues/gallery".to_string());
         for station in STATIONS.iter().filter(|station| probe.is_none_or(|probe| probe == station.name)) {
             let (name, (mut fabric, physics)) = (station.name, medium(station));
-            let memory = std::path::PathBuf::from("cues/gallery").join(quake::cues_file(&name.to_string()).file_name().unwrap());
+            fabric.quake.as_mut().unwrap().score_by(scoring);
+            let memory = std::path::PathBuf::from(&folder).join(quake::cues_file(&name.to_string()).file_name().unwrap());
             let (age, piece) = (fabric.age, (fabric.clone(), physics.clone()));
             fabric.quake.as_mut().unwrap().advance(age, Some(piece), Some(memory));
             let quake = fabric.quake.as_ref().unwrap();
@@ -511,8 +652,16 @@ mod tests {
                 std::thread::sleep(std::time::Duration::from_millis(200));
             }
             for kept in quake.kept() {
-                eprintln!("{name}: {} scored {:.2}, swings {:.0} mm, most {}", kept.cue.describe(), kept.score, kept.swing * 1000.0, kept.most);
+                eprintln!(
+                    "{name}: {} scored {:.2}, swings {:.0} mm, {:.2}/s, most {}",
+                    kept.cue.describe(),
+                    kept.score,
+                    kept.swing * 1000.0,
+                    kept.quickness,
+                    kept.most
+                );
             }
         }
     }
 }
+
