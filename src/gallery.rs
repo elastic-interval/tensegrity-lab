@@ -15,26 +15,57 @@ use crate::fabric::physics::presets::VIEWING;
 use crate::fabric::physics::Physics;
 use crate::fabric::quake::{self, DECK_HEIGHT};
 use crate::fabric::Fabric;
+use crate::units::Unit;
+use crate::Age;
 use crate::units::Percent;
 use glam::{Mat4, Quat, Vec3, Vec4};
 use std::sync::mpsc::{channel, Receiver};
 
+mod sensor;
+use sensor::Sensor;
+#[cfg(not(target_arch = "wasm32"))]
+mod sound;
+
 /// A piece in the gallery: where its table stands on the floor, x across
 /// (to the left seen from the start) and z deep; how far it is turned,
-/// degrees; how much taller than Medium it is made; and how much of its
-/// Medium pretension it keeps, less to sway more slowly and further.
+/// degrees; how much taller than Medium it is made; how much of its
+/// Medium pretension it keeps, less to sway more slowly and further; and
+/// the joints carrying its movement sensors, the music's, as the ignored
+/// `place_sensors` places them.
 struct Station {
     name: FabricName,
     at: [f32; 2],
     facing: f32,
     taller: f32,
     pretension: f32,
+    sensors: [&'static str; 3],
 }
 
 const STATIONS: [Station; 3] = [
-    Station { name: FabricName::OpenClaw, at: [4.5, 4.0], facing: 0.0, taller: 1.25, pretension: 0.1 },
-    Station { name: FabricName::HeadlessHug, at: [0.0, 6.0], facing: 180.0, taller: 1.25, pretension: 1.0 },
-    Station { name: FabricName::Quadruped, at: [-4.5, 4.0], facing: 0.0, taller: 1.0, pretension: 1.0 },
+    Station {
+        name: FabricName::OpenClaw,
+        at: [4.5, 4.0],
+        facing: 0.0,
+        taller: 1.25,
+        pretension: 0.1,
+        sensors: ["A19", "B19", "C19"],
+    },
+    Station {
+        name: FabricName::HeadlessHug,
+        at: [0.0, 6.0],
+        facing: 180.0,
+        taller: 1.25,
+        pretension: 1.0,
+        sensors: ["R62", "L62", "R25"],
+    },
+    Station {
+        name: FabricName::Quadruped,
+        at: [-4.5, 4.0],
+        facing: 0.0,
+        taller: 1.0,
+        pretension: 1.0,
+        sensors: ["R2", "L2", "L38"],
+    },
 ];
 /// The room, across and deep, and its walls' height, metres.
 pub const WIDTH: f32 = 18.0;
@@ -94,6 +125,7 @@ pub struct Spots {
 
 /// A piece on its table, where it stands in the room.
 pub struct Piece {
+    station: usize,
     pub fabric: Fabric,
     physics: Physics,
     pub place: Mat4,
@@ -101,6 +133,12 @@ pub struct Piece {
     cues: Vec<Cue>,
     playing: usize,
     played: f32,
+    /// Its movement sensors, the ticks since one last read, and the turns
+    /// they felt since the music last heard: which sensor, when, seconds of
+    /// the piece's own time, and how hard.
+    sensors: Vec<Sensor>,
+    unread: usize,
+    felt: Vec<(usize, f32, f32)>,
 }
 
 impl Piece {
@@ -240,6 +278,9 @@ pub struct Gallery {
     built: Receiver<(usize, Fabric, Physics)>,
     pub pieces: Vec<Piece>,
     pub walker: Walker,
+    /// The music, where there is an output to play it on.
+    #[cfg(not(target_arch = "wasm32"))]
+    sound: Option<sound::Sound>,
 }
 
 impl Gallery {
@@ -258,7 +299,13 @@ impl Gallery {
             #[cfg(target_arch = "wasm32")]
             build();
         }
-        Gallery { built, pieces: Vec::new(), walker: Walker::new() }
+        Gallery {
+            built,
+            pieces: Vec::new(),
+            walker: Walker::new(),
+            #[cfg(not(target_arch = "wasm32"))]
+            sound: sound::Sound::new(),
+        }
     }
 
     /// The light in each table, where it is and how bright. Before every
@@ -297,13 +344,15 @@ impl Gallery {
     /// and every piece moves on `iterations`.
     pub fn advance(&mut self, seconds: f32, iterations: usize) {
         for (index, fabric, physics) in self.built.try_iter() {
-            let Station { name, at: [x, z], facing, .. } = STATIONS[index];
+            let Station { name, at: [x, z], facing, sensors, .. } = STATIONS[index];
+            let sensors = sensors.iter().filter_map(|name| Sensor::on(&fabric, name)).collect();
             let place = Mat4::from_rotation_translation(Quat::from_rotation_y(facing.to_radians()), Vec3::new(x, 0.0, z));
             let mut cues = cues(name);
             if cues.is_empty() {
                 cues.push(Cue::rocking(SIDE, ROCKING));
             }
-            let mut piece = Piece { fabric, physics, place, cues, playing: 0, played: PLAYING };
+            let mut piece =
+                Piece { station: index, fabric, physics, place, cues, playing: 0, played: PLAYING, sensors, unread: 0, felt: Vec::new() };
             piece.playing = piece.cues.len() - 1;
             self.pieces.push(piece);
         }
@@ -320,7 +369,38 @@ impl Gallery {
             }
             for _ in 0..iterations {
                 piece.fabric.iterate(&piece.physics);
+                piece.unread += 1;
+                if piece.unread == sensor::SENSING {
+                    piece.unread = 0;
+                    let now = piece.fabric.age.as_duration().as_secs_f32();
+                    let dt = sensor::SENSING as f32 * Age::iteration_duration().f32();
+                    for (index, sensor) in piece.sensors.iter_mut().enumerate() {
+                        if let Some(hard) = sensor.read(&piece.fabric, now, dt) {
+                            piece.felt.push((index, now, hard));
+                        }
+                    }
+                }
             }
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        self.listen();
+    }
+
+    /// Tell the music what each piece's sensors felt, and where it is from
+    /// the visitor.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn listen(&mut self) {
+        let Some(sound) = &self.sound else {
+            return;
+        };
+        let right = Vec3::new(-self.walker.look.x.cos(), 0.0, self.walker.look.x.sin());
+        for piece in &mut self.pieces {
+            let (middle, _) = piece.footprint();
+            let toward = Vec3::new(middle.x - self.walker.at.x, 0.0, middle.z - self.walker.at.z);
+            let side = toward.try_normalize().map_or(0.0, |toward| toward.dot(right));
+            let now = piece.fabric.age.as_duration().as_secs_f32();
+            sound.tell(piece.station, now, &piece.felt, toward.length(), side);
+            piece.felt.clear();
         }
     }
 }
@@ -351,6 +431,66 @@ fn cues(name: FabricName) -> Vec<Cue> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Where to place each gallery piece's movement sensors: every joint's
+    /// movement measured, as an accelerometer on it would feel it, while
+    /// each of its cues plays from rest, each cue counting alike; the three
+    /// moving most, each at least `APART` of the piece's height from the
+    /// others, so they feel different parts of it.
+    #[test]
+    #[ignore]
+    fn place_sensors() {
+        const SETTLING: f32 = 4.0;
+        const LISTENING: f32 = 12.0;
+        const APART: f32 = 0.3;
+        for station in &STATIONS {
+            let (fabric, physics) = medium(station);
+            let per_second = crate::Age::iterations_per_second() as usize;
+            let moved: Vec<Vec<f32>> = std::thread::scope(|scope| {
+                let tries: Vec<_> = cues(station.name)
+                    .into_iter()
+                    .map(|cue| {
+                        let (mut fabric, physics) = (fabric.clone(), &physics);
+                        scope.spawn(move || {
+                            let age = fabric.age;
+                            fabric.quake.as_mut().unwrap().play(age, cue);
+                            let mut moved = vec![0.0f32; fabric.joints.len()];
+                            for tick in 0..((SETTLING + LISTENING) * per_second as f32) as usize {
+                                fabric.iterate(physics);
+                                if tick >= SETTLING as usize * per_second && tick % sensor::SENSING == 0 {
+                                    for (sum, joint) in moved.iter_mut().zip(fabric.joints.values()) {
+                                        *sum += joint.velocity.length_squared();
+                                    }
+                                }
+                            }
+                            let most = moved.iter().copied().fold(f32::MIN_POSITIVE, f32::max);
+                            moved.iter().map(|sum| sum / most).collect()
+                        })
+                    })
+                    .collect();
+                tries.into_iter().map(|try_| try_.join().unwrap()).collect()
+            });
+            let joints: Vec<_> = fabric.joints.values().collect();
+            let mut ranked: Vec<usize> = (0..joints.len()).collect();
+            let score = |index: usize| moved.iter().map(|cue| cue[index]).sum::<f32>();
+            ranked.sort_by(|&a, &b| score(b).total_cmp(&score(a)));
+            let apart = APART * fabric.height().0;
+            let mut placed: Vec<usize> = Vec::new();
+            for index in ranked {
+                if placed.len() < 3 && placed.iter().all(|&other| joints[other].location.distance(joints[index].location) >= apart) {
+                    placed.push(index);
+                }
+            }
+            let names: Vec<String> = placed
+                .iter()
+                .map(|&index| {
+                    let label = joints[index].label.map_or("?".to_string(), |label| label.to_string());
+                    format!("{label} ({:.2}, {:.2} m up)", score(index) / moved.len() as f32, joints[index].location.y)
+                })
+                .collect();
+            eprintln!("{}: {}", station.name, names.join(", "));
+        }
+    }
 
     /// Evolve cues for each gallery piece at its size (`PROBE` names one,
     /// all by default; `TRIES` how many each, 300 by default), carrying on

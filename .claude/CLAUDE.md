@@ -318,6 +318,8 @@ src/
 ├── units.rs            # Meters/Seconds/Grams etc. newtypes
 ├── animation_export.rs # JSON export for Blender (native only)
 ├── gallery.rs          # --gallery: Medium pieces quaking in a room, walked with the arrows
+├── gallery/sensor.rs   # A movement sensor on a joint: feels each turn of its swing (placed by the ignored place_sensors)
+├── gallery/sound.rs    # The gallery's music: a groove played by each piece's sensors, heard near it
 │
 ├── connector/          # Physical connector plugin (optional per fabric)
 │   ├── dimensions.rs   # ConnectorDimensions, pivot_geometry, pivot_geometry_tests
@@ -491,7 +493,8 @@ cargo run --release -- --fabric "Headless Hug" --size medium
 # `evolve_gallery_cues`; Open Claw keeps a tenth of its pretension, to sway),
 # in a dark room 18 × 22 m walked through smoothly, as on a gimbal (two-finger swipe walks and turns, pinch rises and sinks, drag looks, or the arrows), tables skirted in
 # velvet, a spot in each deck throwing the piece's shadow up on the
-# ceiling (shadow maps, `wgpu/shadow_renderer.rs`); no text, no buttons, Esc quits:
+# ceiling (shadow maps, `wgpu/shadow_renderer.rs`), each playing a groove from
+# movement sensors on its joints, heard near it (`gallery/sound.rs`); Esc quits:
 cargo run --release -- --gallery
 
 # Headless Hug as built, as JSON (writes HeadlessHug-<date>.json):
