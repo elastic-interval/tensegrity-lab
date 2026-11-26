@@ -41,6 +41,11 @@ impl FabricRenderer {
         }
     }
 
+    /// Several fabrics, each placed where it stands, drawn plainly.
+    pub fn update_placed(&mut self, wgpu: &Wgpu, fabrics: &[(&Fabric, glam::Mat4)]) {
+        self.cylinder_renderer.update_placed(wgpu, fabrics);
+    }
+
     pub fn render<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,

@@ -210,6 +210,17 @@ impl SurfaceRenderer {
         }
     }
 
+    /// The gallery: its room and tables as `vertices`, already where they
+    /// stand.
+    pub fn set_gallery(&mut self, device: &wgpu::Device, vertices: &[DeckVertex]) {
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Gallery Buffer"),
+            contents: cast_slice(vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        self.deck = Some((buffer, vertices.len() as u32, 0.0));
+    }
+
     pub fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(1, &self.ground_bind_group, &[]);

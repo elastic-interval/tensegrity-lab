@@ -2,8 +2,34 @@
 struct Uniforms {
     mvp_matrix: mat4x4<f32>,  // Model-view-projection matrix
     eye: vec4<f32>,           // Camera position
+    // The gallery's lights, in its tables: where, and how bright. With the
+    // first one bright, the gallery is dark but for them.
+    lights: array<vec4<f32>, 3>,
 };
 @binding(0) @group(0) var<uniform> uniforms: Uniforms;
+
+const GLOW_COLOR: vec3<f32> = vec3<f32>(1.0, 0.82, 0.6);
+const GALLERY_AMBIENT: f32 = 0.02;
+
+fn in_gallery() -> bool {
+    return uniforms.lights[0].w > 0.0;
+}
+
+// How the gallery's lights light a point at `p` facing `normal`: each
+// falling off with distance, a little wrapped round so thin members show.
+fn glow(p: vec3<f32>, normal: vec3<f32>, wrap: f32) -> vec3<f32> {
+    var sum = vec3<f32>(GALLERY_AMBIENT);
+    for (var i = 0; i < 3; i++) {
+        let light = uniforms.lights[i];
+        if (light.w > 0.0) {
+            let to = light.xyz - p;
+            let distance = length(to);
+            let facing = max((dot(normal, to / distance) + wrap) / (1.0 + wrap), 0.0);
+            sum += GLOW_COLOR * light.w * facing / (1.0 + distance * distance);
+        }
+    }
+    return sum;
+}
 
 // Vertex attributes
 struct VertexInput {
@@ -216,7 +242,10 @@ fn fabric_fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     // Combine lighting components
-    let lighting = ambient + diffuse;
+    var lighting = vec3<f32>(ambient + diffuse);
+    if (in_gallery()) {
+        lighting = glow(in.world_position, normal, 0.5);
+    }
     let final_color = base_color * lighting * detail_factor;
 
     return vec4<f32>(gamma(final_color), in.color.a);
@@ -574,6 +603,7 @@ fn sky_fragment(in: SkyVertexOutput) -> @location(0) vec4<f32> {
 struct DeckVertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) color: vec4<f32>,
+    @location(1) world: vec3<f32>,
 };
 
 // The wobble table: what moves with the deck (w one) is turned and moved as
@@ -589,10 +619,19 @@ fn deck_vertex(@location(0) pos: vec4<f32>, @location(1) color: vec4<f32>) -> De
     }
     output.position = uniforms.mvp_matrix * vec4<f32>(p, 1.0);
     output.color = color;
+    output.world = p;
     return output;
 }
 
+// In the gallery each face is lit by the tables' lights, facing the eye.
 @fragment
 fn deck_fragment(in: DeckVertexOutput) -> @location(0) vec4<f32> {
+    if (in_gallery()) {
+        var normal = normalize(cross(dpdy(in.world), dpdx(in.world)));
+        if (dot(normal, uniforms.eye.xyz - in.world) < 0.0) {
+            normal = -normal;
+        }
+        return vec4<f32>(gamma(in.color.rgb * glow(in.world, normal, 0.0)), in.color.a);
+    }
     return vec4<f32>(gamma(in.color.rgb), in.color.a);
 }

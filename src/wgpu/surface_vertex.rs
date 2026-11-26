@@ -1,9 +1,9 @@
 use crate::fabric::quake::{
-    corner_angle, drum_along, hook_foot, lugs, BASE_THICKNESS, DECK_THICKNESS, HANG_CORNERS, HEAD_CLEARANCE, HOOK_REACH,
+    corner_angle, Deck, drum_along, hook_foot, lugs, BASE_THICKNESS, DECK_THICKNESS, HANG_CORNERS, HEAD_CLEARANCE, HOOK_REACH,
     LOOP_LEG, TIE_RADIUS,
 };
 use bytemuck::{Pod, Zeroable};
-use glam::Vec3;
+use glam::{Mat4, Vec3};
 use std::f32::consts::PI;
 
 #[repr(C)]
@@ -70,6 +70,19 @@ const ARM_COLOR: [f32; 3] = [0.25, 0.27, 0.32];
 const TIE_COLOR: [f32; 3] = [0.9, 0.85, 0.6];
 const CABLE_COLOR: [f32; 3] = [0.95, 0.5, 0.2];
 const MOTOR_COLOR: [f32; 3] = [0.1, 0.1, 0.1];
+const WALL_COLOR: [f32; 3] = [0.8, 0.8, 0.78];
+const FLOOR_COLOR: [f32; 3] = [0.3, 0.29, 0.28];
+const VELVET_COLOR: [f32; 3] = [0.28, 0.03, 0.06];
+/// How far out the velvet skirt hangs, as a part of the deck's radius,
+/// clear of the base, and how far it clears the floor.
+const SKIRT: f32 = 1.12;
+const SKIRT_CLEAR: f32 = 0.01;
+/// The skirt's pleats: how wide each fold, and how deep.
+const PLEAT: f32 = 0.04;
+const PLEAT_DEPTH: f32 = 0.012;
+const CEILING_COLOR: [f32; 3] = [0.6, 0.6, 0.6];
+/// How thick the gallery's walls are.
+const WALL: f32 = 0.1;
 
 impl DeckVertex {
     pub fn for_radius(radius: f32, height: f32) -> Vec<DeckVertex> {
@@ -108,6 +121,66 @@ impl DeckVertex {
                 bar(&mut vertices, pulley, at(beam), TIE, CABLE_COLOR, (STAYS, STAYS));
             }
         }
+        vertices
+    }
+
+    /// The table `table`, as it stands where `place` puts it with its
+    /// deck at `deck`: none of it left for the shader to move.
+    pub fn placed(table: &[DeckVertex], deck: Deck, place: Mat4) -> impl Iterator<Item = DeckVertex> + '_ {
+        table.iter().map(move |vertex| {
+            let [x, y, z, moves] = vertex.position;
+            let point = if moves > 0.5 { deck.carry(Vec3::new(x, y, z)) } else { Vec3::new(x, y, z) };
+            DeckVertex { position: place.transform_point3(point).extend(STAYS).to_array(), color: vertex.color }
+        })
+    }
+
+    /// A velvet skirt hanging from just under a deck `radius` across, near
+    /// to the floor `height` below, going with the deck and hiding what is
+    /// under it.
+    pub fn skirt(radius: f32, height: f32) -> Vec<DeckVertex> {
+        let mut vertices = Vec::new();
+        let (radius, top, bottom) = (radius * SKIRT, -0.005, -height + SKIRT_CLEAR);
+        prism(&mut vertices, radius, -0.02, top, VELVET_COLOR, ON_DECK);
+        let corner = |index: usize| {
+            let angle = corner_angle(index % 6);
+            Vec3::new(angle.cos(), 0.0, angle.sin()) * radius
+        };
+        let folds = ((corner(0).distance(corner(1)) / PLEAT).round() as usize).max(1) * 2;
+        let mut around = Vec::new();
+        for side in 0..6 {
+            let (from, to) = (corner(side), corner(side + 1));
+            let out = (from + to).normalize();
+            for fold in 0..folds {
+                let depth = if fold % 2 == 0 { 0.0 } else { PLEAT_DEPTH };
+                around.push(from.lerp(to, fold as f32 / folds as f32) + out * depth);
+            }
+        }
+        let lit = shade(VELVET_COLOR, 1.0);
+        for (index, &here) in around.iter().enumerate() {
+            let next = around[(index + 1) % around.len()];
+            let at = |point: Vec3, y: f32| [point.x, y, point.z, ON_DECK];
+            for position in [at(here, top), at(next, top), at(next, bottom), at(here, top), at(next, bottom), at(here, bottom)] {
+                vertices.push(DeckVertex { position, color: lit });
+            }
+        }
+        vertices
+    }
+
+    /// A closed room, `width` across and `depth` deep, its floor at `floor`
+    /// and its ceiling `height` above.
+    pub fn room(width: f32, depth: f32, height: f32, floor: f32) -> Vec<DeckVertex> {
+        let mut vertices = Vec::new();
+        let (x, z, top) = (width / 2.0, depth / 2.0, floor + height);
+        for (from, to) in [
+            (Vec3::new(-x - WALL, floor, -z - WALL), Vec3::new(x + WALL, top, -z)),
+            (Vec3::new(-x - WALL, floor, z), Vec3::new(x + WALL, top, z + WALL)),
+            (Vec3::new(-x - WALL, floor, -z), Vec3::new(-x, top, z)),
+            (Vec3::new(x, floor, -z), Vec3::new(x + WALL, top, z)),
+        ] {
+            slab(&mut vertices, from, to, WALL_COLOR);
+        }
+        slab(&mut vertices, Vec3::new(-x, floor - WALL, -z), Vec3::new(x, floor, z), FLOOR_COLOR);
+        slab(&mut vertices, Vec3::new(-x, top, -z), Vec3::new(x, top + WALL, z), CEILING_COLOR);
         vertices
     }
 
@@ -176,6 +249,29 @@ fn bar(vertices: &mut Vec<DeckVertex>, from: Vec3, to: Vec3, half: f32, color: [
         let lit = shade(color, light(normal));
         for position in [cap[0], cap[1], cap[2], cap[0], cap[2], cap[3]] {
             push(position, lit);
+        }
+    }
+}
+
+/// A box from corner `low` to corner `high`, still, its six faces.
+fn slab(vertices: &mut Vec<DeckVertex>, low: Vec3, high: Vec3, color: [f32; 3]) {
+    let corner = |x: bool, y: bool, z: bool| {
+        let pick = |high_side: bool, low: f32, high: f32| if high_side { high } else { low };
+        [pick(x, low.x, high.x), pick(y, low.y, high.y), pick(z, low.z, high.z), STAYS]
+    };
+    for axis in 0..3 {
+        for side in [false, true] {
+            let mut normal = Vec3::ZERO;
+            normal[axis] = if side { 1.0 } else { -1.0 };
+            let face = |a: bool, b: bool| match axis {
+                0 => corner(side, a, b),
+                1 => corner(a, side, b),
+                _ => corner(a, b, side),
+            };
+            let lit = shade(color, light(normal));
+            for (a, b) in [(false, false), (true, false), (true, true), (false, false), (true, true), (false, true)] {
+                vertices.push(DeckVertex { position: face(a, b), color: lit });
+            }
         }
     }
 }

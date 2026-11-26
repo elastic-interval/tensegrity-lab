@@ -16,6 +16,7 @@ pub mod crucible_context;
 pub mod fabric_json;
 pub mod events;
 pub mod fabric;
+pub mod gallery;
 pub mod button_bar;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod physics_gpu;
@@ -144,4 +145,7 @@ pub enum RunStyle {
     /// Evolve articulating bricks driven by a sine-wave muscle. See
     /// `docs/articulation-evolution.md`.
     ArticulationEvolution(u64),
+    /// Medium pieces quaking on their tables in a room, walked through
+    /// (`src/gallery.rs`).
+    Gallery,
 }

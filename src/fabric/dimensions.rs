@@ -151,6 +151,11 @@ pub struct FabricDimensions {
     pub size: Size,
     /// A Medium piece's wobble table, this far across its corners.
     pub table: Option<Meters>,
+    /// The wobble table chosen for the plan, across its corners, in its
+    /// `scale`s, so it grows and shrinks with the piece; without one it is
+    /// fitted to where the piece stands (`Quake::fit`). The ignored
+    /// `measure_tables` test tells how far each piece's feet reach.
+    pub table_scales: Option<f32>,
     /// How far it reaches from its middle once built, when known, for the
     /// camera to keep that far back while it grows.
     pub reach: Option<Meters>,
@@ -177,6 +182,7 @@ impl Default for FabricDimensions {
             connectors_shown: false,
             size: Size::Large,
             table: None,
+            table_scales: None,
             reach: None,
             table_turn: Degrees(0.0),
         }
@@ -221,6 +227,12 @@ impl FabricDimensions {
     /// On a wobble table, turned `turn` from the way it is built.
     pub fn with_table_turn(mut self, turn: Degrees) -> Self {
         self.table_turn = turn;
+        self
+    }
+
+    /// On a wobble table `scales` of its `scale` across the corners.
+    pub fn with_table(mut self, scales: f32) -> Self {
+        self.table_scales = Some(scales);
         self
     }
 

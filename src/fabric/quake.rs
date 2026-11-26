@@ -288,7 +288,7 @@ pub fn cues_file(name: &str) -> PathBuf {
 
 /// The cues remembered in `path`: each line a kept cue, what the steppers
 /// are told after `|`.
-fn remembered(path: &Path) -> Vec<Cue> {
+pub fn remembered(path: &Path) -> Vec<Cue> {
     let Ok(text) = std::fs::read_to_string(path) else {
         return Vec::new();
     };
@@ -467,7 +467,7 @@ pub struct Deck {
 
 impl Deck {
     /// Where a point resting on the deck at rest is now.
-    fn carry(&self, point: Vec3) -> Vec3 {
+    pub fn carry(&self, point: Vec3) -> Vec3 {
         Quat::from_rotation_y(self.turn) * point + self.offset
     }
 
@@ -553,10 +553,14 @@ impl Quake {
 
     /// The deck made `ROOM` larger than it need be for where the feet and
     /// guy anchors of the piece `fabric` stand on it, and no smaller than
-    /// `SMALLEST`, and its weight and the piece's on the ties.
+    /// `SMALLEST`, unless its plan chose the table; and its weight and the
+    /// piece's on the ties.
     pub fn fit(&mut self, fabric: &Fabric) {
         let feet = fabric.joints.values().filter(|joint| joint.location.y < FOOTING).map(|joint| self.deck.on_deck(joint.location));
-        let fitting = (ROOM * smallest_hexagon(feet)).max(SMALLEST);
+        let fitting = match fabric.dimensions.table_scales {
+            Some(_) => self.deck.radius,
+            None => (ROOM * smallest_hexagon(feet)).max(SMALLEST),
+        };
         let fitted = Quake::of_radius(fitting);
         (self.deck.radius, self.mass, self.loop_stiffness) = (fitting, fitted.mass, fitted.loop_stiffness);
         let piece = fabric.joints.values().map(|joint| joint.accumulated_mass.f32()).sum::<f32>() / 1000.0;
@@ -737,6 +741,11 @@ impl Quake {
             drop((shared, piece, physics));
         }
         self.go_on(age);
+    }
+
+    /// Play `cue` round and round, from now on, as the gallery does.
+    pub fn play(&mut self, age: Age, cue: Cue) {
+        self.then(age, Some(Task::Play(0, cue, Seconds(f32::INFINITY))));
     }
 
     /// Bring the drums back to their middles and stop.
@@ -1085,6 +1094,30 @@ mod tests {
         }
         let physics = Physics { surface: executor.physics.surface, ..VIEWING };
         (executor.fabric, physics)
+    }
+
+    /// How big each Medium piece's table is, and how far its feet and guy
+    /// anchors reach as it stands, in metres and in its `scale`s, for
+    /// choosing its table (`FabricDimensions::with_table`).
+    #[test]
+    #[ignore]
+    fn measure_tables() {
+        use strum::IntoEnumIterator;
+        for name in FabricName::iter() {
+            let (fabric, _) = medium(name);
+            let deck = fabric.deck().unwrap();
+            let standing = fabric.joints.values().filter(|joint| joint.location.y < FOOTING);
+            let feet = smallest_hexagon(standing.map(|joint| joint.location));
+            let scale = fabric.dimensions.scale.f32();
+            eprintln!(
+                "{name}: {:.2} m tall, table {:.2} m ({:.1} scales), feet and anchors within {:.2} m ({:.1} scales)",
+                fabric.height().f32(),
+                deck.radius,
+                deck.radius / scale,
+                feet,
+                feet / scale
+            );
+        }
     }
 
     /// Kept cues remembered in a file come back as the cues tried first.

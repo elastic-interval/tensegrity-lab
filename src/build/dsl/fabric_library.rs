@@ -42,7 +42,8 @@ impl FabricName {
                         .with_scale(M(0.80))
                         .with_connector()
                         .with_connectors_shown()
-                        .with_table_turn(Degrees(45.8)),
+                        .with_table_turn(Degrees(45.8))
+                        .with_table(5.4),
                 )
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([
@@ -277,6 +278,7 @@ pub fn headless_hug_plan(shape: HeadlessHugShape) -> FabricPlan {
             FabricDimensions::default()
                 .with_altitude(M(12.0))
                 .with_scale(M(0.75))
+                .with_table(9.2)
                 .with_connector()
                 .with_tube_sets(HEADLESS_HUG_TUBES)
                 .with_connectors_shown()
@@ -416,6 +418,7 @@ pub fn quadruped_plan(shape: QuadrupedShape) -> FabricPlan {
             FabricDimensions::default()
                 .with_altitude(M(4.0))
                 .with_scale(M(0.5466))
+                .with_table(7.1)
                 .with_connector()
                 .with_tube_sets(HEADLESS_HUG_TUBES)
                 .with_connectors_shown()

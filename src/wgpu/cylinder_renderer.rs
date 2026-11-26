@@ -2,7 +2,7 @@ use crate::camera::Pick;
 use crate::fabric::interval::{Role, Span};
 use crate::fabric::material::Material;
 use crate::fabric::{Fabric, FabricDimensions, IntervalEnd, IntervalKey};
-use glam::Vec3;
+use glam::{Mat4, Vec3};
 use crate::units::Unit;
 use crate::wgpu::Wgpu;
 use crate::{Appearance, AppearanceMode, IntervalDetails, RenderStyle};
@@ -100,6 +100,27 @@ impl CylinderRenderer {
                     usage: wgpu::BufferUsages::VERTEX,
                 },
             ));
+        }
+    }
+
+    /// Several fabrics, each placed where it stands, drawn plainly.
+    pub fn update_placed(&mut self, wgpu: &Wgpu, fabrics: &[(&Fabric, Mat4)]) {
+        let mut instances = Vec::new();
+        for (fabric, place) in fabrics {
+            let drawn = self.create_instances_from_fabric(fabric, &Pick::Nothing, &RenderStyle::Normal, false);
+            instances.extend(drawn.into_iter().map(|instance| CylinderInstance {
+                start: place.transform_point3(instance.start.into()).into(),
+                end: place.transform_point3(instance.end.into()).into(),
+                ..instance
+            }));
+        }
+        self.num_instances = instances.len() as u32;
+        if self.num_instances > 0 {
+            self.instance_buffer = Some(wgpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Cylinder Instance Buffer"),
+                contents: bytemuck::cast_slice(&instances),
+                usage: wgpu::BufferUsages::VERTEX,
+            }));
         }
     }
 

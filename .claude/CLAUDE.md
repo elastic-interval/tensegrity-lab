@@ -317,6 +317,7 @@ src/
 ├── caliper.rs          # Caliper readings for model-scale display
 ├── units.rs            # Meters/Seconds/Grams etc. newtypes
 ├── animation_export.rs # JSON export for Blender (native only)
+├── gallery.rs          # --gallery: Medium pieces quaking in a room, walked with the arrows
 │
 ├── connector/          # Physical connector plugin (optional per fabric)
 │   ├── dimensions.rs   # ConnectorDimensions, pivot_geometry, pivot_geometry_tests
@@ -414,7 +415,10 @@ Important integration tests:
   so that isn't modelled.) The deck is `ROOM` (1.3) times the
   smallest hexagon holding the feet and guy anchors, at least `SMALLEST`:
   estimated from the lowest joints before the build, fitted to where they
-  land (`Quake::fit`). The steppers play cues
+  land (`Quake::fit`); unless the plan chooses its table, in its own
+  `scale`s so it grows with the piece (`FabricDimensions::with_table`:
+  Headless Hug, Open Claw, Quadruped; the ignored `measure_tables` tells
+  how far each piece's feet reach). The steppers play cues
   (`src/fabric/cue.rs`): loops of DMX frames, 44 a second, each three
   values, one a drum, 128 its middle, `PER_VALUE` of cable each (20 mm
   either way); a drum goes from one to the next no faster than
@@ -481,6 +485,12 @@ cargo run --release -- --fabric "Halo by Crane"
 
 # Medium, on the wobble table (Quake starts its motor):
 cargo run --release -- --fabric "Headless Hug" --size medium
+
+# The gallery: Headless Hug (a quarter taller), Open Claw and Quadruped at Medium, each on its
+# table playing its first kept cue (Open Claw, with none, rocks side to side),
+# in a dark room 12 × 16 m walked through with the arrow keys, tables skirted in
+# velvet; no text, no buttons, Esc quits:
+cargo run --release -- --gallery
 
 # Headless Hug as built, as JSON (writes HeadlessHug-<date>.json):
 cargo test --release --lib export_headless_hug_json -- --ignored

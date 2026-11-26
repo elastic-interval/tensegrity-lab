@@ -8,6 +8,7 @@ use crate::camera::Framing;
 use crate::button_bar::{ButtonBar, FAST_FORWARD};
 use crate::crucible::Crucible;
 use crate::fabric::dimensions::Size;
+use crate::gallery::Gallery;
 use crate::pointer::PointerHandler;
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
@@ -89,6 +90,8 @@ pub struct Application {
     white: bool,
     /// Showing the fabrics to choose one from.
     choosing: bool,
+    /// The gallery, walked through instead of everything else.
+    gallery: Option<Gallery>,
     #[cfg(not(target_arch = "wasm32"))]
     native: NativeState,
 }
@@ -148,6 +151,7 @@ impl Application {
             cycle: None,
             white: false,
             choosing: false,
+            gallery: None,
             #[cfg(not(target_arch = "wasm32"))]
             native: NativeState::default(),
         }
@@ -347,6 +351,7 @@ impl ApplicationHandler<LabEvent> for Application {
                             SetTimeScale(FAST_FORWARD).send(&self.radio);
                         }
                     }
+                    RunStyle::Gallery => self.gallery = Some(Gallery::new()),
                     RunStyle::BakeBricks => {
                         StateChange::SetStageLabel("Baking".to_string()).send(&self.radio);
                         ControlState::Baking.send(&self.radio);
@@ -738,6 +743,26 @@ impl ApplicationHandler<LabEvent> for Application {
             // Esc steps back: out of the parts view, or out of a selection,
             // a cable to its joint and a joint to nothing. Every other
             // control is a button; the web build and the show cycle take no keys.
+            // In the gallery the arrows walk and Esc leaves; nothing else.
+            WindowEvent::KeyboardInput { event: key, .. } if self.gallery.is_some() => {
+                use winit::keyboard::{KeyCode, PhysicalKey};
+                let arrows = &mut self.gallery.as_mut().unwrap().walker.arrows;
+                let held = key.state.is_pressed();
+                match key.physical_key {
+                    PhysicalKey::Code(KeyCode::Escape) => event_loop.exit(),
+                    PhysicalKey::Code(KeyCode::ArrowUp) => arrows.forward = held,
+                    PhysicalKey::Code(KeyCode::ArrowDown) => arrows.back = held,
+                    PhysicalKey::Code(KeyCode::ArrowLeft) => arrows.left = held,
+                    PhysicalKey::Code(KeyCode::ArrowRight) => arrows.right = held,
+                    _ => {}
+                }
+                return;
+            }
+            WindowEvent::Resized(physical_size) if self.gallery.is_some() => {
+                self.with_scene(|scene| scene.resize(physical_size));
+                return;
+            }
+            _ if self.gallery.is_some() => return,
             #[cfg(not(target_arch = "wasm32"))]
             WindowEvent::KeyboardInput { event: key, .. } => {
                 let escape = key.physical_key == winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::Escape);
@@ -769,6 +794,20 @@ impl ApplicationHandler<LabEvent> for Application {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         // Process time-related updates regardless of scene existence
         let now = Instant::now();
+        if let Some(gallery) = &mut self.gallery {
+            // Real time, a long frame dropped rather than caught up.
+            let seconds = now.duration_since(self.last_update).as_secs_f32().min(0.1);
+            self.last_update = now;
+            let iterations = (seconds * Age::iterations_per_second()).round() as usize;
+            gallery.advance(seconds, iterations);
+            if let Some(scene) = &mut self.scene {
+                if let Err(error) = scene.redraw_gallery(gallery, seconds) {
+                    eprintln!("Error redrawing gallery: {:?}", error);
+                }
+            }
+            event_loop.set_control_flow(ControlFlow::wait_duration(Duration::from_millis(16)));
+            return;
+        }
 
         // FPS calculation with platform-specific adjustments
         self.frames_count += 1;

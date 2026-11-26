@@ -80,15 +80,28 @@ impl FabricPlan {
     /// in its own materials from pretensing on (`FabricDimensions::medium`);
     /// it has no node plates, so no bridles, and its hinges are made by
     /// hand. Small is shown from the Large fabric.
-    pub fn at_size(mut self, size: Size) -> Self {
+    pub fn at_size(self, size: Size) -> Self {
+        self.at(size, MEDIUM_HEIGHT)
+    }
+
+    /// This plan made Medium, but `height` tall rather than `MEDIUM_HEIGHT`.
+    pub fn at_medium_height(self, height: Meters) -> Self {
+        self.at(Size::Medium, height)
+    }
+
+    fn at(mut self, size: Size, medium_height: Meters) -> Self {
         let Built { height, reach, table } = self.built();
         self.dimensions.reach = Some(Meters(reach));
         if size == Size::Medium {
-            let shrink = MEDIUM_HEIGHT.f32() / height;
+            let shrink = medium_height.f32() / height;
             self.dimensions.reach = Some(Meters(reach * shrink));
-            self.dimensions.table = Some(Meters((table * shrink).max(SMALLEST)));
             self.dimensions = self.dimensions.drawn_medium();
             self.dimensions.scale = self.dimensions.scale * shrink;
+            let table = match self.dimensions.table_scales {
+                Some(scales) => self.dimensions.scale.f32() * scales,
+                None => (table * shrink).max(SMALLEST),
+            };
+            self.dimensions.table = Some(Meters(table));
             self.dimensions.altitude = self.dimensions.altitude * shrink;
             // Things fall faster the smaller they are, in time going as the
             // square root of their size: in the time a Large one falls, a

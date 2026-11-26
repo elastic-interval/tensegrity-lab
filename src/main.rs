@@ -78,6 +78,11 @@ struct Args {
     /// On a white background instead of the starry sky.
     #[arg(long)]
     white: bool,
+
+    /// Walk with the arrow keys through a room of Medium pieces quaking on
+    /// their tables; Esc leaves.
+    #[arg(long)]
+    gallery: bool,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -88,7 +93,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         .cycle
         .then(|| FabricName::iter().collect());
 
-    let run_style = if let Some(frequency) = args.sphere {
+    let run_style = if args.gallery {
+        RunStyle::Gallery
+    } else if let Some(frequency) = args.sphere {
         RunStyle::Sphere {
             frequency,
             radius: args.radius,

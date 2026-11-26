@@ -1,6 +1,9 @@
 use crate::camera::{Camera, Framing, Pick};
 use crate::wgpu::button::{Button, Buttons, Press};
+use crate::fabric::quake::DECK_HEIGHT;
 use crate::fabric::Fabric;
+use crate::gallery::{self, Gallery};
+use crate::wgpu::surface_vertex::DeckVertex;
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::parts_view::PartsView;
 use crate::wgpu::sky_renderer::SkyRenderer;
@@ -227,7 +230,9 @@ impl Scene {
         self.show_attachment_points
     }
 
-    fn render(&mut self, show_surface: bool) -> Result<(), wgpu::SurfaceError> {
+    /// With `chrome`, the sky behind and the highlight, labels, buttons and
+    /// text over the fabric.
+    fn render(&mut self, show_surface: bool, chrome: bool) -> Result<(), wgpu::SurfaceError> {
         let surface_texture = self.wgpu.get_surface_texture()?;
         let view = surface_texture
             .texture
@@ -260,7 +265,7 @@ impl Scene {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            if !self.white {
+            if !self.white && chrome {
                 self.sky_renderer.render(&mut sky_pass);
             }
         }
@@ -300,11 +305,13 @@ impl Scene {
             self.surface_renderer.render(&mut render_pass);
         }
         self.surface_renderer.render_deck(&mut render_pass);
-        self.fabric_renderer
-            .render_highlight(&mut render_pass, &self.wgpu.uniform_bind_group);
-        self.label_renderer.render(&mut render_pass);
-        self.buttons.render(&mut render_pass);
-        self.text_renderer.render(&mut render_pass, &self.wgpu);
+        if chrome {
+            self.fabric_renderer
+                .render_highlight(&mut render_pass, &self.wgpu.uniform_bind_group);
+            self.label_renderer.render(&mut render_pass);
+            self.buttons.render(&mut render_pass);
+            self.text_renderer.render(&mut render_pass, &self.wgpu);
+        }
         drop(render_pass);
 
         self.wgpu.queue.submit(std::iter::once(encoder.finish()));
@@ -363,8 +370,29 @@ impl Scene {
             self.surface_renderer
                 .update_radius(&self.wgpu.queue, fabric.bounding_radius());
         }
-        self.render(has_surface)?;
+        self.render(has_surface, true)?;
         Ok(())
+    }
+
+    /// The gallery as the visitor sees it, and nothing else.
+    pub fn redraw_gallery(&mut self, gallery: &Gallery, delta_seconds: f32) -> Result<(), wgpu::SurfaceError> {
+        let (width, height) = self.wgpu.size();
+        self.wgpu.update_mvp_matrix(gallery.walker.mvp(width, height));
+        self.wgpu.update_eye(gallery.walker.eye());
+        self.sky_renderer.update_time(&self.wgpu.queue, delta_seconds);
+        let placed: Vec<_> = gallery.pieces.iter().map(|piece| (&piece.fabric, piece.place)).collect();
+        self.fabric_renderer.update_placed(&self.wgpu, &placed);
+        self.wgpu.update_lights(gallery.lights());
+        let mut vertices = DeckVertex::room(gallery::WIDTH, gallery::DEPTH, gallery::WALL_HEIGHT, -DECK_HEIGHT);
+        for piece in &gallery.pieces {
+            if let Some(deck) = piece.fabric.deck() {
+                let mut table = DeckVertex::for_radius(deck.radius, DECK_HEIGHT);
+                table.extend(DeckVertex::skirt(deck.radius, DECK_HEIGHT));
+                vertices.extend(DeckVertex::placed(&table, deck, piece.place));
+            }
+        }
+        self.surface_renderer.set_gallery(&self.wgpu.device, &vertices);
+        self.render(false, false)
     }
 
     pub fn resize(&mut self, PhysicalSize { width, height }: PhysicalSize<u32>) {

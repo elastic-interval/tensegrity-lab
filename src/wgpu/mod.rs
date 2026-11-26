@@ -2,7 +2,7 @@ use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
 use bytemuck::cast_slice;
-use glam::{Mat4, Vec3};
+use glam::{Mat4, Vec3, Vec4};
 use wgpu::util::DeviceExt;
 use wgpu::MemoryHints::Performance;
 use wgpu::VertexAttribute;
@@ -184,8 +184,8 @@ impl Wgpu {
     ) -> Wgpu {
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("MVP"),
-            // The MVP matrix, then the eye's position.
-            contents: cast_slice(&[0.0f32; 20]),
+            // The MVP matrix, the eye's position, and the gallery's lights.
+            contents: cast_slice(&[0.0f32; 32]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let uniform_bind_group_layout =
@@ -307,6 +307,15 @@ impl Wgpu {
         let eye: [f32; 4] = [eye.x, eye.y, eye.z, 1.0];
         self.queue
             .write_buffer(&self.uniform_buffer, size_of::<Mat4>() as u64, cast_slice(&eye));
+    }
+
+    /// The gallery's lights, one in each table, each where it is and how
+    /// bright: with any, nothing else lights what is drawn. None outside
+    /// the gallery.
+    pub fn update_lights(&self, lights: [Vec4; 3]) {
+        let lights: Vec<f32> = lights.iter().flat_map(|light| light.to_array()).collect();
+        let offset = size_of::<Mat4>() as u64 + 16;
+        self.queue.write_buffer(&self.uniform_buffer, offset, cast_slice(&lights));
     }
 
     /// The window's drawable size in physical pixels.
