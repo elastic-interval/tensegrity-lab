@@ -37,7 +37,8 @@ struct Instrument {
 /// The gallery's pieces in turn: Open Claw electric-piano stabs over kick
 /// and snare; Headless Hug the deep one, a heavy kick and a short sub bass
 /// on every beat; Quadruped crisp hats, a light kick and a sparse bell;
-/// Halo by Crane a quick marimba running up and down over a snare, no kick.
+/// Halo by Crane a quick marimba running up and down over a snare, no kick;
+/// Noodle a slow, low pluck over a soft kick and hats.
 const INSTRUMENTS: [Instrument; crate::gallery::PIECES] = [
     Instrument {
         octave: 4,
@@ -94,6 +95,20 @@ const INSTRUMENTS: [Instrument; crate::gallery::PIECES] = [
         kick_pitch: 50.0,
         snare: 0.35,
         hat: 0.1,
+    },
+    Instrument {
+        octave: 3,
+        ratio: 2.0,
+        brightness: 0.9,
+        attack: 0.01,
+        decay: 0.8,
+        every: 2,
+        pattern: &[0, 3, 2, 1],
+        loudness: 0.35,
+        kick: 0.6,
+        kick_pitch: 48.0,
+        snare: 0.0,
+        hat: 0.25,
     },
 ];
 

@@ -7,7 +7,8 @@ use crate::units::Degrees;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
-static PLANS: [OnceLock<FabricPlan>; 7] = [
+static PLANS: [OnceLock<FabricPlan>; 8] = [
+    OnceLock::new(),
     OnceLock::new(),
     OnceLock::new(),
     OnceLock::new(),
@@ -30,6 +31,9 @@ pub enum FabricName {
     TwistedInfinity,
     Propeller,
     Diamond,
+    /// A column of single twists, not vulcanized, its foot fixed: slack
+    /// enough, it arches over and swings like a noodle.
+    Noodle,
 }
 
 impl FabricName {
@@ -232,6 +236,16 @@ impl FabricName {
                 .vulcanize(Sec(1.0))
                 .pretense(Sec(1.0), Pct(1.0))
                 .floating(),
+
+            Noodle => self
+                .build(FabricDimensions::default().with_table(15.5))
+                .seed(SingleTwistLeft, Seed(1))
+                .faces([on(SingleTop).column(9).tip_label().into(), on(SingleBot).tip_label()])
+                .down(Sec(1.0), [Tip(SingleBot)])
+                .pretense(Sec(1.0), Pct(1.0))
+                .surface_frozen()
+                .fall(Sec(2.0))
+                .settle(Sec(20.0)),
         }
     }
 }

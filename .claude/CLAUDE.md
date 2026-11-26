@@ -488,8 +488,9 @@ cargo run --release -- --fabric "Halo by Crane"
 # Medium, on the wobble table (Quake starts its motor):
 cargo run --release -- --fabric "Headless Hug" --size medium
 
-# The gallery: Open Claw, Headless Hug and Quadruped at Medium, with Halo by Crane behind where
-# the walk starts, a quarter taller, each on its
+# The gallery: Open Claw, Headless Hug and Quadruped at Medium, with Halo by Crane and Noodle
+# behind where the walk starts (Noodle a ten-twist column, not vulcanized, its foot frozen to the
+# deck, loose enough to arch over until its top twist lies flat), a quarter taller, each on its
 # table playing its cues in turn, evolved at its size (`cues/gallery/`, by the ignored
 # `evolve_gallery_cues`; to swing about 60 mm, slowly; Open Claw keeps a fiftieth of its pretension, Headless Hug and Quadruped a quarter, to sway, Halo by Crane all of it; `measure_gallery_motion` tells how each moves),
 # in a dark room 18 × 22 m walked through smoothly, as on a gimbal (two-finger swipe walks and turns, pinch rises and sinks, drag looks, or the arrows), tables skirted in

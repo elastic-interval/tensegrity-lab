@@ -1,5 +1,5 @@
 // The gallery's pieces, each with a light and a spot (`SPOTS` in mod.rs).
-const SPOTS: i32 = 4;
+const SPOTS: i32 = 5;
 
 // Uniforms passed from the application
 struct Uniforms {

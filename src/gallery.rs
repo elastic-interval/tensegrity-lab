@@ -42,7 +42,7 @@ struct Station {
 }
 
 /// How many pieces the gallery shows.
-pub const PIECES: usize = 4;
+pub const PIECES: usize = 5;
 
 const STATIONS: [Station; PIECES] = [
     Station {
@@ -76,6 +76,14 @@ const STATIONS: [Station; PIECES] = [
         taller: 1.25,
         pretension: 1.0,
         sensors: ["A12.2", "A08.4", "A07.6"],
+    },
+    Station {
+        name: FabricName::Noodle,
+        at: [5.0, -5.5],
+        facing: 0.0,
+        taller: 1.3,
+        pretension: 0.25,
+        sensors: ["A09.6", "A05.5", "A05.6"],
     },
 ];
 /// The room, across and deep, and its walls' height, metres.
@@ -442,6 +450,7 @@ fn cues(name: FabricName) -> Vec<Cue> {
         FabricName::HeadlessHug => include_str!("../cues/gallery/headless-hug.txt"),
         FabricName::Quadruped => include_str!("../cues/gallery/quadruped.txt"),
         FabricName::HaloByCrane => include_str!("../cues/gallery/halo-by-crane.txt"),
+        FabricName::Noodle => include_str!("../cues/gallery/noodle.txt"),
         _ => "",
     })
 }
