@@ -82,7 +82,7 @@ impl ShadowRenderer {
     }
 
     /// Each spot's shadow map: the fabric as `views` see it.
-    pub fn render(&self, wgpu: &Wgpu, encoder: &mut wgpu::CommandEncoder, fabric: &FabricRenderer, views: [Mat4; 3]) {
+    pub fn render(&self, wgpu: &Wgpu, encoder: &mut wgpu::CommandEncoder, fabric: &FabricRenderer, views: [Mat4; SPOTS as usize]) {
         for ((buffer, bind_group), (layer, view)) in self.spots.iter().zip(self.layers.iter().zip(views)) {
             wgpu.queue.write_buffer(buffer, 0, cast_slice(&view.to_cols_array()));
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

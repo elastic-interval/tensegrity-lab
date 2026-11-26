@@ -38,9 +38,9 @@ pub mod text_state;
 
 /// The shader's uniforms, in floats: the MVP matrix, the eye, the
 /// gallery's glows, and its spots' views, places and aims.
-pub const UNIFORM_FLOATS: usize = 16 + 4 + 12 + 48 + 12 + 12;
+pub const UNIFORM_FLOATS: usize = 16 + 4 + SPOTS as usize * (4 + 16 + 4 + 4);
 /// The gallery's spots, each with its shadow map this many texels across.
-pub const SPOTS: u32 = 3;
+pub const SPOTS: u32 = crate::gallery::PIECES as u32;
 pub const SHADOW_SIZE: u32 = 1024;
 
 // Reusable primitive state for all renderers
@@ -384,7 +384,7 @@ impl Wgpu {
     /// The gallery's lights, one in each table, each where it is and how
     /// bright: with any, nothing else lights what is drawn. None outside
     /// the gallery.
-    pub fn update_lights(&self, lights: [Vec4; 3]) {
+    pub fn update_lights(&self, lights: [Vec4; SPOTS as usize]) {
         let lights: Vec<f32> = lights.iter().flat_map(|light| light.to_array()).collect();
         let offset = size_of::<Mat4>() as u64 + 16;
         self.queue.write_buffer(&self.uniform_buffer, offset, cast_slice(&lights));
@@ -393,10 +393,10 @@ impl Wgpu {
     /// The gallery's spots: each one's view, for its shadow map; where it
     /// is and how bright (none, zero); and which way it shines and the
     /// cosine of its cone's half angle.
-    pub fn update_spots(&self, views: [Mat4; 3], places: [Vec4; 3], aims: [Vec4; 3]) {
+    pub fn update_spots(&self, views: [Mat4; SPOTS as usize], places: [Vec4; SPOTS as usize], aims: [Vec4; SPOTS as usize]) {
         let mut floats: Vec<f32> = views.iter().flat_map(|view| view.to_cols_array()).collect();
         floats.extend(places.iter().chain(&aims).flat_map(|v| v.to_array()));
-        let offset = (size_of::<Mat4>() + 16 + 48) as u64;
+        let offset = (size_of::<Mat4>() + 16 + size_of::<[Vec4; SPOTS as usize]>()) as u64;
         self.queue.write_buffer(&self.uniform_buffer, offset, cast_slice(&floats));
     }
 

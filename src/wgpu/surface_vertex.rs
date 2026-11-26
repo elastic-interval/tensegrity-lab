@@ -52,6 +52,8 @@ pub struct DeckVertex {
 
 const STAYS: f32 = 0.0;
 const ON_DECK: f32 = 1.0;
+/// A lamp sunk in a deck: it goes with the deck, and shines only up its tube.
+const LAMP: f32 = 2.0;
 
 /// Half the width of a hook's or an arm's square tube, of a tie or cable,
 /// of a stepper and of a pulley's post.
@@ -73,6 +75,11 @@ const MOTOR_COLOR: [f32; 3] = [0.1, 0.1, 0.1];
 const WALL_COLOR: [f32; 3] = [0.8, 0.8, 0.78];
 const FLOOR_COLOR: [f32; 3] = [0.3, 0.29, 0.28];
 const VELVET_COLOR: [f32; 3] = [0.28, 0.03, 0.06];
+/// The tube a spot's lamp is sunk in, in the middle of its deck: how wide
+/// across its corners, and its black rim.
+const LAMP_TUBE: f32 = 0.03;
+const LAMP_RIM: f32 = 0.05;
+const RIM_COLOR: [f32; 3] = [0.02, 0.02, 0.02];
 /// How far out the velvet skirt hangs, as a part of the deck's radius,
 /// clear of the base, and how far it clears the floor.
 const SKIRT: f32 = 1.12;
@@ -130,7 +137,8 @@ impl DeckVertex {
         table.iter().map(move |vertex| {
             let [x, y, z, moves] = vertex.position;
             let point = if moves > 0.5 { deck.carry(Vec3::new(x, y, z)) } else { Vec3::new(x, y, z) };
-            DeckVertex { position: place.transform_point3(point).extend(STAYS).to_array(), color: vertex.color }
+            let lamp = if moves == LAMP { LAMP } else { STAYS };
+            DeckVertex { position: place.transform_point3(point).extend(lamp).to_array(), color: vertex.color }
         })
     }
 
@@ -163,6 +171,15 @@ impl DeckVertex {
                 vertices.push(DeckVertex { position, color: lit });
             }
         }
+        vertices
+    }
+
+    /// A spot's lamp sunk in a tube in the middle of a deck, seen only by
+    /// looking down the tube, and the tube's rim around it.
+    pub fn lamp() -> Vec<DeckVertex> {
+        let mut vertices = Vec::new();
+        prism(&mut vertices, LAMP_RIM, -0.002, 0.001, RIM_COLOR, ON_DECK);
+        prism(&mut vertices, LAMP_TUBE, -0.002, 0.002, RIM_COLOR, LAMP);
         vertices
     }
 

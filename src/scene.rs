@@ -245,7 +245,7 @@ impl Scene {
     /// With `chrome`, the sky behind and the highlight, labels, buttons and
     /// text over the fabric; with `shadows`, the gallery's shadow maps first,
     /// as its spots see.
-    fn render(&mut self, show_surface: bool, chrome: bool, shadows: Option<[Mat4; 3]>) -> Result<(), wgpu::SurfaceError> {
+    fn render(&mut self, show_surface: bool, chrome: bool, shadows: Option<[Mat4; crate::gallery::PIECES]>) -> Result<(), wgpu::SurfaceError> {
         let surface_texture = self.wgpu.get_surface_texture()?;
         let view = surface_texture
             .texture
@@ -414,6 +414,7 @@ impl Scene {
             if let Some(deck) = piece.fabric.deck() {
                 let mut table = DeckVertex::for_radius(deck.radius, DECK_HEIGHT);
                 table.extend(DeckVertex::skirt(deck.radius, DECK_HEIGHT));
+                table.extend(DeckVertex::lamp());
                 vertices.extend(DeckVertex::placed(&table, deck, piece.place));
             }
         }

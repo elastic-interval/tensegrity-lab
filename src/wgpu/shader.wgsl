@@ -1,16 +1,19 @@
+// The gallery's pieces, each with a light and a spot (`SPOTS` in mod.rs).
+const SPOTS: i32 = 4;
+
 // Uniforms passed from the application
 struct Uniforms {
     mvp_matrix: mat4x4<f32>,  // Model-view-projection matrix
     eye: vec4<f32>,           // Camera position
     // The gallery's lights, in its tables: where, and how bright. With the
     // first one bright, the gallery is dark but for them.
-    lights: array<vec4<f32>, 3>,
+    lights: array<vec4<f32>, SPOTS>,
     // The gallery's spots, one on each table: as each sees, for its shadow
     // map; where it is and how bright (none, zero); which way it shines,
     // and the cosine of its cone's half angle.
-    spot_views: array<mat4x4<f32>, 3>,
-    spot_places: array<vec4<f32>, 3>,
-    spot_aims: array<vec4<f32>, 3>,
+    spot_views: array<mat4x4<f32>, SPOTS>,
+    spot_places: array<vec4<f32>, SPOTS>,
+    spot_aims: array<vec4<f32>, SPOTS>,
 };
 @binding(0) @group(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var shadow_maps: texture_depth_2d_array;
@@ -33,7 +36,7 @@ fn in_gallery() -> bool {
 // falling off with distance, a little wrapped round so thin members show.
 fn glow(p: vec3<f32>, normal: vec3<f32>, wrap: f32) -> vec3<f32> {
     var sum = vec3<f32>(GALLERY_AMBIENT);
-    for (var i = 0; i < 3; i++) {
+    for (var i = 0; i < SPOTS; i++) {
         let light = uniforms.lights[i];
         if (light.w > 0.0) {
             let to = light.xyz - p;
@@ -42,7 +45,7 @@ fn glow(p: vec3<f32>, normal: vec3<f32>, wrap: f32) -> vec3<f32> {
             sum += GLOW_COLOR * light.w * facing / (1.0 + distance * distance);
         }
     }
-    for (var i = 0; i < 3; i++) {
+    for (var i = 0; i < SPOTS; i++) {
         let place = uniforms.spot_places[i];
         let aim = uniforms.spot_aims[i];
         let to = place.xyz - p;
@@ -634,15 +637,20 @@ struct DeckVertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) color: vec4<f32>,
     @location(1) world: vec3<f32>,
+    @location(2) lamp: f32,
 };
 
+// How bright a spot's lamp looks straight down its tube.
+const LAMP_GLARE: f32 = 6.0;
+
 // The wobble table: what moves with the deck (w one) is turned and moved as
-// the deck is, and the base (w zero) stays.
+// the deck is, and the base (w zero) stays. A spot's lamp (w two, only in
+// the gallery, already placed) stays too.
 @vertex
 fn deck_vertex(@location(0) pos: vec4<f32>, @location(1) color: vec4<f32>) -> DeckVertexOutput {
     var output: DeckVertexOutput;
     var p = pos.xyz;
-    if (pos.w > 0.5) {
+    if (pos.w > 0.5 && pos.w < 1.5) {
         let c = cos(ground.deck.z);
         let s = sin(ground.deck.z);
         p = vec3<f32>(c * p.x + s * p.z, p.y, -s * p.x + c * p.z) + vec3<f32>(ground.deck.x, 0.0, ground.deck.y);
@@ -650,12 +658,23 @@ fn deck_vertex(@location(0) pos: vec4<f32>, @location(1) color: vec4<f32>) -> De
     output.position = uniforms.mvp_matrix * vec4<f32>(p, 1.0);
     output.color = color;
     output.world = p;
+    output.lamp = select(0.0, 1.0, pos.w > 1.5);
     return output;
 }
 
 // In the gallery each face is lit by the tables' lights, facing the eye.
 @fragment
 fn deck_fragment(in: DeckVertexOutput) -> @location(0) vec4<f32> {
+    if (in.lamp > 0.5) {
+        // Sunk in its tube, the lamp is seen only from within the spot's
+        // cone, the more of it the more nearly straight down.
+        let up = normalize(uniforms.eye.xyz - in.world).y;
+        let cone = uniforms.spot_aims[0].w;
+        let off = sqrt(max(1.0 - up * up, 0.0)) / max(up, 0.001);
+        let edge = sqrt(1.0 - cone * cone) / cone;
+        let seen = clamp(1.0 - off / edge, 0.0, 1.0);
+        return vec4<f32>(gamma(mix(in.color.rgb, SPOT_COLOR * LAMP_GLARE, seen)), 1.0);
+    }
     if (in_gallery()) {
         var normal = normalize(cross(dpdy(in.world), dpdx(in.world)));
         if (dot(normal, uniforms.eye.xyz - in.world) < 0.0) {

@@ -41,7 +41,10 @@ struct Station {
     sensors: [&'static str; 3],
 }
 
-const STATIONS: [Station; 3] = [
+/// How many pieces the gallery shows.
+pub const PIECES: usize = 4;
+
+const STATIONS: [Station; PIECES] = [
     Station {
         name: FabricName::OpenClaw,
         at: [4.5, 4.0],
@@ -65,6 +68,14 @@ const STATIONS: [Station; 3] = [
         taller: 1.25,
         pretension: 0.25,
         sensors: ["L2", "R2", "R43"],
+    },
+    Station {
+        name: FabricName::HaloByCrane,
+        at: [0.0, -7.0],
+        facing: 0.0,
+        taller: 1.25,
+        pretension: 1.0,
+        sensors: ["A12.2", "A08.4", "A07.6"],
     },
 ];
 /// The room, across and deep, and its walls' height, metres.
@@ -118,9 +129,9 @@ const PLAYING: f32 = 20.0;
 /// The spots on the tables: each one's view for its shadow map, where it
 /// is and how bright, and which way it shines with its cone's cosine.
 pub struct Spots {
-    pub views: [Mat4; 3],
-    pub places: [Vec4; 3],
-    pub aims: [Vec4; 3],
+    pub views: [Mat4; PIECES],
+    pub places: [Vec4; PIECES],
+    pub aims: [Vec4; PIECES],
 }
 
 /// A piece on its table, where it stands in the room.
@@ -311,8 +322,8 @@ impl Gallery {
     /// The light in each table, where it is and how bright. Before every
     /// piece has joined the room the missing ones are as good as dark, so
     /// the room is dark from the start.
-    pub fn lights(&self) -> [Vec4; 3] {
-        let mut lights = [Vec4::new(0.0, 0.0, 0.0, f32::MIN_POSITIVE); 3];
+    pub fn lights(&self) -> [Vec4; PIECES] {
+        let mut lights = [Vec4::new(0.0, 0.0, 0.0, f32::MIN_POSITIVE); PIECES];
         for (light, piece) in lights.iter_mut().zip(&self.pieces) {
             let middle = piece.fabric.deck().map_or(Vec3::ZERO, |deck| deck.offset);
             *light = piece.place.transform_point3(middle - Vec3::Y * LIGHT_DEPTH).extend(LIGHT);
@@ -323,7 +334,7 @@ impl Gallery {
     /// The spots, going with their decks; none dark until its piece is in
     /// the room.
     pub fn spots(&self) -> Spots {
-        let mut spots = Spots { views: [Mat4::IDENTITY; 3], places: [Vec4::ZERO; 3], aims: [Vec4::Z; 3] };
+        let mut spots = Spots { views: [Mat4::IDENTITY; PIECES], places: [Vec4::ZERO; PIECES], aims: [Vec4::Z; PIECES] };
         for (index, piece) in self.pieces.iter().enumerate() {
             let Some(deck) = piece.fabric.deck() else {
                 continue;
@@ -430,6 +441,7 @@ fn cues(name: FabricName) -> Vec<Cue> {
         FabricName::OpenClaw => include_str!("../cues/gallery/open-claw.txt"),
         FabricName::HeadlessHug => include_str!("../cues/gallery/headless-hug.txt"),
         FabricName::Quadruped => include_str!("../cues/gallery/quadruped.txt"),
+        FabricName::HaloByCrane => include_str!("../cues/gallery/halo-by-crane.txt"),
         _ => "",
     })
 }
@@ -504,9 +516,11 @@ mod tests {
     }
 
     /// How each gallery piece moves at a spread of pretensions (`PRETENSIONS`,
-    /// fractions of its Medium pretension; `PROBE` names one piece, `TALLER`
+    /// fractions of its Medium pretension; `PROBE` names one piece, or a
+    /// fabric not yet in the gallery, a quarter taller than Medium; `TALLER`
     /// makes it so much taller than Medium instead of as its station says;
-    /// `CUES` a folder of kept cues to play instead of the seeds): how
+    /// `CUES` a folder of kept cues to play instead of the seeds, `SPEEDS`
+    /// the seeds' speeds, cycles a second): how
     /// tall it stands and how many cables are slack at rest, and for each
     /// seed cue, played from rest, the joint swinging farthest and how far
     /// either way about its own middle, how far that middle leans from where
@@ -526,10 +540,13 @@ mod tests {
             .ok()
             .map(|list| list.split(',').filter_map(|value| value.parse().ok()).collect())
             .unwrap_or(vec![1.0, 0.5, 0.25, 0.1]);
-        let speeds = [0.4, 0.6, 0.8, 1.0, 1.3, 1.6, 2.0];
+        let speeds: Vec<f32> = std::env::var("SPEEDS")
+            .ok()
+            .map(|list| list.split(',').filter_map(|value| value.parse().ok()).collect())
+            .unwrap_or(vec![0.4, 0.6, 0.8, 1.0, 1.3, 1.6, 2.0]);
         let seeds: Vec<(String, Cue)> = [(SIDE, "side"), (FORE, "fore"), (TWIST, "twist")]
             .into_iter()
-            .flat_map(|(way, name)| speeds.map(|hertz| (format!("{name} {hertz}Hz"), Cue::rocking(way, hertz))))
+            .flat_map(|(way, name)| speeds.iter().map(move |&hertz| (format!("{name} {hertz}Hz"), Cue::rocking(way, hertz))))
             .collect();
         let taller: Option<f32> = std::env::var("TALLER").ok().and_then(|taller| taller.parse().ok());
         let folder = std::env::var("CUES").ok();
@@ -538,7 +555,10 @@ mod tests {
             guys.map(|interval| interval.strain).collect()
         };
         let slack = |fabric: &Fabric| fabric.intervals.values().filter(|interval| interval.role.is_pull_like() && interval.strain <= 0.0).count();
-        for station in STATIONS.iter().filter(|station| probe.is_none_or(|probe| probe == station.name)) {
+        let unplaced = probe.filter(|probe| STATIONS.iter().all(|station| station.name != *probe));
+        let unplaced = unplaced.map(|name| Station { name, at: [0.0, 0.0], facing: 0.0, taller: 1.25, pretension: 1.0, sensors: ["", "", ""] });
+        let stations = STATIONS.iter().filter(|station| probe.is_none_or(|probe| probe == station.name)).chain(&unplaced);
+        for station in stations {
             for &pretension in &pretensions {
                 let (fabric, physics) = medium_made(station, taller.unwrap_or(station.taller), pretension);
                 let (standing, at_rest) = (fabric.height().0, slack(&fabric));
@@ -550,8 +570,10 @@ mod tests {
                 let mass: f32 = fabric.joints.values().map(|joint| joint.accumulated_mass.f32()).sum();
                 let gravity = fabric.joints.values().map(|joint| joint.location * joint.accumulated_mass.f32()).sum::<Vec3>() / mass;
                 eprintln!(
-                    "{} at {pretension}: {standing:.2} m tall, {at_rest} of {cables} cables slack at rest, centre of gravity {:+.0} mm fore of the feet, guy lines {}",
+                    "{} at {pretension}: {standing:.2} m tall, {} feet {:.2} m across, {at_rest} of {cables} cables slack at rest, centre of gravity {:+.0} mm fore of the feet, guy lines {}",
                     station.name,
+                    feet.len(),
+                    feet.iter().flat_map(|a| feet.iter().map(move |b| a.distance(*b))).fold(0.0, f32::max),
                     (gravity.z - between.z) * 1000.0,
                     strains.join(" ")
                 );

@@ -36,8 +36,9 @@ struct Instrument {
 
 /// The gallery's pieces in turn: Open Claw electric-piano stabs over kick
 /// and snare; Headless Hug the deep one, a heavy kick and a short sub bass
-/// on every beat; Quadruped crisp hats, a light kick and a sparse bell.
-const INSTRUMENTS: [Instrument; 3] = [
+/// on every beat; Quadruped crisp hats, a light kick and a sparse bell;
+/// Halo by Crane a quick marimba running up and down over a snare, no kick.
+const INSTRUMENTS: [Instrument; crate::gallery::PIECES] = [
     Instrument {
         octave: 4,
         ratio: 1.0,
@@ -80,17 +81,31 @@ const INSTRUMENTS: [Instrument; 3] = [
         snare: 0.3,
         hat: 0.35,
     },
+    Instrument {
+        octave: 5,
+        ratio: 4.0,
+        brightness: 0.8,
+        attack: 0.002,
+        decay: 0.25,
+        every: 1,
+        pattern: &[0, 1, 2, 3, 2, 1],
+        loudness: 0.25,
+        kick: 0.0,
+        kick_pitch: 50.0,
+        snare: 0.35,
+        hat: 0.1,
+    },
 ];
 
 /// The chords, as the pitch classes of their tones (A is 9), and how long
 /// each lasts: A minor add 9, F major 7, C add 9, G6.
 const CHORDS: [[u8; 4]; 4] = [[9, 0, 4, 11], [5, 9, 0, 4], [0, 4, 7, 2], [7, 11, 2, 4]];
 const CHORD_SECONDS: f32 = 24.0;
-/// A piece is heard by its platform: at this distance from its middle, half
-/// as loud as beside it, and falling off steeply further out, a twentieth
-/// at twice as far.
-const NEAR: f32 = 2.2;
-/// How much of a piece goes into the reverberation, as near as it is heard.
+/// A piece is heard loudest by its platform: at this distance from its
+/// middle, half as loud as beside it, a fifth at twice as far.
+const NEAR: f32 = 3.0;
+/// How much of a piece goes into the reverberation beside it; the room's
+/// reverberation falls off more slowly, so far pieces are heard mostly in it.
 const WET: f32 = 0.3;
 /// The whole, before it is softly limited.
 const MASTER: f32 = 0.35;
@@ -208,9 +223,10 @@ impl Sound {
         };
         voice.offset = Some(offset);
         voice.pending.extend(felt.iter().map(|&(sensor, at, hard)| (at + offset + LATENCY, sensor, hard)));
-        let near = 1.0 / (1.0 + (distance / NEAR).powi(4));
+        let near = 1.0 / (1.0 + (distance / NEAR).powi(2));
+        let roomy = 1.0 / (1.0 + distance / NEAR);
         let angle = (right.clamp(-1.0, 1.0) + 1.0) * TAU / 8.0;
-        voice.told = [near * angle.cos(), near * angle.sin(), WET * near];
+        voice.told = [near * angle.cos(), near * angle.sin(), WET * roomy];
     }
 }
 
