@@ -1,8 +1,10 @@
 //! The gallery (`--gallery`): Medium pieces on their wobble tables, each
 //! playing the cues evolved for it at its size in turn (`cues/gallery/`,
 //! by the ignored `evolve_gallery_cues`), in a room walked through with
-//! the arrow keys. Nothing on the screen but the room and what stands in
-//! it; Esc leaves.
+//! the trackpad or the arrow keys: a two-finger swipe walks and turns, a
+//! pinch rises and sinks, dragging looks round and up; smoothly, as on a
+//! gimbal. Nothing on the screen but the room and
+//! what stands in it; Esc leaves.
 
 use crate::build::dsl::fabric_library::{self, FabricName};
 use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
@@ -46,9 +48,27 @@ const EYE: f32 = 1.7;
 const WALK: f32 = 1.2;
 const TURN: f32 = 1.0;
 const KEEP_OFF: f32 = 0.4;
-/// How far down the visitor looks, and how wide they see, radians.
+/// How far down the visitor looks at first, how far up or down they can
+/// look, and how wide they see, radians.
 const LOOK_DOWN: f32 = 0.15;
+const LOOK_FARTHEST: f32 = 1.3;
 const VIEW: f32 = 1.0;
+/// A two-finger swipe: metres walked and radians turned for each pixel;
+/// a line of a mouse wheel is this many pixels. Dragging: radians looked
+/// for each pixel.
+const SWIPE_WALK: f32 = 0.01;
+const SWIPE_TURN: f32 = 0.003;
+const LINE: f32 = 30.0;
+const DRAG_LOOK: f32 = 0.004;
+/// A pinch: metres risen for spreading the fingers as far as a pinch
+/// counts one; and the lowest the eyes go.
+const PINCH_RISE: f32 = 1.5;
+const LOWEST_EYE: f32 = 0.4;
+/// How long the eyes take to follow, moving and looking, about.
+const MOVING: f32 = 0.8;
+const LOOKING: f32 = 0.35;
+/// What the trackpad does, along the bottom of the screen.
+pub const INSTRUCTIONS: &str = "Two fingers: swipe to walk and turn  ·  pinch to rise and sink  ·  click and drag to look  ·  Esc to leave";
 /// Each table's light: how far below the deck's top, in the table, and
 /// how bright.
 const LIGHT_DEPTH: f32 = 0.1;
@@ -101,40 +121,89 @@ pub struct Arrows {
     pub right: bool,
 }
 
+/// The visitor, moved as a camera on a gimbal is: what they ask for moves
+/// where they mean to be, and their eyes follow it smoothly, easing in and
+/// out without overshooting.
 pub struct Walker {
-    /// Where the eyes are, the floor at zero, and which way they look,
-    /// zero along the room's depth.
+    /// Where the eyes are, the floor at zero, and which way they look:
+    /// heading, zero along the room's depth, and pitch, up above zero.
     at: Vec3,
-    heading: f32,
+    look: Vec3,
+    /// How fast each is changing, following where they mean to be.
+    moving: Vec3,
+    looking: Vec3,
+    /// Where they mean to be, and to look.
+    goal: Vec3,
+    goal_look: Vec3,
     pub arrows: Arrows,
+    /// Where the pointer is while dragging.
+    dragging: Option<(f32, f32)>,
 }
 
 impl Walker {
     fn new() -> Walker {
-        Walker { at: Vec3::new(START[0], EYE, START[1]), heading: 0.0, arrows: Arrows::default() }
+        let (at, look) = (Vec3::new(START[0], EYE, START[1]), Vec3::new(0.0, -LOOK_DOWN, 0.0));
+        Walker {
+            at,
+            look,
+            moving: Vec3::ZERO,
+            looking: Vec3::ZERO,
+            goal: at,
+            goal_look: look,
+            arrows: Arrows::default(),
+            dragging: None,
+        }
     }
 
-    fn ahead(&self) -> Vec3 {
-        Vec3::new(self.heading.sin(), 0.0, self.heading.cos())
+    /// A two-finger swipe, or a mouse wheel's lines: forward and back
+    /// walks, as it zooms in elsewhere; across turns.
+    pub fn swipe(&mut self, across: f32, forward: f32, lines: bool) {
+        let pixels = if lines { LINE } else { 1.0 };
+        self.goal += ahead(self.goal_look.x) * forward * pixels * SWIPE_WALK;
+        self.goal_look.x += across * pixels * SWIPE_TURN;
     }
 
-    /// Walk and turn for `seconds` as the arrows say, kept off the walls
-    /// and the tables.
+    /// A pinch: spreading the fingers rises, closing them sinks.
+    pub fn pinch(&mut self, spread: f32) {
+        self.goal.y += spread * PINCH_RISE;
+    }
+
+    /// Pressed or let go: dragging from where the pointer is then.
+    pub fn press(&mut self, pressed: bool, pointer: Option<(f32, f32)>) {
+        self.dragging = if pressed { pointer } else { None };
+    }
+
+    /// The pointer moved to `x`, `y`: dragging, the room is turned with it,
+    /// and tilted.
+    pub fn pointer_moved(&mut self, x: f32, y: f32) {
+        if let Some((from_x, from_y)) = self.dragging.as_mut().map(|at| std::mem::replace(at, (x, y))) {
+            self.goal_look.x += (x - from_x) * DRAG_LOOK;
+            self.goal_look.y += (y - from_y) * DRAG_LOOK;
+        }
+    }
+
+    /// `seconds` on: the arrows move where they mean to be, kept off the
+    /// walls and the tables, within reach of floor and ceiling; and the
+    /// eyes follow.
     fn walk(&mut self, seconds: f32, tables: impl Iterator<Item = (Vec3, f32)>) {
         let arrow = |held: bool| if held { 1.0 } else { 0.0 };
-        self.heading += (arrow(self.arrows.left) - arrow(self.arrows.right)) * TURN * seconds;
+        self.goal_look.x += (arrow(self.arrows.left) - arrow(self.arrows.right)) * TURN * seconds;
         let step = (arrow(self.arrows.forward) - arrow(self.arrows.back)) * WALK * seconds;
-        let mut at = self.at + self.ahead() * step;
+        let mut goal = self.goal + ahead(self.goal_look.x) * step;
         for (middle, radius) in tables {
-            let away = Vec3::new(at.x - middle.x, 0.0, at.z - middle.z);
+            let away = Vec3::new(goal.x - middle.x, 0.0, goal.z - middle.z);
             let clear = radius + KEEP_OFF;
             if away.length() < clear {
-                at += away.try_normalize().unwrap_or(Vec3::X) * (clear - away.length());
+                goal += away.try_normalize().unwrap_or(Vec3::X) * (clear - away.length());
             }
         }
         let (x, z) = (WIDTH / 2.0 - KEEP_OFF, DEPTH / 2.0 - KEEP_OFF);
-        (at.x, at.z) = (at.x.clamp(-x, x), at.z.clamp(-z, z));
-        self.at = at;
+        (goal.x, goal.z) = (goal.x.clamp(-x, x), goal.z.clamp(-z, z));
+        goal.y = goal.y.clamp(LOWEST_EYE, WALL_HEIGHT - KEEP_OFF);
+        self.goal = goal;
+        self.goal_look.y = self.goal_look.y.clamp(-LOOK_FARTHEST, LOOK_FARTHEST);
+        self.at = follow(self.at, self.goal, &mut self.moving, MOVING, seconds);
+        self.look = follow(self.look, self.goal_look, &mut self.looking, LOOKING, seconds);
     }
 
     /// Where the eyes are in the pieces' frame, whose decks are at zero.
@@ -143,11 +212,28 @@ impl Walker {
     }
 
     pub fn mvp(&self, width: f32, height: f32) -> Mat4 {
-        let look = self.ahead() - Vec3::Y * LOOK_DOWN;
+        let look = ahead(self.look.x) * self.look.y.cos() + Vec3::Y * self.look.y.sin();
         let view = Mat4::look_at_rh(self.eye(), self.eye() + look, Vec3::Y);
         let projection = Mat4::perspective_rh(VIEW, width / height, 0.05, 100.0);
         OPENGL_TO_WGPU_MATRIX * projection * view
     }
+}
+
+/// Along the floor, `heading` from the room's depth.
+fn ahead(heading: f32) -> Vec3 {
+    Vec3::new(heading.sin(), 0.0, heading.cos())
+}
+
+/// `now` following `goal` for `seconds` on a critically damped spring that
+/// takes about `smoothing` to get there, `speed` how fast it goes.
+fn follow(now: Vec3, goal: Vec3, speed: &mut Vec3, smoothing: f32, seconds: f32) -> Vec3 {
+    let stiffness = 2.0 / smoothing;
+    let x = stiffness * seconds;
+    let decay = 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x);
+    let off = now - goal;
+    let pull = (*speed + off * stiffness) * seconds;
+    *speed = (*speed - pull * stiffness) * decay;
+    goal + (off + pull) * decay
 }
 
 pub struct Gallery {

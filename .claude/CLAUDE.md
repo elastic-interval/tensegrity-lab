@@ -489,7 +489,7 @@ cargo run --release -- --fabric "Headless Hug" --size medium
 # The gallery: Open Claw and Headless Hug (a quarter taller) and Quadruped at Medium, each on its
 # table playing its cues in turn, evolved at its size (`cues/gallery/`, by the ignored
 # `evolve_gallery_cues`; Open Claw keeps a tenth of its pretension, to sway),
-# in a dark room 18 × 22 m walked through with the arrow keys, tables skirted in
+# in a dark room 18 × 22 m walked through smoothly, as on a gimbal (two-finger swipe walks and turns, pinch rises and sinks, drag looks, or the arrows), tables skirted in
 # velvet, a spot in each deck throwing the piece's shadow up on the
 # ceiling (shadow maps, `wgpu/shadow_renderer.rs`); no text, no buttons, Esc quits:
 cargo run --release -- --gallery

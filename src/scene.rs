@@ -4,6 +4,7 @@ use crate::fabric::quake::DECK_HEIGHT;
 use crate::fabric::Fabric;
 use crate::gallery::{self, Gallery};
 use glam::Mat4;
+use wgpu_text::glyph_brush::{HorizontalAlign, Layout, OwnedSection, OwnedText, VerticalAlign};
 use crate::wgpu::surface_vertex::DeckVertex;
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::parts_view::PartsView;
@@ -19,6 +20,12 @@ use crate::{
 };
 use std::rc::Rc;
 use winit::dpi::PhysicalSize;
+
+/// The gallery's instructions: from the window's bottom, their colour and
+/// size.
+const CAPTION_MARGIN: f32 = 40.0;
+const CAPTION_COLOR: [f32; 4] = [0.45, 0.45, 0.45, 1.0];
+const CAPTION_SIZE: f32 = 26.0;
 
 // From the window's sides, and from its bottom, clear of the time.
 const BUTTON_MARGIN: f32 = 50.0;
@@ -320,6 +327,14 @@ impl Scene {
             self.label_renderer.render(&mut render_pass);
             self.buttons.render(&mut render_pass);
             self.text_renderer.render(&mut render_pass, &self.wgpu);
+        } else {
+            let (width, height) = self.wgpu.size();
+            let caption = OwnedSection::default()
+                .with_layout(Layout::default().h_align(HorizontalAlign::Center).v_align(VerticalAlign::Bottom))
+                .with_screen_position([width / 2.0, height - CAPTION_MARGIN])
+                .with_bounds([width, height])
+                .add_text(OwnedText::new(gallery::INSTRUCTIONS).with_color(CAPTION_COLOR).with_scale(CAPTION_SIZE));
+            self.text_renderer.render_caption(&mut render_pass, &self.wgpu, &caption);
         }
         drop(render_pass);
 

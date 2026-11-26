@@ -90,8 +90,10 @@ pub struct Application {
     white: bool,
     /// Showing the fabrics to choose one from.
     choosing: bool,
-    /// The gallery, walked through instead of everything else.
+    /// The gallery, walked through instead of everything else, and where
+    /// the pointer last was in it.
     gallery: Option<Gallery>,
+    gallery_pointer: Option<(f32, f32)>,
     #[cfg(not(target_arch = "wasm32"))]
     native: NativeState,
 }
@@ -152,6 +154,7 @@ impl Application {
             white: false,
             choosing: false,
             gallery: None,
+            gallery_pointer: None,
             #[cfg(not(target_arch = "wasm32"))]
             native: NativeState::default(),
         }
@@ -756,6 +759,30 @@ impl ApplicationHandler<LabEvent> for Application {
                     PhysicalKey::Code(KeyCode::ArrowRight) => arrows.right = held,
                     _ => {}
                 }
+                return;
+            }
+            // A two-finger swipe walks and turns; dragging looks round.
+            WindowEvent::MouseWheel { delta, .. } if self.gallery.is_some() => {
+                let walker = &mut self.gallery.as_mut().unwrap().walker;
+                match delta {
+                    winit::event::MouseScrollDelta::PixelDelta(pixels) => walker.swipe(pixels.x as f32, pixels.y as f32, false),
+                    winit::event::MouseScrollDelta::LineDelta(x, y) => walker.swipe(x, y, true),
+                }
+                return;
+            }
+            WindowEvent::PinchGesture { delta, .. } if self.gallery.is_some() => {
+                self.gallery.as_mut().unwrap().walker.pinch(delta as f32);
+                return;
+            }
+            WindowEvent::MouseInput { state, button: winit::event::MouseButton::Left, .. } if self.gallery.is_some() => {
+                let gallery = self.gallery.as_mut().unwrap();
+                gallery.walker.press(state.is_pressed(), self.gallery_pointer);
+                return;
+            }
+            WindowEvent::CursorMoved { position, .. } if self.gallery.is_some() => {
+                let pointer = (position.x as f32, position.y as f32);
+                self.gallery_pointer = Some(pointer);
+                self.gallery.as_mut().unwrap().walker.pointer_moved(pointer.0, pointer.1);
                 return;
             }
             WindowEvent::Resized(physical_size) if self.gallery.is_some() => {
