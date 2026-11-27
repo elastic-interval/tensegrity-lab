@@ -1,14 +1,19 @@
 //! The wobble table a Medium piece stands on: a hexagonal deck hung on three
 //! short ties, at alternate corners, from arms rising off a fixed hexagonal
 //! base. Hung so, the deck can't tilt; it sways on its ties like a pendulum
-//! and twists about its middle. At the other three corners a stepper on
-//! the base turns a drum, and a cable loop from the drum, through a pulley
-//! either side, to a lug under the deck draws the deck along its edge, one
-//! way or the other. All three drawing the same way twist the deck; drawing
-//! so that they add up to nothing, they sway it. The piece's feet stand on
-//! the deck and go with it, and pull on it in turn.
+//! and twists about its middle. An elastic ring of six segments runs round
+//! it at the ties' radius: from each hook's foot, where its tie is tied, to
+//! a motor on the base at the next corner, round its drum, and on to the
+//! next hook's foot. A motor winding moves ring from one side of it to the
+//! other, pulling one hook toward it and letting the other go as far: a
+//! push along the deck's edge. All three winding the same way twist the
+//! deck; winding so that they add up to nothing, they sway it. The ring's
+//! own tension stays in the ring, and it centres the deck along with the
+//! ties. The deck on its ties and ring is the resonator; the motors only
+//! swing it. The piece's feet stand on the deck and go with it, and pull on
+//! it in turn.
 //!
-//! The steppers play cues (`Cue`), DMX loops of the drums' positions,
+//! The motors play cues (`Cue`), smooth swings made into DMX loops,
 //! evolved out of sight: each tried on a copy of the piece as it stood when Quake
 //! was pressed, `ROUND` at a time side by side. A try watches every joint
 //! of the piece swing against the deck, scoring the cue for the joint that
@@ -20,7 +25,6 @@
 //! longer, evolution waiting meanwhile.
 
 use crate::fabric::cue::{Cue, PER_VALUE, TOP_SPEED, ZERO};
-use crate::fabric::dimensions::Hardware;
 use crate::fabric::{Fabric, JointKey};
 use crate::units::{Seconds, Unit, EARTH_GRAVITY};
 use crate::Age;
@@ -54,10 +58,15 @@ pub const HANG_CORNERS: [usize; 3] = [0, 2, 4];
 /// The steppers stand at the other corners: one before the piece and two
 /// behind it, either side.
 pub const DRUM_CORNERS: [usize; 3] = [1, 3, 5];
-/// From a lug to the pulley either side of it, along the deck's edge.
-pub const LOOP_LEG: f32 = 0.15;
-/// Deck and frame, per square metre.
+/// Deck and frame, per square metre: it sets how the deck sways by itself
+/// on its ring, how much the piece swings it back, and how hard the motors
+/// pull. A heavy deck leads the piece; a light one is led by it too.
 const DECK_DENSITY: f32 = 15.0;
+/// Each of the ring's six segments, a spring of this stiffness, newtons a
+/// metre, stretched by this tension at rest: what it is will be found by
+/// feel, on the real table.
+const RING_STIFFNESS: f32 = 1000.0;
+const RING_TENSION: f32 = 50.0;
 /// The deck is this much larger across than the smallest that holds every
 /// foot and guy anchor: just big enough to look good.
 pub const ROOM: f32 = 1.3;
@@ -67,11 +76,6 @@ const FOOTING: f32 = 0.02;
 pub const SMALLEST: f32 = 0.4;
 /// How much of its swing the deck loses each cycle, as a damping ratio.
 const DAMPING: f32 = 0.05;
-/// A spring in each cable loop, in series with its cord, so the deck
-/// follows the drums smoothly instead of with every jerk of a stepper: each
-/// table's springs are chosen for its deck to sway on them, by itself, this
-/// many times a second, well above the piece's own swings.
-const DECK_SWAY: f32 = 7.0;
 /// How far the joint swinging most should swing against the deck:
 /// expressive, no more.
 const EXPRESSIVE: f32 = 0.04;
@@ -143,20 +147,24 @@ pub fn hook_foot() -> f32 {
     -DECK_THICKNESS - HEAD_CLEARANCE - TIE_LENGTH
 }
 
-/// Which way drum `drum` draws its lug when its DMX value rises: along
-/// the deck's edge, all three the same way round.
+/// Which way motor `drum` pushes the deck when its DMX value rises: along
+/// the deck's edge at its corner, all three the same way round. Winding so,
+/// it shortens the ring toward the hook behind it and lengthens it toward
+/// the one ahead.
 pub fn drum_along(drum: usize) -> Vec3 {
     let angle = corner_angle(DRUM_CORNERS[drum]);
     Vec3::new(-angle.sin(), 0.0, angle.cos())
 }
 
-/// Where each drum's lug is, at its foot, where its cable loop is tied, on
-/// the deck at rest.
-pub fn lugs(radius: f32) -> [Vec3; 3] {
-    DRUM_CORNERS.map(|corner| {
+/// The ring on a table `radius` across its corners, at rest: each hook's
+/// foot, where the ring is tied to it, on the deck; and each motor's drum,
+/// on the base, as high.
+pub fn ring(radius: f32) -> ([Vec3; 3], [Vec3; 3]) {
+    let at = |corner: usize| {
         let angle = corner_angle(corner);
-        Vec3::new(angle.cos(), 0.0, angle.sin()) * (TIE_RADIUS * radius - HOOK_REACH) + Vec3::Y * hook_foot()
-    })
+        Vec3::new(angle.cos(), 0.0, angle.sin()) * TIE_RADIUS * radius + Vec3::Y * hook_foot()
+    };
+    (HANG_CORNERS.map(at), DRUM_CORNERS.map(at))
 }
 
 /// A cue kept: how well it did, how far the joint that swung most swung,
@@ -311,7 +319,7 @@ pub fn remembered(path: &Path) -> Vec<Cue> {
 pub fn kept_cues(text: &str) -> Vec<Cue> {
     text.lines()
         .filter(|line| !line.starts_with('#'))
-        .filter_map(|line| Cue::parse(line.rsplit_once('|')?.1))
+        .filter_map(|line| Cue::parse(line.split('|').nth(1)?))
         .collect()
 }
 
@@ -319,8 +327,8 @@ pub fn kept_cues(text: &str) -> Vec<Cue> {
 /// swung, what it is (`Cue::describe`), and after `|` its DMX frames.
 fn remember(path: &Path, kept: &[Kept]) {
     let mut text = String::from("# Wobble table cues, kept by Quake and tried first next time.\n");
-    text += "# name score swing, the joint moved most and which way | the deck's ways, mm | DMX frames, 44 a second,\n";
-    text += "# each the three drums' values, 128 their middles: the one before the piece, then the others round the way they draw\n";
+    text += "# name score swing, the joint moved most and which way | the swing: its period, each way mm at the drums @ when, x swings + held | DMX frames, 44 a second,\n";
+    text += "# each the three motors' values, 128 their middles: the one before the piece, then the others round the way they push\n";
     for (index, kept) in kept.iter().enumerate() {
         text += &format!(
             "{} {:.2} {:.0}mm {} | {} | {}\n",
@@ -328,7 +336,7 @@ fn remember(path: &Path, kept: &[Kept]) {
             kept.score,
             kept.swing * 1000.0,
             kept.most,
-            kept.cue.describe(),
+            kept.cue.numbers(),
             kept.cue.written()
         );
     }
@@ -503,8 +511,6 @@ pub struct Quake {
     mass: f32,
     /// What hangs on the ties: the deck and the piece, newtons.
     weight: f32,
-    /// Each cable loop's stiffness along the deck's edge, newtons a metre.
-    loop_stiffness: f32,
     motor: Option<Motor>,
     /// What the piece's feet pulled on the deck with this tick, and the
     /// twist it gave.
@@ -536,22 +542,16 @@ pub struct Quake {
 
 impl Quake {
     /// A table `radius` across its corners, still, its drums in their
-    /// middles, nothing on it yet. A loop draws with both its legs, each
-    /// from the lug to a pulley; three along the edge hold the deck from
-    /// swaying half again as stiffly as one.
+    /// middles, nothing on it yet.
     pub fn of_radius(radius: f32) -> Quake {
         let area = 1.5 * 3.0f32.sqrt() * radius * radius;
         let mass = DECK_DENSITY * area;
-        let cord = 2.0 * Hardware::MEDIUM.cable_stiffness.0 / LOOP_LEG;
-        let ties = mass * EARTH_GRAVITY.f32() / TIE_LENGTH;
-        let loop_stiffness = ((mass * (TAU * DECK_SWAY).powi(2) - ties) / 1.5).clamp(ties, cord);
         Quake {
             deck: Deck { radius, ..Deck::default() },
             velocity: Vec3::ZERO,
             spin: 0.0,
             mass,
             weight: mass * EARTH_GRAVITY.f32(),
-            loop_stiffness,
             motor: None,
             pull: Vec3::ZERO,
             pull_twist: 0.0,
@@ -581,7 +581,7 @@ impl Quake {
             None => (ROOM * smallest_hexagon(feet)).max(SMALLEST),
         };
         let fitted = Quake::of_radius(fitting);
-        (self.deck.radius, self.mass, self.loop_stiffness) = (fitting, fitted.mass, fitted.loop_stiffness);
+        (self.deck.radius, self.mass) = (fitting, fitted.mass);
         let piece = fabric.joints.values().map(|joint| joint.accumulated_mass.f32()).sum::<f32>() / 1000.0;
         self.weight = (self.mass + piece) * EARTH_GRAVITY.f32();
     }
@@ -968,28 +968,36 @@ impl Quake {
         }
     }
 
-    /// One tick of the deck: the steppers, the ties pulling it back, the
-    /// cable loops, damping, and what the piece's feet pulled with.
+    /// One tick of the deck: the motors, the ties pulling it back, the
+    /// ring, damping, and what the piece's feet pulled with.
     fn step(&mut self, age: Age, dt: f32) {
         self.turn_drums(age, dt);
         let stiffness = self.weight / TIE_LENGTH;
         let tie_radius = TIE_RADIUS * self.deck.radius;
         let twist_stiffness = stiffness * tie_radius * tie_radius;
         let inertia = self.mass * 5.0 / 12.0 * self.deck.radius * self.deck.radius;
-        let held = stiffness + 1.5 * self.loop_stiffness;
+        // Each hook between two segments, each at 60° to the sway: the ring
+        // holds the deck about as stiffly as three of them.
+        let held = stiffness + 3.0 * RING_STIFFNESS;
         let sway_damping = 2.0 * DAMPING * (held * self.mass).sqrt();
         let twist_damping = 2.0 * DAMPING * (twist_stiffness * inertia).sqrt();
 
         let mut force = self.pull - self.deck.offset * stiffness - self.velocity * sway_damping;
         let mut torque = self.pull_twist - self.deck.turn * twist_stiffness - self.spin * twist_damping;
         let drums = self.motor.as_ref().map_or([0.0; 3], |motor| motor.drums);
-        for (drum, lug) in lugs(self.deck.radius).into_iter().enumerate() {
-            let along = drum_along(drum);
-            let at = self.deck.carry(lug);
-            let pull = along * self.loop_stiffness * (drums[drum] - (at - lug).dot(along));
-            let arm = at - self.deck.offset;
-            force += pull;
-            torque += arm.z * pull.x - arm.x * pull.z;
+        let (hooks, motors) = ring(self.deck.radius);
+        let rest = TIE_RADIUS * self.deck.radius - RING_TENSION / RING_STIFFNESS;
+        for (drum, &corner) in DRUM_CORNERS.iter().enumerate() {
+            for (neighbour, wound) in [((corner + 5) % 6, -drums[drum]), ((corner + 1) % 6, drums[drum])] {
+                let hook = HANG_CORNERS.iter().position(|&hung| hung == neighbour).unwrap();
+                let at = self.deck.carry(hooks[hook]);
+                let toward = motors[drum] - at;
+                let stretched = (toward.length() - (rest + wound)).max(0.0);
+                let pull = toward.normalize_or_zero() * RING_STIFFNESS * stretched;
+                let arm = at - self.deck.offset;
+                force += pull;
+                torque += arm.z * pull.x - arm.x * pull.z;
+            }
         }
         self.velocity += force / self.mass * dt;
         self.velocity.y = 0.0;
@@ -1268,15 +1276,18 @@ mod tests {
                 eprintln!("{:.1} s, {reported} tried: kept {}", started.elapsed().as_secs_f32(), best.join(" "));
             }
         }
+        eprintln!("deck {:.0} kg, piece {:.1} kg", quake.mass, fabric.joints.values().map(|joint| joint.accumulated_mass.f32()).sum::<f32>() / 1000.0);
         for (index, kept) in quake.kept().iter().enumerate() {
+            let wound = kept.cue.frames.iter().flatten().map(|&value| (value as f32 - ZERO as f32).abs()).fold(0.0, f32::max) * PER_VALUE;
             eprintln!(
-                "// {} {}: scored {:.2}, {:.0} mm, {:.1}/s, most {}\n{}",
+                "// {} {}: scored {:.2}, {:.0} mm, {:.1}/s, most {}, motors wind {:.0} mm\n{}",
                 letter(index),
                 kept.cue.describe(),
                 kept.score,
                 kept.swing * 1000.0,
                 kept.quickness,
                 kept.most,
+                wound * 1000.0,
                 kept.cue.written()
             );
         }

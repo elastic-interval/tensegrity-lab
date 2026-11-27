@@ -419,15 +419,24 @@ Important integration tests:
   another; Demo plays them while evolving waits; pressed again the drums
   go back to their middles and the piece stands where it stood. The ignored
   `evolve_wobble_cues` (`PROBE` the fabric, `TRIES` how many) prints the
-  kept cues as DMX loops for the electronics.
+  kept cues as DMX loops for the electronics, the deck's and piece's mass,
+  and how far each cue's motors wind.
   The table is a hexagonal deck hung on three ties, so it sways and twists
-  but can't tilt. At the other three corners (`DRUM_CORNERS`, one before
-  the piece and two behind) a stepper on the base turns a drum, and a
-  Dyneema loop from the drum round a pulley either side to a lug under the
-  deck draws the deck along its edge (`drum_along`), either way, through a
-  spring chosen for the deck to sway on them by itself at `DECK_SWAY`,
-  above the piece's swings, so it follows smoothly. All three drawn alike
-  twist the deck; drawn adding up to nothing, they sway it. (Twisting lifts
+  but can't tilt. An elastic ring of six segments runs round it at the
+  ties' radius (`quake::ring`): from each hook's foot, where its tie is
+  tied, to a motor on the base at the next corner (`DRUM_CORNERS`, one
+  before the piece and two behind), round its drum, to the next hook's
+  foot. Each segment is a spring, `RING_STIFFNESS`, stretched by
+  `RING_TENSION` at rest, that only pulls. A motor winding moves ring from
+  one side of it to the other, pulling one hook toward it and letting the
+  other go: a push along the deck's edge (`drum_along`), about √3 times a
+  segment's stiffness. All three wound alike twist the deck; wound adding
+  up to nothing, they sway it. The ring's tension stays in the ring and
+  centres the deck along with the ties: the deck on its ties and ring is
+  the resonator, and the motors only swing it. `DECK_DENSITY`, a plain
+  constant, sets the deck's mass and so its own sway, how much the piece
+  swings it back (a heavy deck leads, a light one is led too) and how hard
+  the motors pull. (Twisting lifts
   the deck on its ties too, but well under a millimetre at these reaches,
   so that isn't modelled.) The deck is `ROOM` (1.3) times the
   smallest hexagon holding the feet and guy anchors, at least `SMALLEST`:
@@ -435,19 +444,21 @@ Important integration tests:
   land (`Quake::fit`); unless the plan chooses its table, in its own
   `scale`s so it grows with the piece (`FabricDimensions::with_table`:
   Headless Hug, Open Claw, Kay Ten; the ignored `measure_tables` tells
-  how far each piece's feet reach). The steppers play cues
-  (`src/fabric/cue.rs`): loops of DMX frames, 44 a second, each three
-  values, one a drum, 128 its middle, `PER_VALUE` of cable each (20 mm
-  either way); a drum goes from one to the next no faster than
-  `TOP_SPEED`. A cue is made and changed in the deck's own ways of moving,
-  side, fore and twist (`Cue::drums` turns them into the drums').
+  how far each piece's feet reach). The motors play cues
+  (`src/fabric/cue.rs`), smooth swings only: one period, and for each of
+  the deck's ways of moving, side, fore and twist, a reach and a timing
+  within the swing (`Cue::drums` turns them into the motors'), perhaps
+  swinging a few times and then holding still while the piece rings on
+  (`Cue::pulsing`). From those numbers the electronics' loop is made: DMX
+  frames, 44 a second, each three values, one a drum, 128 its middle,
+  `PER_VALUE` of ring each (20 mm either way), none faster than
+  `TOP_SPEED`.
   It evolves them: from seeds rocking side to side, fore and aft, on a
   diagonal and twisting, circling, swaying and twisting by turns, and
-  rocking a few cycles then holding still while the piece rings on
-  (`Cue::pulsing`), at a spread of speeds, by bumps in one way, stretches,
-  widening, sliding one way's timing against the others, turning the sway's
-  direction, and crossing (a part of the loop blended in, or one way
-  whole), none the drums couldn't follow (`Cue::followable`), out of sight: each tried
+  pulsing, at a spread of speeds, by changing the period, a way's reach
+  or timing, the sway's direction or the pulsing, and by taking a way or
+  the period from another cue, none the drums couldn't follow
+  (`Cue::followable`), out of sight: each tried
   `TRYING` on a copy of the piece as it stood when Quake was pressed,
   `ROUND` side by side on their own threads (one after another on the
   web), about eight tries a second. It watches every joint, no sensors
@@ -465,8 +476,9 @@ Important integration tests:
   (`RETURNING`). Demo, shown only while it quakes,
   plays the kept in turn, `PLAYING` each, evolution waiting meanwhile, then
   evolves on. After every round that changes what is kept, the kept cues are written to
-  `cues/<fabric>.txt` (native only; `quake::cues_file`), one a line with the
-  DMX frames after `|`, and tried first the next time Quake is pressed, so
+  `cues/<fabric>.txt` (native only; `quake::cues_file`), one a line: its
+  numbers (`Cue::numbers`, read back by `Cue::parse`) and then its DMX
+  frames, after `|`s, and tried first the next time Quake is pressed, so
   evolution carries on from them. The kept cues are named A to F by where they are kept; the
   subtitle names the one playing, with what the drums are told
   (`Cue::describe`), the joint it moves most and which way (side, up,
@@ -474,14 +486,16 @@ Important integration tests:
   selected, and the right of the screen tells how the evolution goes
   (`Quake::report`): the round, how many tried, rounds since a find, the
   cues kept with score, swing and joint, and what plays. A cue reads:
-  `A 34f side 8 twist 5` is a 34-frame loop moving the deck 8 mm either
-  side and twisting it 5 mm either way at the drums.
+  `A 0.77s side 8 twist 5 +0.25 x3+2s` swings every 0.77 s, the deck
+  8 mm either side and twisting 5 mm either way at the drums, a quarter
+  swing later, three times, then holds still for 2 s.
   The piece's feet go with the deck and pull on it. It is drawn with its
   mechanism showing: at alternate corners (`HANG_CORNERS`, one behind the
   piece and two before it, so the table has its mirror symmetry and it
   faces between two) a hook drops from the deck and an arm rises from the
-  base, a tie between them; at the others a lug drops from the deck, its
-  loop running to the pulleys either side and down to its stepper. Only a Medium piece has one (`Fabric::quake`, there from the start
+  base, a tie between them; at the others a motor stands on the base, its
+  drum as high as the hooks' feet, the ring running from it to the hook
+  either side. Only a Medium piece has one (`Fabric::quake`, there from the start
   of its build); the Quake button is shown only for Medium. Open Claw and
   Halo by Crane are built turned (`FabricDimensions::table_turn`) to stand
   a foot over each hanger.

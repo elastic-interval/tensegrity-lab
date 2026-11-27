@@ -161,6 +161,12 @@ impl<T: Clone> Buttons<T> {
         self.hits.iter().map(|(center, half, _)| center.y - half.y).reduce(f32::min)
     }
 
+    /// What the button at `point` does, if one is there.
+    pub fn at(&self, point: Vec2) -> Option<T> {
+        let (_, _, action) = self.hits.iter().find(|(center, half, _)| (point - *center).abs().cmple(*half).all())?;
+        Some(action.clone())
+    }
+
     fn under_pointer(&self) -> Option<T> {
         let pointer = self.pointer?;
         let (_, _, action) =

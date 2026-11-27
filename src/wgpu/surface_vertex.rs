@@ -1,6 +1,6 @@
 use crate::fabric::quake::{
-    corner_angle, Deck, drum_along, hook_foot, lugs, BASE_THICKNESS, DECK_THICKNESS, HANG_CORNERS, HEAD_CLEARANCE, HOOK_REACH,
-    LOOP_LEG, TIE_RADIUS,
+    corner_angle, drum_along, hook_foot, ring, Deck, BASE_THICKNESS, DECK_THICKNESS, DRUM_CORNERS, HANG_CORNERS, HEAD_CLEARANCE,
+    HOOK_REACH, TIE_RADIUS,
 };
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
@@ -55,15 +55,11 @@ const ON_DECK: f32 = 1.0;
 /// A lamp sunk in a deck: it goes with the deck, and shines only up its tube.
 const LAMP: f32 = 2.0;
 
-/// Half the width of a hook's or an arm's square tube, of a tie or cable,
-/// of a stepper and of a pulley's post.
+/// Half the width of a hook's or an arm's square tube, of a tie or the
+/// ring, and of a motor and its drum.
 const TUBE: f32 = 0.0125;
 const TIE: f32 = 0.003;
 const MOTOR: f32 = 0.03;
-const POST: f32 = 0.006;
-/// How far under the lugs' feet each stepper's beam runs, between its
-/// pulleys.
-const BEAM_DROP: f32 = 0.03;
 
 const DECK_COLOR: [f32; 3] = [0.10, 0.075, 0.05];
 const BASE_COLOR: [f32; 3] = [0.12, 0.12, 0.13];
@@ -120,18 +116,16 @@ impl DeckVertex {
             bar(&mut vertices, arm[1] + out * TUBE, arm[2], TUBE, ARM_COLOR, (STAYS, STAYS));
             bar(&mut vertices, at(tie_radius, foot), at(tie_radius, head), TIE, TIE_COLOR, (ON_DECK, STAYS));
         }
-        let beam = foot - BEAM_DROP;
-        for (drum, lug) in lugs(radius).into_iter().enumerate() {
-            let along = drum_along(drum);
-            let at = |y: f32| Vec3::new(lug.x, y, lug.z);
-            bar(&mut vertices, at(deck_bottom), lug, TUBE, HOOK_COLOR, (ON_DECK, ON_DECK));
-            bar(&mut vertices, at(base_top), at(beam), MOTOR, MOTOR_COLOR, (STAYS, STAYS));
-            bar(&mut vertices, at(beam) - along * LOOP_LEG, at(beam) + along * LOOP_LEG, TUBE, ARM_COLOR, (STAYS, STAYS));
-            for side in [-1.0, 1.0] {
-                let pulley = lug + along * side * LOOP_LEG;
-                bar(&mut vertices, Vec3::new(pulley.x, base_top, pulley.z), pulley, POST, ARM_COLOR, (STAYS, STAYS));
-                bar(&mut vertices, lug, pulley, TIE, CABLE_COLOR, (ON_DECK, STAYS));
-                bar(&mut vertices, pulley, at(beam), TIE, CABLE_COLOR, (STAYS, STAYS));
+        let (hooks, motors) = ring(radius);
+        for (drum, motor) in motors.into_iter().enumerate() {
+            let below = Vec3::new(motor.x, base_top, motor.z);
+            bar(&mut vertices, below, motor - Vec3::Y * MOTOR, MOTOR, MOTOR_COLOR, (STAYS, STAYS));
+            let along = drum_along(drum) * MOTOR;
+            bar(&mut vertices, motor - along, motor + along, MOTOR, ARM_COLOR, (STAYS, STAYS));
+            let corner = DRUM_CORNERS[drum];
+            for neighbour in [(corner + 5) % 6, (corner + 1) % 6] {
+                let hook = hooks[HANG_CORNERS.iter().position(|&hung| hung == neighbour).unwrap()];
+                bar(&mut vertices, hook, motor, TIE, CABLE_COLOR, (ON_DECK, STAYS));
             }
         }
         vertices

@@ -9,6 +9,7 @@ use crate::button_bar::{ButtonBar, FAST_FORWARD};
 use crate::crucible::Crucible;
 use crate::fabric::variant::Variant;
 use crate::gallery::Gallery;
+use crate::scene::GalleryButton;
 use crate::pointer::PointerHandler;
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
@@ -58,6 +59,12 @@ const CYCLE_DWELL: Duration = Duration::from_secs(5);
 const MOTION_INTERVAL: Duration = Duration::from_secs(1);
 /// The most time a frame spends on physics beyond its first update, so a
 /// frame comes about thirty times a second however much is asked of it.
+/// A pinch given as a scroll with Ctrl held, as browsers give it: how far
+/// it spreads for each pixel scrolled.
+const SCROLLED_PINCH: f32 = 0.01;
+/// The site's home page, about the artist and the work, for About Fluxe.
+#[cfg(target_arch = "wasm32")]
+const ABOUT: &str = "/home/";
 const PHYSICS_BUDGET: Duration = Duration::from_millis(25);
 
 pub struct Application {
@@ -93,6 +100,9 @@ pub struct Application {
     /// the pointer last was in it.
     gallery: Option<Gallery>,
     gallery_pointer: Option<(f32, f32)>,
+    /// Whether Ctrl is held: a browser gives a trackpad pinch as a scroll
+    /// with Ctrl held.
+    gallery_ctrl: bool,
     #[cfg(not(target_arch = "wasm32"))]
     native: NativeState,
 }
@@ -152,6 +162,7 @@ impl Application {
             choosing: false,
             gallery: None,
             gallery_pointer: None,
+            gallery_ctrl: false,
             #[cfg(not(target_arch = "wasm32"))]
             native: NativeState::default(),
         }
@@ -762,8 +773,20 @@ impl ApplicationHandler<LabEvent> for Application {
                 return;
             }
             // A two-finger swipe walks and turns; dragging looks round.
+            WindowEvent::ModifiersChanged(modifiers) if self.gallery.is_some() => {
+                self.gallery_ctrl = modifiers.state().control_key();
+                return;
+            }
             WindowEvent::MouseWheel { delta, .. } if self.gallery.is_some() => {
                 let walker = &mut self.gallery.as_mut().unwrap().walker;
+                if self.gallery_ctrl {
+                    let spread = match delta {
+                        winit::event::MouseScrollDelta::PixelDelta(pixels) => -pixels.y as f32 * SCROLLED_PINCH,
+                        winit::event::MouseScrollDelta::LineDelta(_, y) => -y * SCROLLED_PINCH * 30.0,
+                    };
+                    walker.pinch(spread);
+                    return;
+                }
                 match delta {
                     winit::event::MouseScrollDelta::PixelDelta(pixels) => walker.swipe(pixels.x as f32, pixels.y as f32, false),
                     winit::event::MouseScrollDelta::LineDelta(x, y) => walker.swipe(x, y, true),
@@ -779,8 +802,14 @@ impl ApplicationHandler<LabEvent> for Application {
                 gallery.hear();
                 let pointer = self.gallery_pointer;
                 let scene = self.scene.as_mut();
-                if state.is_pressed() && pointer.zip(scene).is_some_and(|(at, scene)| scene.on_tour_button(at)) {
-                    gallery.toggle_tour();
+                if let Some(button) = pointer.zip(scene).and_then(|(at, scene)| scene.gallery_button(at)).filter(|_| state.is_pressed()) {
+                    match button {
+                        GalleryButton::Tour => gallery.toggle_tour(),
+                        GalleryButton::About => {
+                            #[cfg(target_arch = "wasm32")]
+                            let _ = web_sys::window().map(|window| window.location().set_href(ABOUT));
+                        }
+                    }
                     return;
                 }
                 if let Some(click) = gallery.walker.press(state.is_pressed(), pointer) {

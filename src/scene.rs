@@ -26,6 +26,22 @@ use winit::dpi::PhysicalSize;
 const CAPTION_MARGIN: f32 = 40.0;
 const CAPTION_COLOR: [f32; 4] = [0.45, 0.45, 0.45, 1.0];
 const CAPTION_SIZE: f32 = 26.0;
+/// What the gallery's buttons do: take the tour, or, on the web, go to the
+/// site's home page, about the artist and the work.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum GalleryButton {
+    Tour,
+    About,
+}
+
+fn gallery_buttons(tour: &str) -> Vec<Button<GalleryButton>> {
+    let mut buttons = vec![Button::new(tour, GalleryButton::Tour)];
+    if cfg!(target_arch = "wasm32") {
+        buttons.push(Button::new("About Fluxe", GalleryButton::About));
+    }
+    buttons
+}
+
 /// The tour's button, this far above the instructions.
 const TOUR_ABOVE: f32 = 50.0;
 
@@ -43,8 +59,8 @@ pub struct Scene {
     text_renderer: TextRenderer,
     label_renderer: LabelRenderer,
     buttons: Buttons<LabEvent>,
-    /// The gallery's one button, the tour's, and its label's text.
-    tour: Buttons<()>,
+    /// The gallery's buttons, and their labels' text.
+    tour: Buttons<GalleryButton>,
     tour_text: Vec<OwnedSection>,
     render_style: RenderStyle,
     show_attachment_points: bool,
@@ -435,7 +451,7 @@ impl Scene {
         self.tour_text = self.tour.lay_out(
             &self.wgpu,
             &mut |section| text_renderer.glyph_bounds(section),
-            vec![vec![Button::new(label, ())]],
+            vec![gallery_buttons(label)],
             0.0,
             width,
             height - CAPTION_MARGIN - TOUR_ABOVE,
@@ -444,11 +460,9 @@ impl Scene {
         self.render(false, false, Some(spots.views))
     }
 
-    /// Whether the pointer at `at` is on the tour's button.
-    pub fn on_tour_button(&mut self, (x, y): (f32, f32)) -> bool {
-        let at = PointerChange::Moved(winit::dpi::PhysicalPosition::new(x as f64, y as f64));
-        self.tour.pointer_changed(&at);
-        matches!(self.tour.pointer_changed(&PointerChange::Pressed), Press::Held)
+    /// The gallery's button at `at`, if there is one.
+    pub fn gallery_button(&self, (x, y): (f32, f32)) -> Option<GalleryButton> {
+        self.tour.at(glam::Vec2::new(x, y))
     }
 
     pub fn resize(&mut self, PhysicalSize { width, height }: PhysicalSize<u32>) {
