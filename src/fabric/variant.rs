@@ -4,6 +4,7 @@
 
 use crate::fabric::dimensions::{Hardware, MEDIUM_HEIGHT, MEDIUM_PRETENSION};
 use crate::units::Meters;
+use glam::Vec3;
 
 /// The wobble table a variant stands on.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -38,8 +39,10 @@ pub struct Variant {
     pub model: Option<f32>,
     /// Built in fast-forward.
     pub fast_build: bool,
-    /// Its seed placed this high, or where the plan places it.
+    /// Its seed placed this high, or where the plan places it; and moved
+    /// this far across, metres.
     pub seed_altitude: Option<Meters>,
+    pub seed_shift: Vec3,
 }
 
 impl Variant {
@@ -54,6 +57,7 @@ impl Variant {
         model: None,
         fast_build: false,
         seed_altitude: None,
+        seed_shift: Vec3::ZERO,
     };
 
     /// Built by hand as the 2021 Headless Hug was, about `MEDIUM_HEIGHT`
@@ -70,6 +74,7 @@ impl Variant {
         model: None,
         fast_build: true,
         seed_altitude: None,
+        seed_shift: Vec3::ZERO,
     };
 
     /// A model to build from: the Large fabric with its lengths shown at

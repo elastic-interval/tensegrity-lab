@@ -111,9 +111,12 @@ pretensing on, whether it keeps the plan's connectors and node plates
 fast-forward. `FabricPlan::at(&variant)` makes the plan so, and the
 executor, button bar and application read the variant
 (`FabricDimensions::variant`), never a size. `--size` (`Size`) names the
-three the command line offers. The plan is first built Large unseen up to
-its pretensing, once for each fabric (`unseen`, `learn`, or all at once), so
-it is known how far the fabric will reach (`FabricDimensions::reach`) and
+three the command line offers. How each plan builds Large up to its
+pretensing (its height, reach and table) is stored in
+`src/build/dsl/builds.txt`, exactly, so nothing need be built unseen first
+(`stored_builds_are_current` fails when a plan's change makes it stale; the
+ignored `store_builds` rewrites it; an unstored plan is built Large unseen,
+once). So it is known how far the fabric will reach (`FabricDimensions::reach`) and
 the camera keeps that far back from the start of the build, with nothing to
 make up when it is done.
 - **Large** (`Variant::LARGE`) — the plan as designed, with its connectors.
@@ -517,7 +520,7 @@ cargo run --release -- --fabric "Halo by Crane"
 # Medium, on the wobble table (Quake starts its motor):
 cargo run --release -- --fabric "Headless Hug" --size medium
 
-# The gallery: Open Claw, Headless Hug and Kay Ten at Medium, with Halo by Crane and Swagger, each built in view on its table, lit from the start, all together in fast-forward, in mid-air (each seed placed so its build is as far from the deck as from the ceiling) and watched from the far wall where the walk starts, the five tables alike, 1.4 m to the corners (Kay Ten made smaller to fit), at the corners of a pentagon, each facing its middle, a cable run on the floor joining them and off to the wall; a sign at the front of each deck with the piece's name (`wgpu/sign_renderer.rs`); a Tour button walks from piece to piece, a click on a piece walks there (Swagger a ten-twist column, not vulcanized, its foot frozen to the
+# The gallery: Open Claw, Headless Hug and Kay Ten at Medium, with Halo by Crane and Swagger, each built in view on its table, lit from the start, one after another in fast-forward, Swagger first and then round the room, watched from the middle where the walk starts, the view swinging to each in turn and at the end backing off to the far wall to see them all (until the visitor moves), in mid-air (each seed placed so its build is as far from the deck as from the ceiling; Swagger's moved across so it lands centred), the five tables alike, 1.4 m to the corners (Kay Ten made smaller to fit), at the corners of a pentagon, each facing its middle, a cable run on the floor joining them and off to the wall; a sign at the front of each deck with the piece's name (`wgpu/sign_renderer.rs`); a Tour button walks from piece to piece, a click on a piece walks there (Swagger a ten-twist column, not vulcanized, its foot frozen to the
 # deck, loose enough to arch over until its top twist lies flat), a quarter taller, each on its
 # table playing its cues in turn, evolved at its size (`cues/gallery/`, by the ignored
 # `evolve_gallery_cues`; to swing about 60 mm, slowly; Open Claw keeps a fiftieth of its pretension, Headless Hug and Kay Ten a quarter, to sway, Halo by Crane all of it; `measure_gallery_motion` tells how each moves),

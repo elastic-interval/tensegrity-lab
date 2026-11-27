@@ -456,11 +456,11 @@ impl Scene {
         for (from, to) in gallery::cable_run() {
             vertices.extend(DeckVertex::cable_cover(from, to, -DECK_HEIGHT));
         }
-        for (place, deck) in gallery.tables() {
+        for (station, (place, deck)) in gallery.tables().into_iter().enumerate() {
             let mut table = DeckVertex::for_radius(deck.radius, DECK_HEIGHT);
             table.extend(DeckVertex::skirt(deck.radius, DECK_HEIGHT));
             table.extend(DeckVertex::lamp());
-            table.extend(DeckVertex::plate(gallery::sign_on_deck(deck.radius), gallery::SIGN_PLATE, gallery::SIGN_THICK));
+            table.extend(DeckVertex::plate(gallery::sign_on_table(station, deck.radius), gallery::SIGN_PLATE, gallery::SIGN_THICK));
             vertices.extend(DeckVertex::placed(&table, deck, place));
         }
         self.surface_renderer.set_gallery(&self.wgpu.device, &vertices);

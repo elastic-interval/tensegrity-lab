@@ -44,8 +44,10 @@ struct Station {
     taller: f32,
     pretension: f32,
     /// How high its seed is placed above the deck, metres, for it to build
-    /// in mid-air, as far from the deck as from the ceiling.
+    /// in mid-air, as far from the deck as from the ceiling; and how far
+    /// across, for one that leans out from its foot to land centred.
     seed: f32,
+    seed_shift: [f32; 2],
     sensors: [&'static str; 3],
 }
 
@@ -65,7 +67,7 @@ const SIGN_LETTERS: f32 = 0.083;
 pub const PIECES: usize = 5;
 
 /// The tables at the corners of a pentagon 6 m from the middle of the
-/// room, each piece facing the middle.
+/// room, each piece facing the middle: Halo by Crane its ring's hole.
 const STATIONS: [Station; PIECES] = [
     Station {
         name: FabricName::OpenClaw,
@@ -74,6 +76,7 @@ const STATIONS: [Station; PIECES] = [
         taller: 1.25,
         pretension: 0.02,
         seed: 1.58,
+        seed_shift: [0.0, 0.0],
         sensors: ["C19", "A14", "B11"],
     },
     Station {
@@ -83,6 +86,7 @@ const STATIONS: [Station; PIECES] = [
         taller: 1.25,
         pretension: 0.25,
         seed: 1.85,
+        seed_shift: [0.0, 0.0],
         sensors: ["R62", "L62", "R47"],
     },
     Station {
@@ -92,15 +96,17 @@ const STATIONS: [Station; PIECES] = [
         taller: 0.95,
         pretension: 0.25,
         seed: 1.99,
+        seed_shift: [0.0, 0.0],
         sensors: ["L2", "R2", "R43"],
     },
     Station {
         name: FabricName::HaloByCrane,
         at: [-3.53, -4.85],
-        facing: 36.0,
+        facing: 335.0,
         taller: 1.25,
         pretension: 1.0,
         seed: 0.81,
+        seed_shift: [0.0, 0.0],
         sensors: ["A12.2", "A08.4", "A07.6"],
     },
     Station {
@@ -110,6 +116,7 @@ const STATIONS: [Station; PIECES] = [
         taller: 1.3,
         pretension: 0.25,
         seed: 0.65,
+        seed_shift: [0.257, -0.637],
         sensors: ["A09.6", "A05.5", "A05.6"],
     },
 ];
@@ -117,9 +124,16 @@ const STATIONS: [Station; PIECES] = [
 pub const WIDTH: f32 = 18.0;
 pub const DEPTH: f32 = 26.0;
 pub const WALL_HEIGHT: f32 = 3.5;
-/// Where the walk starts: by the far wall, looking into the room, all the
-/// tables in view.
-const START: [f32; 2] = [0.0, -12.4];
+/// Where the walk starts, in the middle of the room, each piece watched
+/// building there in turn; and where the visitor backs off to afterwards,
+/// by the far wall, every table in view, as fast as this, metres a second.
+const START: [f32; 2] = [0.0, 0.0];
+const OVERVIEW: [f32; 2] = [0.0, -12.4];
+const BACKING_OFF: f32 = 2.5;
+/// The piece built first, and the others in turn round the room from it.
+const FIRST: FabricName = FabricName::Swagger;
+/// Watching a piece build from the middle, how high over its deck to look.
+const WATCHING_HEIGHT: f32 = 1.3;
 /// The visitor's eyes above the floor, how fast they walk and turn, and
 /// how close they come to a wall or a table.
 const EYE: f32 = 1.7;
@@ -231,10 +245,18 @@ fn next_to_learn(index: usize, send: &Sender<usize>) -> Option<(usize, FabricPla
     None
 }
 
-/// Where a sign lies on a deck `radius` across its corners, at rest: its
-/// face's middle, x along it to the visitor's right, y down it toward
-/// them, z out of it, up and toward them.
-pub fn sign_on_deck(radius: f32) -> Mat4 {
+/// Where the sign of the piece at `station` lies on its deck, `radius`
+/// across its corners, at rest: toward the middle of the room, whichever
+/// way the piece is turned.
+pub fn sign_on_table(station: usize, radius: f32) -> Mat4 {
+    let inward = Quat::from_rotation_y(-STATIONS[station].facing.to_radians()) * -floor_at(station);
+    Mat4::from_rotation_y(inward.x.atan2(inward.z)) * sign_on_deck(radius)
+}
+
+/// Where a sign lies on a deck `radius` across its corners, at rest, on
+/// the side toward +z: its face's middle, x along it to the visitor's
+/// right, y down it toward them, z out of it, up and toward them.
+fn sign_on_deck(radius: f32) -> Mat4 {
     let tilt = SIGN_TILT.to_radians();
     let (right, down) = (Vec3::X, Vec3::new(0.0, -tilt.sin(), tilt.cos()));
     let out = Vec3::new(0.0, tilt.cos(), tilt.sin());
@@ -359,7 +381,7 @@ pub struct Walker {
     dragging: Option<(f32, f32)>,
     pressed: Option<(f32, f32)>,
     /// Where they are being taken, and what they look at on the way.
-    going: Option<(Vec3, Vec3)>,
+    going: Option<(Vec3, Vec3, f32)>,
     /// Whether they moved or looked by themselves since last asked.
     steered: bool,
 }
@@ -384,7 +406,12 @@ impl Walker {
 
     /// Taken to `to`, at eye height, looking at `sight` on the way.
     fn go(&mut self, to: Vec3, sight: Vec3) {
-        self.going = Some((Vec3::new(to.x, EYE, to.z), sight));
+        self.go_at(to, sight, WALK);
+    }
+
+    /// As `go`, `speed` metres a second.
+    fn go_at(&mut self, to: Vec3, sight: Vec3, speed: f32) {
+        self.going = Some((Vec3::new(to.x, EYE, to.z), sight, speed));
     }
 
     fn steer(&mut self) {
@@ -448,10 +475,10 @@ impl Walker {
         self.goal_look.x += (arrow(left) - arrow(right)) * TURN * seconds;
         let step = (arrow(forward) - arrow(back)) * WALK * seconds;
         let mut goal = self.goal + ahead(self.goal_look.x) * step;
-        if let Some((to, sight)) = self.going {
-            // Walked there at walking pace, turning to what they will see.
+        if let Some((to, sight, speed)) = self.going {
+            // Walked there at its pace, turning to what they will see.
             let toward = to - goal;
-            goal += toward.clamp_length_max(WALK * seconds);
+            goal += toward.clamp_length_max(speed * seconds);
             let seen = sight - goal;
             let heading = seen.x.atan2(seen.z);
             let turn = (heading - self.goal_look.x + PI).rem_euclid(TAU) - PI;
@@ -518,6 +545,14 @@ pub struct Gallery {
     sound: Option<sound::Sound>,
     /// On tour: the station visited, and how long they have stayed there.
     touring: Option<(usize, f32)>,
+    /// The stations whose pieces can be begun, the order they are built in,
+    /// one after another, and how many have been begun.
+    ready: [bool; PIECES],
+    order: [usize; PIECES],
+    begun: usize,
+    /// Shown each piece building from the middle, then backed off to see
+    /// them all, until they look round by themselves.
+    showing: bool,
     /// On the web, with no threads, the unseen Large builds are done a
     /// little each frame, one after another.
     #[cfg(target_arch = "wasm32")]
@@ -555,6 +590,14 @@ impl Gallery {
             #[cfg(target_arch = "wasm32")]
             sound: None,
             touring: None,
+            ready: [false; PIECES],
+            order: {
+                let ring = ring();
+                let first = ring.iter().position(|&station| STATIONS[station].name == FIRST).unwrap_or(0);
+                std::array::from_fn(|index| ring[(first + index) % PIECES])
+            },
+            begun: 0,
+            showing: true,
             #[cfg(target_arch = "wasm32")]
             learning: next_to_learn(0, &send),
             #[cfg(target_arch = "wasm32")]
@@ -589,6 +632,7 @@ impl Gallery {
         let at = self.walker.at;
         let nearest = (0..PIECES).min_by(|&a, &b| floor_at(a).distance(at).total_cmp(&floor_at(b).distance(at))).unwrap();
         self.walker.take_steered();
+        self.showing = false;
         self.visit(nearest);
         self.touring = Some((nearest, 0.0));
     }
@@ -610,6 +654,7 @@ impl Gallery {
             return;
         };
         self.touring = None;
+        self.showing = false;
         self.visit(station);
     }
 
@@ -618,6 +663,30 @@ impl Gallery {
     pub fn hear(&mut self) {
         if self.sound.is_none() {
             self.sound = sound::Sound::new();
+        }
+    }
+
+    /// The next piece begun once the one before stands, and shown; once
+    /// all stand, the visitor backs off to see them all.
+    fn begin_next(&mut self) {
+        if self.pieces.iter().any(|piece| piece.building.is_some()) {
+            return;
+        }
+        let Some(&station) = self.order.get(self.begun) else {
+            if std::mem::take(&mut self.showing) {
+                let [x, z] = OVERVIEW;
+                self.walker.go_at(Vec3::new(x, 0.0, z), Vec3::Y * (DECK_HEIGHT + VIEWING_HEIGHT), BACKING_OFF);
+            }
+            return;
+        };
+        if !self.ready[station] {
+            return;
+        }
+        self.pieces.push(Piece::begun(station));
+        self.begun += 1;
+        if self.showing {
+            let [x, z] = START;
+            self.walker.go(Vec3::new(x, 0.0, z), floor_at(station) + Vec3::Y * (DECK_HEIGHT + WATCHING_HEIGHT));
         }
     }
 
@@ -672,7 +741,7 @@ impl Gallery {
             .enumerate()
             .map(|(station, (place, deck))| {
                 let carried = Mat4::from_translation(deck.offset) * Mat4::from_rotation_y(deck.turn);
-                (place * carried * sign_on_deck(deck.radius) * lettering, STATIONS[station].name.to_string())
+                (place * carried * sign_on_table(station, deck.radius) * lettering, STATIONS[station].name.to_string())
             })
             .collect()
     }
@@ -717,13 +786,16 @@ impl Gallery {
         let until = instant::Instant::now() + BUILDING;
         #[cfg(target_arch = "wasm32")]
         self.learn_on(until);
-        let begun: Vec<usize> = self.known.try_iter().collect();
-        self.pieces.extend(begun.into_iter().map(Piece::begun));
+        for station in self.known.try_iter() {
+            self.ready[station] = true;
+        }
+        self.begin_next();
         self.build_on((iterations as f32 * BUILD_PACE) as usize, until);
         let tables = self.tables().map(|(place, deck)| (place.transform_point3(Vec3::ZERO), deck.radius));
         self.walker.walk(seconds, tables.into_iter());
         if self.walker.take_steered() {
             self.touring = None;
+            self.showing = false;
         }
         if let Some((station, stayed)) = &mut self.touring {
             if self.walker.going.is_none() {
@@ -812,19 +884,20 @@ fn medium_made(station: &Station, taller: f32, pretension: f32) -> (Fabric, Phys
 }
 
 fn medium_plan(station: &Station, taller: f32, pretension: f32) -> FabricPlan {
-    fabric_library::get_fabric_plan(station.name).at(&gallery(taller, pretension, station.seed))
+    fabric_library::get_fabric_plan(station.name).at(&gallery(taller, pretension, station.seed, station.seed_shift))
 }
 
 /// A gallery piece: hand-built as Medium is, but `taller` than Medium,
 /// keeping `pretension` of Medium's pretension, on the gallery's table,
-/// its seed `seed` above it.
-fn gallery(taller: f32, pretension: f32, seed: f32) -> Variant {
+/// its seed `seed` above it and moved across by `x`, `z`.
+fn gallery(taller: f32, pretension: f32, seed: f32, [x, z]: [f32; 2]) -> Variant {
     Variant {
         name: "Gallery",
         height: Some(MEDIUM_HEIGHT * taller),
         pretension: MEDIUM_PRETENSION * pretension,
         table: Table::Given(Meters(TABLE)),
         seed_altitude: Some(Meters(seed)),
+        seed_shift: Vec3::new(x, 0.0, z),
         ..Variant::MEDIUM
     }
 }
@@ -951,7 +1024,7 @@ mod tests {
         };
         let slack = |fabric: &Fabric| fabric.intervals.values().filter(|interval| interval.role.is_pull_like() && interval.strain <= 0.0).count();
         let unplaced = probe.filter(|probe| STATIONS.iter().all(|station| station.name != *probe));
-        let unplaced = unplaced.map(|name| Station { name, at: [0.0, 0.0], facing: 0.0, taller: 1.25, pretension: 1.0, seed: 1.5, sensors: ["", "", ""] });
+        let unplaced = unplaced.map(|name| Station { name, at: [0.0, 0.0], facing: 0.0, taller: 1.25, pretension: 1.0, seed: 1.5, seed_shift: [0.0, 0.0], sensors: ["", "", ""] });
         let stations = STATIONS.iter().filter(|station| probe.is_none_or(|probe| probe == station.name)).chain(&unplaced);
         for station in stations {
             for &pretension in &pretensions {

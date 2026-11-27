@@ -16,11 +16,26 @@ use glam::{Quat, Vec2, Vec3};
 use std::collections::HashMap;
 use std::f32::consts::PI;
 use std::sync::{Mutex, OnceLock};
-use crate::fabric::FabricDimensions;
+use crate::fabric::{Fabric, FabricDimensions};
 
 use crate::units::{Hertz, Percent, Seconds};
 
 static BUILT: OnceLock<Mutex<HashMap<FabricName, Built>>> = OnceLock::new();
+
+/// Each plan's `Built`, stored so that no plan need be built unseen before
+/// it is made smaller: a line each, its name, then its height, reach and
+/// table as the bits of their floats, exactly. Written by the ignored
+/// `store_builds`; `stored_builds_are_current` says when it is stale.
+const BUILDS: &str = include_str!("builds.txt");
+
+fn stored(name: FabricName) -> Option<Built> {
+    BUILDS.lines().find_map(|line| {
+        let (named, bits) = line.split_once('|')?;
+        (named.trim() == name.to_string()).then_some(())?;
+        let bits: Vec<f32> = bits.split_whitespace().take(3).map(|word| u32::from_str_radix(word, 16).ok().map(f32::from_bits)).collect::<Option<_>>()?;
+        Some(Built { height: bits[0], reach: bits[1], table: bits[2] })
+    })
+}
 
 /// A plan's fabric as built Large, up to its pretensing: how tall, how far
 /// it reaches from its middle, and how far across the corners a wobble
@@ -129,6 +144,7 @@ impl FabricPlan {
             self.dimensions.altitude = altitude;
             self.build_phase.seed_altitude = altitude.f32() / self.dimensions.scale.f32();
         }
+        self.build_phase.seed_shift = variant.seed_shift;
         self.dimensions.variant = *variant;
         self
     }
@@ -146,8 +162,25 @@ impl FabricPlan {
         self.known().unwrap()
     }
 
+    /// Known already, or stored (`BUILDS`), so most plans needn't be
+    /// built unseen at all.
     fn known(&self) -> Option<Built> {
-        BUILT.get_or_init(Default::default).lock().unwrap().get(&self.name).copied()
+        let mut built = BUILT.get_or_init(Default::default).lock().unwrap();
+        if let Some(found) = built.get(&self.name) {
+            return Some(*found);
+        }
+        let stored = stored(self.name)?;
+        built.insert(self.name, stored);
+        Some(stored)
+    }
+
+    /// Built unseen now, whatever is known or stored.
+    fn measured(&self) -> Built {
+        let mut executor = self.unseen();
+        while matches!(executor.stage(), ExecutorStage::Building) {
+            let _ = executor.iterate();
+        }
+        self.measure(&mut executor.fabric)
     }
 
     /// Whether it is already known how this plan builds Large; if not,
@@ -165,7 +198,12 @@ impl FabricPlan {
         if matches!(executor.stage(), ExecutorStage::Building) {
             return false;
         }
-        let fabric = &mut executor.fabric;
+        let found = self.measure(&mut executor.fabric);
+        BUILT.get_or_init(Default::default).lock().unwrap().insert(self.name, found);
+        true
+    }
+
+    fn measure(&self, fabric: &mut Fabric) -> Built {
         fabric.update_bounding_radius();
         let middle = fabric.joints.values().fold(Vec3::ZERO, |sum, joint| sum + joint.location) / fabric.joints.len() as f32;
         let spread = fabric.joints.values().fold(Vec2::ZERO, |most, joint| {
@@ -186,13 +224,11 @@ impl FabricPlan {
             let (outward, along) = guy.ground_offset;
             most.max((spread.x + outward.f32().abs()).hypot(along.f32().abs()))
         });
-        let found = Built {
+        Built {
             height: fabric.height().f32(),
             reach: fabric.bounding_radius(),
             table: ROOM * feet.max(anchors / (PI / 6.0).cos()),
-        };
-        BUILT.get_or_init(Default::default).lock().unwrap().insert(self.name, found);
-        true
+        }
     }
 
     pub fn animate(self) -> AnimateBuilder {
@@ -243,3 +279,41 @@ impl AnimateBuilder {
     }
 }
 
+
+#[cfg(test)]
+mod builds {
+    use super::*;
+    use crate::build::dsl::fabric_library;
+    use strum::IntoEnumIterator;
+
+    fn line(name: FabricName, built: Built) -> String {
+        let Built { height, reach, table } = built;
+        format!(
+            "{name} | {:08x} {:08x} {:08x}  height {height:.3} m, reach {reach:.3} m, table {table:.3} m",
+            height.to_bits(),
+            reach.to_bits(),
+            table.to_bits()
+        )
+    }
+
+    /// Every plan's stored `Built` is what building it unseen gives now.
+    #[test]
+    fn stored_builds_are_current() {
+        for name in FabricName::iter() {
+            let measured = fabric_library::get_fabric_plan(name).measured();
+            assert_eq!(
+                stored(name).map(|stored| line(name, stored)),
+                Some(line(name, measured)),
+                "{name}'s stored build is stale: run store_builds"
+            );
+        }
+    }
+
+    /// Store every plan's `Built` in `builds.txt`.
+    #[test]
+    #[ignore]
+    fn store_builds() {
+        let lines: Vec<String> = FabricName::iter().map(|name| line(name, fabric_library::get_fabric_plan(name).measured())).collect();
+        std::fs::write("src/build/dsl/builds.txt", lines.join("\n") + "\n").unwrap();
+    }
+}

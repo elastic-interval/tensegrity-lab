@@ -1,0 +1,8 @@
+Headless Hug | 41171b16 40d703eb 410cb82c  height 9.444 m, reach 6.719 m, table 8.795 m
+Kay Ten | 407725cb 4080a664 408016ad  height 3.862 m, reach 4.020 m, table 4.003 m
+Open Claw | 40f64eeb 40aca09d 409045ad  height 7.697 m, reach 5.395 m, table 4.509 m
+Halo by Crane | 413f4907 41104088 408840fa  height 11.955 m, reach 9.016 m, table 4.258 m
+Twisted Infinity | 40660ff2 40c3a481 40962b83  height 3.595 m, reach 6.114 m, table 4.693 m
+Propeller | 405fae3a 413042af 40c85086  height 3.495 m, reach 11.016 m, table 6.260 m
+Diamond | 415ddb09 41882f9e 413c322c  height 13.866 m, reach 17.023 m, table 11.762 m
+Swagger | 4197df65 4129f585 400cdaaa  height 18.984 m, reach 10.622 m, table 2.201 m

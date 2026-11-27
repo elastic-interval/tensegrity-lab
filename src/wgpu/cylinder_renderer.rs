@@ -1,5 +1,5 @@
 use crate::camera::Pick;
-use crate::fabric::interval::{Role, Span};
+use crate::fabric::interval::Role;
 use crate::fabric::material::Material;
 use crate::fabric::{Fabric, FabricDimensions, IntervalEnd, IntervalKey};
 use glam::{Mat4, Vec3};
@@ -207,14 +207,7 @@ impl CylinderRenderer {
                 .connector
                 .as_ref()
                 .is_some_and(|connector| connector.short_cables.contains(&interval_key));
-            // Override color for intervals that are approaching (being lengthened)
-            let color = if too_short {
-                SHORT_CABLE_COLOR
-            } else if matches!(interval.span, Span::Approaching { .. }) {
-                [1.0, 0.0, 0.0, 1.0] // Red for approaching intervals
-            } else {
-                appearance.color
-            };
+            let color = if too_short { SHORT_CABLE_COLOR } else { appearance.color };
 
             let phys_radius = physical_radius(interval.role, &fabric.dimensions);
             let multiplier = appearance.radius / interval.role.radius();

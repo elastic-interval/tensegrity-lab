@@ -537,9 +537,10 @@ impl FabricPlanExecutor {
             to: "FALL".to_string(),
         });
 
-        // Over the middle of the ground: a fabric grows from its seed and is
-        // turned about the origin, so it can end up far to one side.
-        let translation = self.fabric.centralize_translation(None);
+        // Over the middle of the ground, or as far across as its seed was
+        // moved: a fabric grows from its seed and is turned about the
+        // origin, so it can end up far to one side.
+        let translation = self.fabric.centralize_translation(None) + self.plan.build_phase.seed_shift;
         self.fabric.apply_translation(translation);
         self.fabric.update_bounding_radius();
         self.fabric.hang_bridles();

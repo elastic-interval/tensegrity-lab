@@ -12,7 +12,7 @@ use crate::fabric::joint::JointLabel;
 use crate::fabric::joint_path::{JointPath, COLUMN_MARKER, PRISM_MARKER};
 use crate::fabric::{Fabric, FaceKey, JointKey};
 use crate::units::{Percent, Unit};
-use glam::Vec3;
+use glam::{Mat4, Vec3};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::convert::Into;
 
@@ -105,6 +105,8 @@ pub struct BuildPhase {
     pub buds: Vec<Bud>,
     pub labels: Vec<FaceLabelBinding>,
     pub seed_altitude: f32,
+    /// The seed moved this far across, metres, once laid.
+    pub seed_shift: Vec3,
 }
 
 impl BuildPhase {
@@ -114,6 +116,7 @@ impl BuildPhase {
             buds: Vec::new(),
             labels: Vec::new(),
             seed_altitude,
+            seed_shift: Vec3::ZERO,
         }
     }
 }
@@ -133,6 +136,9 @@ impl BuildPhase {
         );
         self.buds = buds;
         self.labels = labels;
+        if self.seed_shift != Vec3::ZERO {
+            fabric.apply_matrix4(Mat4::from_translation(self.seed_shift));
+        }
     }
 
     pub fn is_building(&self) -> bool {
