@@ -346,7 +346,6 @@ mod tests {
 mod medium {
     use crate::build::dsl::fabric_library::{self, FabricName};
     use crate::build::dsl::fabric_plan_executor::{FabricPlanExecutor, IterateResult};
-    use crate::fabric::dimensions::Size;
     use strum::IntoEnumIterator;
 
     /// Every named fabric builds at Medium too: its plan applies cleanly,
@@ -354,7 +353,7 @@ mod medium {
     #[test]
     fn test_all_fabrics_build_medium() {
         for name in FabricName::iter() {
-            let plan = fabric_library::get_fabric_plan(name).at_size(Size::Medium);
+            let plan = fabric_library::get_fabric_plan(name).at(&crate::fabric::variant::Variant::MEDIUM);
             let mut executor = FabricPlanExecutor::new(plan);
             let completed = (0..5_000_000).any(|_| matches!(executor.iterate(), IterateResult::Complete));
             assert!(completed, "{name}: Medium did not reach Complete (stuck at {:?})", executor.stage());

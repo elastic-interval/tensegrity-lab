@@ -8,7 +8,6 @@ use crate::fabric::physics::presets::{CONSTRUCTION, PRETENSING};
 use crate::fabric::physics::Physics;
 use crate::fabric::interval::Role;
 use crate::fabric::physics::SurfaceCharacter;
-use crate::fabric::dimensions::Size;
 use crate::fabric::quake::Quake;
 use crate::fabric::{Fabric, JointKey};
 use crate::units::{Meters, Seconds, Unit};
@@ -426,10 +425,9 @@ impl FabricPlanExecutor {
             self.fabric.remove_face(face_key);
         }
 
-        // A Medium piece is made in its own materials from here on.
-        if self.fabric.dimensions.size == Size::Medium {
-            self.fabric.dimensions = self.fabric.dimensions.clone().medium();
-            self.fabric.connector = None;
+        // A variant made of its own materials is, from here on.
+        if let Some(hardware) = self.fabric.dimensions.variant.materials {
+            self.fabric.dimensions = self.fabric.dimensions.clone().made_of(hardware);
         }
 
         // Twins get their short names before any plan step names one.

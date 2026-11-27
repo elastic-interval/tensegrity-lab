@@ -10,6 +10,7 @@ use winit::window::WindowAttributes;
 use tensegrity_lab::application::Application;
 use tensegrity_lab::build::dsl::fabric_library::FabricName;
 use tensegrity_lab::fabric::dimensions::Size;
+use tensegrity_lab::fabric::variant::Variant;
 use tensegrity_lab::units::Seconds;
 use tensegrity_lab::{LabEvent, RunStyle};
 
@@ -135,20 +136,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let (size, model_scale) = match (args.size, args.model_scale) {
-        (_, Some(scale)) => (Size::Small, Some(scale)),
-        (Size::Small, None) => (Size::Small, Some(10.0)),
-        (size, None) => (size, None),
+    let variant = match args.model_scale {
+        Some(scale) => Size::Small.variant(scale),
+        None => args.size.variant(10.0),
     };
 
-    run_with(run_style, args.time_scale, size, model_scale, cycle_names, args.white)
+    run_with(run_style, args.time_scale, variant, cycle_names, args.white)
 }
 
 fn run_with(
     run_style: RunStyle,
     time_scale: f32,
-    size: Size,
-    model_scale: Option<f32>,
+    variant: Variant,
     cycle: Option<Vec<FabricName>>,
     white: bool,
 ) -> Result<(), Box<dyn Error>> {
@@ -161,7 +160,7 @@ fn run_with(
     #[cfg(target_arch = "wasm32")]
     let window_attributes = create_window_attributes();
     let mut application =
-        Application::new(window_attributes, radio.clone(), time_scale, size, model_scale);
+        Application::new(window_attributes, radio.clone(), time_scale, variant);
     if let Some(names) = cycle {
         application.set_cycle(names);
     }
@@ -176,7 +175,7 @@ fn run_with(
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(start))]
 pub fn run() {
     // The web opens on the gallery.
-    run_with(RunStyle::Gallery, 1.0, Size::Medium, None, None, false).unwrap();
+    run_with(RunStyle::Gallery, 1.0, Variant::MEDIUM, None, false).unwrap();
 }
 
 #[cfg(not(target_arch = "wasm32"))]

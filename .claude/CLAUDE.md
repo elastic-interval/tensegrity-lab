@@ -101,30 +101,45 @@ parts sets `with_hardware(Hardware::OPEN_CLAW)` instead: telescoping tube mass
 per metre of strut, hardware at each strut and cable end, and point masses for
 node plates and hinges, with no flat joint mass (Headless Hug).
 
-### Sizes: Large, Medium, Small
+### Variants: Large, Medium, Small, Gallery
 
-`Size` (`src/fabric/dimensions.rs`, `--size`) says how big a fabric is made,
-from one plan for all three (`FabricPlan::at_size`):
-the plan is first built Large unseen up to its pretensing, once for each
-fabric, so it is known how far the fabric will reach (`FabricDimensions::reach`)
-and the camera keeps that far back from the start of the build, with
-nothing to make up when it is done.
-- **Large** — the plan as designed, with its connectors.
-- **Medium** — about 1.5 m tall (`MEDIUM_HEIGHT`), built as the 2021 Headless
-  Hug was: 8×1 mm aluminium tube, an M6 bolt set per strut end, 1.5 mm
-  Dyneema, hinges made by hand, no connectors, bridles or node plates
-  (`Hardware::MEDIUM`). It is built small from the start: how much smaller,
-  and how big its table, come from building it Large unseen up to its
-  pretensing, once for each fabric (`FabricPlan::at_size`). From pretensing
-  on it is simulated in its own materials; it falls for less time, as
-  things do the smaller they are, and is pretensioned less than its plan
-  says (`MEDIUM_PRETENSION`), as a piece tied by hand is. The struts are a
-  third as stiff as real: the 50 µs tick can't follow short light ones at
+A plan is the Large fabric, as designed. Every other way of making it is a
+`Variant` (`src/fabric/variant.rs`) that says everything it changes: how tall
+it is made, how much of the plan's pretension it keeps, its materials from
+pretensing on, whether it keeps the plan's connectors and node plates
+(bridles), its wobble table, its model scale and whether it builds in
+fast-forward. `FabricPlan::at(&variant)` makes the plan so, and the
+executor, button bar and application read the variant
+(`FabricDimensions::variant`), never a size. `--size` (`Size`) names the
+three the command line offers. The plan is first built Large unseen up to
+its pretensing, once for each fabric (`unseen`, `learn`, or all at once), so
+it is known how far the fabric will reach (`FabricDimensions::reach`) and
+the camera keeps that far back from the start of the build, with nothing to
+make up when it is done.
+- **Large** (`Variant::LARGE`) — the plan as designed, with its connectors.
+  Only a fabric as designed animates, takes the wind, is taken apart and
+  shows its parts.
+- **Medium** (`Variant::MEDIUM`) — about 1.5 m tall (`MEDIUM_HEIGHT`), built
+  as the 2021 Headless Hug was: 8×1 mm aluminium tube, an M6 bolt set per
+  strut end, 1.5 mm Dyneema, hinges made by hand, no connectors, bridles or
+  node plates (`Hardware::MEDIUM`). It is built small from the start: how
+  much smaller, and how big its table, come from the unseen Large build.
+  From pretensing on it is simulated in its own materials; it falls for less
+  time, as things do the smaller they are, and is pretensioned less than its
+  plan says (`MEDIUM_PRETENSION`), as a piece tied by hand is. The struts are
+  a third as stiff as real: the 50 µs tick can't follow short light ones at
   full stiffness. It is built over its wobble table (`Fabric::quake`) and
   mounted on it once landed. Small and Medium start building in
   fast-forward.
-- **Small** — a model to build from: the Large fabric, its lengths shown at
-  `--model-scale` (1:10 by default), with caliper readings.
+- **Small** (`Variant::small`) — a model to build from: the Large fabric,
+  its lengths shown at `--model-scale` (1:10 by default), with caliper
+  readings.
+- **Gallery** (`gallery` in `src/gallery.rs`) — Medium, but each piece its
+  own height and share of the pretension, every table alike (`TABLE`).
+
+The ignored `fingerprint` test (`src/gallery.rs`, `FINGERPRINT=<file>`) writes
+every plan's settled shape at Large and Medium and each gallery piece's, to
+check that a change meant to leave them alone does.
 
 ### Connector (optional plugin) — `src/connector/`
 
@@ -488,12 +503,11 @@ cargo run --release -- --fabric "Halo by Crane"
 # Medium, on the wobble table (Quake starts its motor):
 cargo run --release -- --fabric "Headless Hug" --size medium
 
-# The gallery: Open Claw, Headless Hug and Kay Ten at Medium, with Halo by Crane and Swagger
-# behind where the walk starts, the five tables alike, 1.4 m to the corners (Kay Ten made smaller to fit), at the corners of a pentagon, each facing its middle, a cable run on the floor joining them and off to the wall; a Tour button walks from piece to piece, a click on a piece walks there (Swagger a ten-twist column, not vulcanized, its foot frozen to the
+# The gallery: Open Claw, Headless Hug and Kay Ten at Medium, with Halo by Crane and Swagger, each built in view on its table, lit from the start, all together in fast-forward, in mid-air (each seed placed so its build is as far from the deck as from the ceiling) and watched from the far wall where the walk starts, the five tables alike, 1.4 m to the corners (Kay Ten made smaller to fit), at the corners of a pentagon, each facing its middle, a cable run on the floor joining them and off to the wall; a Tour button walks from piece to piece, a click on a piece walks there (Swagger a ten-twist column, not vulcanized, its foot frozen to the
 # deck, loose enough to arch over until its top twist lies flat), a quarter taller, each on its
 # table playing its cues in turn, evolved at its size (`cues/gallery/`, by the ignored
 # `evolve_gallery_cues`; to swing about 60 mm, slowly; Open Claw keeps a fiftieth of its pretension, Headless Hug and Kay Ten a quarter, to sway, Halo by Crane all of it; `measure_gallery_motion` tells how each moves),
-# in a dark room 18 × 22 m walked through smoothly, as on a gimbal (two-finger swipe walks and turns, pinch rises and sinks, drag looks, or the arrows), tables skirted in
+# in a dark room 18 × 26 m walked through smoothly, as on a gimbal (two-finger swipe walks and turns, pinch rises and sinks, drag looks, or the arrows), tables skirted in
 # velvet, a spot in each deck throwing the piece's shadow up on the
 # ceiling (shadow maps, `wgpu/shadow_renderer.rs`), each playing a groove from
 # movement sensors on its joints, heard near it (`gallery/sound.rs`); Esc quits:

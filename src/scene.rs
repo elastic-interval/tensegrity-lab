@@ -423,13 +423,11 @@ impl Scene {
         for (from, to) in gallery::cable_run() {
             vertices.extend(DeckVertex::cable_cover(from, to, -DECK_HEIGHT));
         }
-        for piece in &gallery.pieces {
-            if let Some(deck) = piece.fabric.deck() {
-                let mut table = DeckVertex::for_radius(deck.radius, DECK_HEIGHT);
-                table.extend(DeckVertex::skirt(deck.radius, DECK_HEIGHT));
-                table.extend(DeckVertex::lamp());
-                vertices.extend(DeckVertex::placed(&table, deck, piece.place));
-            }
+        for (place, deck) in gallery.tables() {
+            let mut table = DeckVertex::for_radius(deck.radius, DECK_HEIGHT);
+            table.extend(DeckVertex::skirt(deck.radius, DECK_HEIGHT));
+            table.extend(DeckVertex::lamp());
+            vertices.extend(DeckVertex::placed(&table, deck, place));
         }
         self.surface_renderer.set_gallery(&self.wgpu.device, &vertices);
         let label = if gallery.touring() { "Stop the tour" } else { "Take the tour" };

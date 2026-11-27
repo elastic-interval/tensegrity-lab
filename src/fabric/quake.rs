@@ -1129,13 +1129,12 @@ mod tests {
     use super::*;
     use crate::build::dsl::fabric_library::{self, FabricName};
     use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
-    use crate::fabric::dimensions::Size;
     use crate::fabric::physics::presets::VIEWING;
     use crate::fabric::physics::Physics;
     use crate::fabric::cue::{FORE, SIDE};
 
     fn medium(name: FabricName) -> (Fabric, Physics) {
-        let mut executor = FabricPlanExecutor::new(fabric_library::get_fabric_plan(name).at_size(Size::Medium));
+        let mut executor = FabricPlanExecutor::new(fabric_library::get_fabric_plan(name).at(&crate::fabric::variant::Variant::MEDIUM));
         while !executor.is_complete() {
             let _ = executor.iterate();
         }

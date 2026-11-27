@@ -296,7 +296,7 @@ impl Crucible {
             let rigidity_multiplier = self.physics.rigidity_multiplier();
 
             let name = fabric_plan.name.clone();
-            let fabric_plan_size = fabric_plan.dimensions.size;
+            let variant = fabric_plan.dimensions.variant;
             let mut executor = FabricPlanExecutor::new(fabric_plan.clone());
 
             // Store the fabric_plan for later use (animate, settle, etc.)
@@ -319,7 +319,7 @@ impl Crucible {
             self.stage = RunningPlan(executor);
 
             // Set fabric name immediately so title appears right away
-            SetFabricName(fabric_plan_size.title(&name.to_string())).send(&self.radio);
+            SetFabricName(variant.title(&name.to_string())).send(&self.radio);
             SetStageLabel("Building".to_string()).send(&self.radio);
             SetFabricStats(None).send(&self.radio);
             crate::ControlState::Building.send(&self.radio);

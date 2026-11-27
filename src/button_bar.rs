@@ -2,7 +2,7 @@ use crate::wgpu::button::Button;
 use crate::ControlState::*;
 use crate::CrucibleAction::*;
 use crate::LabEvent::*;
-use crate::fabric::dimensions::Size;
+use crate::fabric::variant::Variant;
 use crate::units::Meters;
 use crate::build::dsl::fabric_library::FabricName;
 use crate::{ControlState, LabEvent, RunStyle, StateChange, TesterAction, TweakFeature};
@@ -33,16 +33,15 @@ pub struct ButtonBar {
 }
 
 impl ButtonBar {
-    /// A Large fabric has everything but the quake, which is the wobble
-    /// table under a Medium piece. Only a Large one animates. A Medium
-    /// piece has no connectors, so no parts, and no wind or assembly. A
-    /// Small one, a model at `--model-scale`, is for building from: none of
-    /// these.
-    pub fn new(size: Size) -> Self {
+    /// A fabric as designed has everything but the quake, which is the
+    /// wobble table under a piece on one. Only one as designed animates,
+    /// takes the wind, is taken apart or shows its parts; a model, at
+    /// `--model-scale`, is for building from: none of these.
+    pub fn new(variant: &Variant) -> Self {
         let mut bar = ButtonBar { entries: Vec::new() };
         bar.once("Back to joint", |s| matches!(s, ShowingInterval(_)), UpdateState(StateChange::BackToJoint));
         bar.once("Deselect", |s| matches!(s, ShowingJoint(_)), Crucible(ClearSelection));
-        if size == Size::Large {
+        if variant.as_designed() {
             bar.once(
                 "Start animation",
                 |s| matches!(s, Viewing { animation_available: true, .. }),
@@ -51,10 +50,10 @@ impl ButtonBar {
             bar.entries.last_mut().unwrap().quaking = Some(false);
             bar.once("Stop animation", |s| matches!(s, Animating { .. }), Crucible(ToViewing));
         }
-        if size == Size::Large {
+        if variant.as_designed() {
             bar.once("Wind", |s| matches!(s, Viewing { .. } | Animating { .. }), Crucible(CycleWind));
         }
-        if size == Size::Medium {
+        if variant.on_table() {
             let table = |s: &ControlState| matches!(s, Viewing { .. });
             bar.once("Quake", table, Crucible(Quake));
             bar.entries.last_mut().unwrap().quaking = Some(false);
@@ -63,7 +62,7 @@ impl ButtonBar {
             bar.once("Demo", table, Crucible(QuakeDemo));
             bar.entries.last_mut().unwrap().quaking = Some(true);
         }
-        if size == Size::Large {
+        if variant.as_designed() {
             bar.once("Take apart", |s| matches!(s, Viewing { assembly_available: true, .. }), Crucible(Assemble));
         }
         bar.once(
@@ -79,7 +78,7 @@ impl ButtonBar {
         );
         bar.once("Color by role", |s| matches!(s, PhysicsTesting), UpdateState(StateChange::ToggleColorByRole));
         bar.once("Jump", |s| matches!(s, PhysicsTesting), Crucible(CentralizeFabric(Some(Meters(1.0)))));
-        if size == Size::Large {
+        if variant.as_designed() {
             bar.once(
                 "Parts",
                 |s| matches!(s, Viewing { .. } | Animating { .. } | ShowingJoint(_) | ShowingInterval(_)),
@@ -87,7 +86,7 @@ impl ButtonBar {
             );
         }
         bar.once("Next brick", |s| matches!(s, Baking), NextBrick);
-        if size == Size::Large {
+        if variant.as_designed() {
             bar.once(
                 "Fast-forward",
                 |s| matches!(s, Building | Assembling { fast: false } | Animating { fast: false }),

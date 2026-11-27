@@ -9,7 +9,7 @@ use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::settle_phase::{GuyLine, SettlePhase};
 use crate::build::dsl::shape_phase::ShapePhase;
 use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
-use crate::fabric::dimensions::{Size, MEDIUM_HEIGHT, MEDIUM_PRETENSION};
+use crate::fabric::variant::{Table, Variant};
 use crate::fabric::quake::{smallest_hexagon, ROOM, SMALLEST};
 use crate::units::{Meters, Unit};
 use glam::{Quat, Vec2, Vec3};
@@ -76,28 +76,23 @@ impl FabricPlan {
         self
     }
 
-    /// This plan made at `size`, knowing how far it reaches once built, for
-    /// the camera to keep back from the start. Medium is built small enough to stand about
-    /// `MEDIUM_HEIGHT` tall, its lengths in metres shrunk with it, and made
-    /// in its own materials from pretensing on (`FabricDimensions::medium`);
-    /// it has no node plates, so no bridles, and its hinges are made by
-    /// hand. Small is shown from the Large fabric.
-    pub fn at_size(self, size: Size) -> Self {
-        self.at(size, MEDIUM_HEIGHT)
-    }
-
-    /// This plan made Medium, but `height` tall rather than `MEDIUM_HEIGHT`.
-    pub fn at_medium_height(self, height: Meters) -> Self {
-        self.at(Size::Medium, height)
-    }
-
-    fn at(mut self, size: Size, medium_height: Meters) -> Self {
+    /// This plan made as `variant` says, knowing how far it reaches once
+    /// built, for the camera to keep back from the start. One made smaller
+    /// is built smaller from the start, its lengths in metres shrunk with
+    /// it, and made of its own materials from pretensing on (the executor
+    /// sees to that).
+    pub fn at(mut self, variant: &Variant) -> Self {
         let Built { height, reach, table } = self.built();
         self.dimensions.reach = Some(Meters(reach));
-        if size == Size::Medium {
-            let shrink = medium_height.f32() / height;
+        if let Some(made_height) = variant.height {
+            let shrink = made_height.f32() / height;
             self.dimensions.reach = Some(Meters(reach * shrink));
-            self.dimensions = self.dimensions.drawn_medium();
+            if !variant.connectors {
+                self.dimensions = self.dimensions.without_connectors();
+            }
+            if variant.materials.is_some() {
+                self.dimensions = self.dimensions.drawn_hand_built();
+            }
             self.dimensions.scale = self.dimensions.scale * shrink;
             let table = match self.dimensions.table_scales {
                 Some(scales) => self.dimensions.scale.f32() * scales,
@@ -115,10 +110,26 @@ impl FabricPlan {
                     guy_line.ground_offset = (outward * shrink, along * shrink);
                 }
             }
-            self.pretense_phase.bridles.clear();
-            self.pretense_phase.pretenst = Percent(self.pretense_phase.pretenst.0 * MEDIUM_PRETENSION);
         }
-        self.dimensions.size = size;
+        if !variant.connectors {
+            self.pretense_phase.bridles.clear();
+        }
+        if variant.pretension != 1.0 {
+            self.pretense_phase.pretenst = Percent(self.pretense_phase.pretenst.0 * variant.pretension);
+        }
+        match variant.table {
+            Table::None => self.dimensions.table = None,
+            Table::Planned => {}
+            Table::Given(radius) => {
+                self.dimensions.table = Some(radius);
+                self.dimensions.table_scales = Some(radius.f32() / self.dimensions.scale.f32());
+            }
+        }
+        if let Some(altitude) = variant.seed_altitude {
+            self.dimensions.altitude = altitude;
+            self.build_phase.seed_altitude = altitude.f32() / self.dimensions.scale.f32();
+        }
+        self.dimensions.variant = *variant;
         self
     }
 

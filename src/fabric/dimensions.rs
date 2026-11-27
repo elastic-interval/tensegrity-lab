@@ -5,6 +5,7 @@ use crate::connector::ConnectorDimensions;
 use crate::fabric::physics::Physics;
 use crate::fabric::interval::Role;
 use crate::fabric::material::Material;
+use crate::fabric::variant::Variant;
 use crate::units::{Degrees, Grams, GramsPerMeter, Meters, Newtons, Unit};
 
 /// Masses counted from a fabric's real parts, in place of a flat mass per
@@ -90,10 +91,8 @@ impl Hardware {
     };
 }
 
-/// How big a fabric is made. Large is the plan as designed; Medium is the
-/// same plan made about `MEDIUM_HEIGHT` tall from `Hardware::MEDIUM`,
-/// simulated at that size and standing on the wobble table; Small is the
-/// Large fabric with its lengths shown at a model's scale.
+/// The sizes `--size` chooses, each a `Variant`: Large the plan as
+/// designed, Medium hand-built and on the wobble table, Small a model.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, strum::Display, strum::EnumString)]
 #[strum(ascii_case_insensitive)]
 pub enum Size {
@@ -104,9 +103,13 @@ pub enum Size {
 }
 
 impl Size {
-    /// A fabric's title, saying how big it is made.
-    pub fn title(self, name: &str) -> String {
-        format!("{name} · {self}")
+    /// This size's variant, Small at `model_scale` (10 for 1:10).
+    pub fn variant(self, model_scale: f32) -> Variant {
+        match self {
+            Size::Large => Variant::LARGE,
+            Size::Medium => Variant::MEDIUM,
+            Size::Small => Variant::small(model_scale),
+        }
     }
 }
 
@@ -148,7 +151,8 @@ pub struct FabricDimensions {
     /// Open the fabric with its connector hardware showing, as if C were
     /// pressed: for the fabrics that are, or are meant to be, built for real.
     pub connectors_shown: bool,
-    pub size: Size,
+    /// What it is made for, and so how it is made unlike its plan.
+    pub variant: Variant,
     /// A Medium piece's wobble table, this far across its corners.
     pub table: Option<Meters>,
     /// The wobble table chosen for the plan, across its corners, in its
@@ -183,7 +187,7 @@ impl Default for FabricDimensions {
             pull_end_mass: Grams(160.0),
             hardware: None,
             connectors_shown: false,
-            size: Size::Large,
+            variant: Variant::LARGE,
             table: None,
             table_scales: None,
             reach: None,
@@ -252,24 +256,25 @@ impl FabricDimensions {
         self
     }
 
-    /// Made Medium: from `Hardware::MEDIUM`, with no connector hardware, its
-    /// struts and cords drawn their own thickness. A Medium plan is built
-    /// small (`FabricPlan::at_size`) and turned Medium just before
-    /// pretensing.
-    pub fn medium(self) -> Self {
-        let mut medium = self.drawn_medium();
-        medium.size = Size::Medium;
-        medium.strut_mass = None;
-        medium.with_hardware(Hardware::MEDIUM)
+    /// Made from `hardware`, as a variant built small (`FabricPlan::at`)
+    /// is from pretensing on.
+    pub fn made_of(mut self, hardware: Hardware) -> Self {
+        self.strut_mass = None;
+        self.with_hardware(hardware)
     }
 
-    /// Drawn as a Medium piece, from the start of its build: struts and
-    /// cords their own thickness, and no connector hardware.
-    pub fn drawn_medium(mut self) -> Self {
-        self.connector = None;
-        self.connectors_shown = false;
+    /// Drawn as a hand-built piece, from the start of its build: struts and
+    /// cords their own thickness.
+    pub fn drawn_hand_built(mut self) -> Self {
         self.push_radius = Meters(0.004);
         self.pull_radius = Meters(0.00075);
+        self
+    }
+
+    /// Without connector hardware.
+    pub fn without_connectors(mut self) -> Self {
+        self.connector = None;
+        self.connectors_shown = false;
         self
     }
 

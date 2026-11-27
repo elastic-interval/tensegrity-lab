@@ -11,14 +11,15 @@ use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
 use crate::camera::OPENGL_TO_WGPU_MATRIX;
 use crate::fabric::cue::{Cue, SIDE};
-use crate::fabric::dimensions::MEDIUM_HEIGHT;
+use crate::fabric::dimensions::{MEDIUM_HEIGHT, MEDIUM_PRETENSION};
+use crate::fabric::variant::{Table, Variant};
 use crate::fabric::physics::presets::VIEWING;
 use crate::fabric::physics::Physics;
-use crate::fabric::quake::{self, DECK_HEIGHT};
+use crate::fabric::quake::{self, Deck, DECK_HEIGHT};
 use crate::fabric::Fabric;
 use crate::units::Unit;
 use crate::Age;
-use crate::units::{Meters, Percent};
+use crate::units::Meters;
 use glam::{Mat4, Quat, Vec3, Vec4};
 use std::f32::consts::{PI, TAU};
 use std::sync::mpsc::{channel, Receiver};
@@ -41,6 +42,9 @@ struct Station {
     facing: f32,
     taller: f32,
     pretension: f32,
+    /// How high its seed is placed above the deck, metres, for it to build
+    /// in mid-air, as far from the deck as from the ceiling.
+    seed: f32,
     sensors: [&'static str; 3],
 }
 
@@ -59,6 +63,7 @@ const STATIONS: [Station; PIECES] = [
         facing: 252.0,
         taller: 1.25,
         pretension: 0.02,
+        seed: 1.58,
         sensors: ["C19", "A14", "B11"],
     },
     Station {
@@ -67,6 +72,7 @@ const STATIONS: [Station; PIECES] = [
         facing: 180.0,
         taller: 1.25,
         pretension: 0.25,
+        seed: 1.85,
         sensors: ["R62", "L62", "R47"],
     },
     Station {
@@ -75,6 +81,7 @@ const STATIONS: [Station; PIECES] = [
         facing: 108.0,
         taller: 0.95,
         pretension: 0.25,
+        seed: 1.99,
         sensors: ["L2", "R2", "R43"],
     },
     Station {
@@ -83,6 +90,7 @@ const STATIONS: [Station; PIECES] = [
         facing: 36.0,
         taller: 1.25,
         pretension: 1.0,
+        seed: 0.81,
         sensors: ["A12.2", "A08.4", "A07.6"],
     },
     Station {
@@ -91,15 +99,17 @@ const STATIONS: [Station; PIECES] = [
         facing: 324.0,
         taller: 1.3,
         pretension: 0.25,
+        seed: 0.65,
         sensors: ["A09.6", "A05.5", "A05.6"],
     },
 ];
 /// The room, across and deep, and its walls' height, metres.
 pub const WIDTH: f32 = 18.0;
-pub const DEPTH: f32 = 22.0;
+pub const DEPTH: f32 = 26.0;
 pub const WALL_HEIGHT: f32 = 3.5;
-/// Where the walk starts, looking into the room.
-const START: [f32; 2] = [0.0, -2.0];
+/// Where the walk starts: by the far wall, looking into the room, all the
+/// tables in view.
+const START: [f32; 2] = [0.0, -12.4];
 /// The visitor's eyes above the floor, how fast they walk and turn, and
 /// how close they come to a wall or a table.
 const EYE: f32 = 1.7;
@@ -160,9 +170,12 @@ const PLAYING: f32 = 20.0;
 const SIMULATED: usize = PIECES;
 #[cfg(target_arch = "wasm32")]
 const SIMULATED: usize = 2;
-/// On the web, how long each frame spends building the pieces still to come.
-#[cfg(target_arch = "wasm32")]
+/// How long each frame spends at most building the pieces, all together,
+/// and how much faster than real time they build, as far as that allows.
 const BUILDING: std::time::Duration = std::time::Duration::from_millis(30);
+const BUILD_PACE: f32 = 10.0;
+/// Building goes round the pieces this many ticks at a time.
+const BUILD_STEP: usize = 100;
 
 /// The power cable on the floor: round the tables in a pentagon, and off
 /// to the wall from the side of it nearest one.
@@ -187,6 +200,25 @@ fn ring() -> [usize; PIECES] {
         angle(a).total_cmp(&angle(b))
     });
     ring
+}
+
+/// Where the piece at `station` stands, and which way it faces.
+fn place(station: usize) -> Mat4 {
+    Mat4::from_rotation_translation(Quat::from_rotation_y(STATIONS[station].facing.to_radians()), floor_at(station))
+}
+
+/// The first station from `index` on whose Large build is not yet known,
+/// begun unseen; each before it known already, sent to be begun.
+#[cfg(target_arch = "wasm32")]
+fn next_to_learn(index: usize, send: &Sender<usize>) -> Option<(usize, FabricPlanExecutor)> {
+    for index in index..PIECES {
+        let plan = fabric_library::get_fabric_plan(STATIONS[index].name);
+        if !plan.is_known() {
+            return Some((index, plan.unseen()));
+        }
+        let _ = send.send(index);
+    }
+    None
 }
 
 /// Where the table of the piece at `station` stands on the floor.
@@ -219,9 +251,57 @@ pub struct Piece {
     sensors: Vec<Sensor>,
     unread: usize,
     felt: Vec<(usize, f32, f32)>,
+    /// Being built where it will stand, until it does.
+    building: Option<FabricPlanExecutor>,
 }
 
 impl Piece {
+    /// The piece at `station` begun on its table, in view.
+    fn begun(station: usize) -> Piece {
+        let Station { name, taller, pretension, .. } = STATIONS[station];
+        let executor = FabricPlanExecutor::new(medium_plan(&STATIONS[station], taller, pretension));
+        let mut cues = cues(name);
+        if cues.is_empty() {
+            cues.push(Cue::rocking(SIDE, ROCKING));
+        }
+        Piece {
+            station,
+            fabric: executor.fabric.clone(),
+            physics: executor.physics.clone(),
+            place: place(station),
+            playing: cues.len() - 1,
+            cues,
+            played: PLAYING,
+            sensors: Vec::new(),
+            unread: 0,
+            felt: Vec::new(),
+            building: Some(executor),
+        }
+    }
+
+    /// Built `ticks` further, if it is still being built; once it stands,
+    /// it plays.
+    fn build(&mut self, ticks: usize) {
+        let Piece { fabric, building, .. } = self;
+        let Some(executor) = building else {
+            return;
+        };
+        std::mem::swap(fabric, &mut executor.fabric);
+        for _ in 0..ticks {
+            if executor.is_complete() {
+                break;
+            }
+            let _ = executor.iterate();
+        }
+        std::mem::swap(fabric, &mut executor.fabric);
+        if executor.is_complete() {
+            self.physics = Physics { surface: executor.physics.surface, ..VIEWING };
+            self.building = None;
+            let names = STATIONS[self.station].sensors;
+            self.sensors = names.iter().filter_map(|name| Sensor::on(&self.fabric, name)).collect();
+        }
+    }
+
     /// Where the table stands, and how far out it reaches.
     fn footprint(&self) -> (Vec3, f32) {
         let middle = self.place.transform_point3(Vec3::ZERO);
@@ -408,36 +488,44 @@ fn follow(now: Vec3, goal: Vec3, speed: &mut Vec3, smoothing: f32, seconds: f32)
 }
 
 pub struct Gallery {
-    built: Receiver<(usize, Fabric, Physics)>,
+    /// The stations whose pieces can be begun: how each builds Large,
+    /// unseen, is known.
+    known: Receiver<usize>,
     pub pieces: Vec<Piece>,
     pub walker: Walker,
     /// The music, where there is an output to play it on.
     sound: Option<sound::Sound>,
     /// On tour: the station visited, and how long they have stayed there.
     touring: Option<(usize, f32)>,
-    /// On the web, with no threads, the pieces are built a little each
-    /// frame, one after another.
+    /// On the web, with no threads, the unseen Large builds are done a
+    /// little each frame, one after another.
     #[cfg(target_arch = "wasm32")]
-    building: Option<(usize, FabricPlanExecutor, bool)>,
+    learning: Option<(usize, FabricPlanExecutor)>,
     #[cfg(target_arch = "wasm32")]
-    send: Sender<(usize, Fabric, Physics)>,
+    send: Sender<usize>,
 }
 
 impl Gallery {
-    /// The pieces start building out of sight, side by side, each joining
-    /// the room once it stands.
+    /// The tables stand lit from the start, and each piece is built on
+    /// its own once it is known how it builds Large.
     pub fn new() -> Gallery {
-        let (send, built) = channel();
+        let (send, known) = channel();
         #[cfg(not(target_arch = "wasm32"))]
         for (index, station) in STATIONS.iter().enumerate() {
             let send = send.clone();
             std::thread::spawn(move || {
-                let (fabric, physics) = medium(station);
-                let _ = send.send((index, fabric, physics));
+                let plan = fabric_library::get_fabric_plan(station.name);
+                if !plan.is_known() {
+                    let mut executor = plan.unseen();
+                    while !plan.learn(&mut executor) {
+                        let _ = executor.iterate();
+                    }
+                }
+                let _ = send.send(index);
             });
         }
         Gallery {
-            built,
+            known,
             pieces: Vec::new(),
             walker: Walker::new(),
             // The web plays sound only once the visitor has done something.
@@ -447,7 +535,7 @@ impl Gallery {
             sound: None,
             touring: None,
             #[cfg(target_arch = "wasm32")]
-            building: Some(Gallery::start_building(0)),
+            learning: next_to_learn(0, &send),
             #[cfg(target_arch = "wasm32")]
             send,
         }
@@ -512,64 +600,71 @@ impl Gallery {
         }
     }
 
-    /// The piece at `index` begun: built Large first, unseen, if it isn't
-    /// yet known how it builds.
+    /// The unseen Large builds done on for a while, each piece begun as
+    /// soon as its is.
     #[cfg(target_arch = "wasm32")]
-    fn start_building(index: usize) -> (usize, FabricPlanExecutor, bool) {
-        let station = &STATIONS[index];
-        let plan = fabric_library::get_fabric_plan(station.name);
-        if plan.is_known() {
-            (index, FabricPlanExecutor::new(medium_plan(station, station.taller, station.pretension)), false)
-        } else {
-            (index, plan.unseen(), true)
+    fn learn_on(&mut self, until: instant::Instant) {
+        while instant::Instant::now() < until {
+            let Some((index, executor)) = &mut self.learning else {
+                return;
+            };
+            if fabric_library::get_fabric_plan(STATIONS[*index].name).learn(executor) {
+                let _ = self.send.send(*index);
+                self.learning = next_to_learn(*index + 1, &self.send);
+            } else {
+                for _ in 0..BUILD_STEP {
+                    let _ = executor.iterate();
+                }
+            }
         }
     }
 
-    /// Build on for a while, sending each piece once it stands.
-    #[cfg(target_arch = "wasm32")]
-    fn build_on(&mut self) {
-        let start = instant::Instant::now();
-        while start.elapsed() < BUILDING {
-            let Some((index, mut executor, large)) = self.building.take() else {
-                return;
-            };
-            let station = &STATIONS[index];
-            if large && fabric_library::get_fabric_plan(station.name).learn(&mut executor) {
-                self.building = Some(Gallery::start_building(index));
-            } else if !large && executor.is_complete() {
-                let physics = Physics { surface: executor.physics.surface, ..VIEWING };
-                let _ = self.send.send((index, executor.fabric, physics));
-                self.building = (index + 1 < PIECES).then(|| Gallery::start_building(index + 1));
-            } else {
-                for _ in 0..100 {
-                    let _ = executor.iterate();
+    /// The pieces still being built, built on together, each as far as
+    /// `ticks`, until `until`.
+    fn build_on(&mut self, ticks: usize, until: instant::Instant) {
+        let mut built = vec![0; self.pieces.len()];
+        loop {
+            let mut building = false;
+            for (piece, built) in self.pieces.iter_mut().zip(&mut built) {
+                if piece.building.is_none() || *built >= ticks {
+                    continue;
                 }
-                self.building = Some((index, executor, large));
+                if instant::Instant::now() >= until {
+                    return;
+                }
+                piece.build(BUILD_STEP);
+                *built += BUILD_STEP;
+                building = true;
+            }
+            if !building {
+                return;
             }
         }
+    }
+
+    /// Each station's table: where it stands, and its deck, still until
+    /// its piece is there.
+    pub fn tables(&self) -> [(Mat4, Deck); PIECES] {
+        std::array::from_fn(|station| {
+            let piece = self.pieces.iter().find(|piece| piece.station == station);
+            let deck = piece.and_then(|piece| piece.fabric.deck()).unwrap_or(Deck { radius: TABLE, ..Deck::default() });
+            (place(station), deck)
+        })
     }
 
     /// The light in each table, where it is and how bright. Before every
     /// piece has joined the room the missing ones are as good as dark, so
     /// the room is dark from the start.
     pub fn lights(&self) -> [Vec4; PIECES] {
-        let mut lights = [Vec4::new(0.0, 0.0, 0.0, f32::MIN_POSITIVE); PIECES];
-        for (light, piece) in lights.iter_mut().zip(&self.pieces) {
-            let middle = piece.fabric.deck().map_or(Vec3::ZERO, |deck| deck.offset);
-            *light = piece.place.transform_point3(middle - Vec3::Y * LIGHT_DEPTH).extend(LIGHT);
-        }
-        lights
+        self.tables().map(|(place, deck)| place.transform_point3(deck.offset - Vec3::Y * LIGHT_DEPTH).extend(LIGHT))
     }
 
     /// The spots, going with their decks; none dark until its piece is in
     /// the room.
     pub fn spots(&self) -> Spots {
         let mut spots = Spots { views: [Mat4::IDENTITY; PIECES], places: [Vec4::ZERO; PIECES], aims: [Vec4::Z; PIECES] };
-        for (index, piece) in self.pieces.iter().enumerate() {
-            let Some(deck) = piece.fabric.deck() else {
-                continue;
-            };
-            let at = |local: Vec3| piece.place.transform_point3(deck.carry(local));
+        for (index, (place, deck)) in self.tables().into_iter().enumerate() {
+            let at = |local: Vec3| place.transform_point3(deck.carry(local));
             let from = at(Vec3::Y * SPOT_HEIGHT);
             let aim = Vec3::Y;
             let cone = SPOT_CONE.to_radians();
@@ -584,22 +679,14 @@ impl Gallery {
     /// `seconds` on: pieces built since join the room, the visitor walks,
     /// and every piece moves on `iterations`.
     pub fn advance(&mut self, seconds: f32, iterations: usize) {
+        let until = instant::Instant::now() + BUILDING;
         #[cfg(target_arch = "wasm32")]
-        self.build_on();
-        for (index, fabric, physics) in self.built.try_iter() {
-            let Station { name, at: [x, z], facing, sensors, .. } = STATIONS[index];
-            let sensors = sensors.iter().filter_map(|name| Sensor::on(&fabric, name)).collect();
-            let place = Mat4::from_rotation_translation(Quat::from_rotation_y(facing.to_radians()), Vec3::new(x, 0.0, z));
-            let mut cues = cues(name);
-            if cues.is_empty() {
-                cues.push(Cue::rocking(SIDE, ROCKING));
-            }
-            let mut piece =
-                Piece { station: index, fabric, physics, place, cues, playing: 0, played: PLAYING, sensors, unread: 0, felt: Vec::new() };
-            piece.playing = piece.cues.len() - 1;
-            self.pieces.push(piece);
-        }
-        self.walker.walk(seconds, self.pieces.iter().map(Piece::footprint));
+        self.learn_on(until);
+        let begun: Vec<usize> = self.known.try_iter().collect();
+        self.pieces.extend(begun.into_iter().map(Piece::begun));
+        self.build_on((iterations as f32 * BUILD_PACE) as usize, until);
+        let tables = self.tables().map(|(place, deck)| (place.transform_point3(Vec3::ZERO), deck.radius));
+        self.walker.walk(seconds, tables.into_iter());
         if self.walker.take_steered() {
             self.touring = None;
         }
@@ -615,7 +702,7 @@ impl Gallery {
             }
         }
         let at = self.walker.at;
-        let mut nearest: Vec<usize> = (0..self.pieces.len()).collect();
+        let mut nearest: Vec<usize> = (0..self.pieces.len()).filter(|&index| self.pieces[index].building.is_none()).collect();
         nearest.sort_by(|&a, &b| {
             let away = |index: usize| self.pieces[index].footprint().0.distance_squared(Vec3::new(at.x, 0.0, at.z));
             away(a).total_cmp(&away(b))
@@ -672,14 +759,14 @@ impl Gallery {
 
 /// The piece at `station` built at Medium, as tall and as tight as it
 /// says, on its table.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(test)]
 fn medium(station: &Station) -> (Fabric, Physics) {
     medium_made(station, station.taller, station.pretension)
 }
 
 /// The piece at `station` built at Medium, `taller` than Medium, keeping
 /// `pretension` of its Medium pretension.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(test)]
 fn medium_made(station: &Station, taller: f32, pretension: f32) -> (Fabric, Physics) {
     let mut executor = FabricPlanExecutor::new(medium_plan(station, taller, pretension));
     while !executor.is_complete() {
@@ -690,11 +777,21 @@ fn medium_made(station: &Station, taller: f32, pretension: f32) -> (Fabric, Phys
 }
 
 fn medium_plan(station: &Station, taller: f32, pretension: f32) -> FabricPlan {
-    let mut plan = fabric_library::get_fabric_plan(station.name).at_medium_height(MEDIUM_HEIGHT * taller);
-    plan.pretense_phase.pretenst = Percent(plan.pretense_phase.pretenst.0 * pretension);
-    plan.dimensions.table = Some(Meters(TABLE));
-    plan.dimensions.table_scales = Some(TABLE / plan.dimensions.scale.f32());
-    plan
+    fabric_library::get_fabric_plan(station.name).at(&gallery(taller, pretension, station.seed))
+}
+
+/// A gallery piece: hand-built as Medium is, but `taller` than Medium,
+/// keeping `pretension` of Medium's pretension, on the gallery's table,
+/// its seed `seed` above it.
+fn gallery(taller: f32, pretension: f32, seed: f32) -> Variant {
+    Variant {
+        name: "Gallery",
+        height: Some(MEDIUM_HEIGHT * taller),
+        pretension: MEDIUM_PRETENSION * pretension,
+        table: Table::Given(Meters(TABLE)),
+        seed_altitude: Some(Meters(seed)),
+        ..Variant::MEDIUM
+    }
 }
 
 /// The cues evolved for the piece `name` at its gallery size, built in.
@@ -819,7 +916,7 @@ mod tests {
         };
         let slack = |fabric: &Fabric| fabric.intervals.values().filter(|interval| interval.role.is_pull_like() && interval.strain <= 0.0).count();
         let unplaced = probe.filter(|probe| STATIONS.iter().all(|station| station.name != *probe));
-        let unplaced = unplaced.map(|name| Station { name, at: [0.0, 0.0], facing: 0.0, taller: 1.25, pretension: 1.0, sensors: ["", "", ""] });
+        let unplaced = unplaced.map(|name| Station { name, at: [0.0, 0.0], facing: 0.0, taller: 1.25, pretension: 1.0, seed: 1.5, sensors: ["", "", ""] });
         let stations = STATIONS.iter().filter(|station| probe.is_none_or(|probe| probe == station.name)).chain(&unplaced);
         for station in stations {
             for &pretension in &pretensions {
@@ -950,3 +1047,46 @@ mod tests {
     }
 }
 
+#[cfg(test)]
+mod fingerprint {
+    use super::*;
+    use strum::IntoEnumIterator;
+
+    fn print(fabric: &Fabric) -> String {
+        let mut hash: u64 = 0xcbf29ce484222325;
+        for joint in fabric.joints.values() {
+            for bits in joint.location.to_array().map(f32::to_bits) {
+                hash = (hash ^ bits as u64).wrapping_mul(0x100000001b3);
+            }
+        }
+        let deck = fabric.deck().map_or(0.0, |deck| deck.radius);
+        format!("{:016x} joints {} intervals {} deck {deck:.4}", hash, fabric.joints.len(), fabric.intervals.len())
+    }
+
+    fn settled(plan: FabricPlan) -> Fabric {
+        let mut executor = FabricPlanExecutor::new(plan);
+        while !executor.is_complete() {
+            let _ = executor.iterate();
+        }
+        executor.fabric
+    }
+
+    #[test]
+    #[ignore]
+    fn fingerprint() {
+        let mut lines = Vec::new();
+        for name in FabricName::iter() {
+            for variant in [Variant::LARGE, Variant::MEDIUM] {
+                let fabric = settled(fabric_library::get_fabric_plan(name).at(&variant));
+                lines.push(format!("{name} {}: {}", variant.name, print(&fabric)));
+            }
+        }
+        for station in &STATIONS {
+            let (fabric, _) = medium(station);
+            lines.push(format!("{} in the gallery: {}", station.name, print(&fabric)));
+        }
+        let text = lines.join("\n") + "\n";
+        std::fs::write(std::env::var("FINGERPRINT").expect("FINGERPRINT"), &text).unwrap();
+        eprint!("{text}");
+    }
+}

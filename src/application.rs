@@ -7,7 +7,7 @@ use crate::build::dsl::fabric_plan_executor::ExecutorStage;
 use crate::camera::Framing;
 use crate::button_bar::{ButtonBar, FAST_FORWARD};
 use crate::crucible::Crucible;
-use crate::fabric::dimensions::Size;
+use crate::fabric::variant::Variant;
 use crate::gallery::Gallery;
 use crate::pointer::PointerHandler;
 use crate::scene::Scene;
@@ -83,8 +83,7 @@ pub struct Application {
     /// What `time_scale` is easing up to: going faster, it speeds up over
     /// `SPEEDING_UP`, so the camera keeps up with what it shows.
     time_scale_goal: f32,
-    size: Size,
-    model_scale: Option<f32>,
+    variant: Variant,
     cycle: Option<CycleState>,
     /// On a white background instead of the starry sky.
     white: bool,
@@ -126,8 +125,7 @@ impl Application {
         window_attributes: WindowAttributes,
         radio: Radio,
         time_scale: f32,
-        size: Size,
-        model_scale: Option<f32>,
+        variant: Variant,
     ) -> Application {
         Application {
             run_style: RunStyle::Unknown,
@@ -135,7 +133,7 @@ impl Application {
             window_attributes,
             radio: radio.clone(),
             scene: None,
-            button_bar: ButtonBar::new(size),
+            button_bar: ButtonBar::new(&variant),
             crucible: Crucible::new(radio.clone()),
             last_update: Instant::now(),
             accumulated_time: Duration::default(),
@@ -148,8 +146,7 @@ impl Application {
             control_state: ControlState::Waiting,
             time_scale,
             time_scale_goal: time_scale,
-            size,
-            model_scale: model_scale.map(|n| 1.0 / n),
+            variant,
             cycle: None,
             white: false,
             choosing: false,
@@ -302,7 +299,7 @@ impl ApplicationHandler<LabEvent> for Application {
                     self.mobile_device,
                     wgpu,
                     self.radio.clone(),
-                    self.model_scale,
+                    self.variant.model,
                 ));
                 // A `Run(Sphere)` queued from main.rs fires before this
                 // event, so the Sphere handler saw scene=None and bailed.
@@ -346,11 +343,11 @@ impl ApplicationHandler<LabEvent> for Application {
                             exporter.start();
                             self.native.animation_exporter = Some(exporter);
                         }
-                        let fabric_plan = fabric_library::get_fabric_plan(*fabric_name).at_size(self.size);
+                        let fabric_plan = fabric_library::get_fabric_plan(*fabric_name).at(&self.variant);
                         CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
                         // Small and Medium are built in fast-forward, Large
                         // never: it is watched growing.
-                        if self.size != Size::Large {
+                        if self.variant.fast_build {
                             SetTimeScale(FAST_FORWARD).send(&self.radio);
                         }
                     }
@@ -572,19 +569,19 @@ impl ApplicationHandler<LabEvent> for Application {
             FabricBuilt(fabric_stats) => {
                 // Reset time scale to normal when construction completes
                 (self.time_scale, self.time_scale_goal) = (1.0, 1.0);
-                StateChange::SetFabricName(self.size.title(&fabric_stats.name)).send(&self.radio);
+                StateChange::SetFabricName(self.variant.title(&fabric_stats.name)).send(&self.radio);
                 StateChange::SetFabricStats(Some(fabric_stats)).send(&self.radio);
                 StateChange::SetControlState(self.crucible.viewing_state()).send(&self.radio);
                 StateChange::SetStageLabel("Viewing".to_string()).send(&self.radio);
                 let connectors_showing =
                     self.with_scene(|scene| scene.render_style_shows_attachment_points()).unwrap_or(true);
                 // Connectors show at real scale, never on a model.
-                if self.model_scale.is_none() && !connectors_showing {
+                if self.variant.model.is_none() && !connectors_showing {
                     StateChange::ToggleAttachmentPoints.send(&self.radio);
                 }
                 // A model's lengths are measured from it once it has
                 // settled, for hours, so it need not go on moving.
-                if self.model_scale.is_some() {
+                if self.variant.model.is_some() {
                     self.crucible.fabric.frozen = true;
                 }
                 if self.mobile_device && self.crucible.animation_available() {

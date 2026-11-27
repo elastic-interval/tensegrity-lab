@@ -63,6 +63,7 @@ pub mod brick;
 pub mod bridle;
 pub mod chain;
 pub mod dimensions;
+pub mod variant;
 pub mod error;
 pub mod fabric_sampler;
 pub mod face;
