@@ -4,8 +4,20 @@
     {
       "name": "web",
       "runtimeExecutable": "trunk",
-      "runtimeArgs": ["serve", "--release"],
+      "runtimeArgs": [
+        "serve",
+        "--release"
+      ],
       "port": 8080
+    },
+    {
+      "name": "site",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd ../fluxe_art && bundle exec jekyll serve --port 4000"
+      ],
+      "port": 4000
     }
   ]
 }

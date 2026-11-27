@@ -6,7 +6,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
 <head>
-    <title>Tensegrity Lab</title>
+    <title>Fluxe — a gallery of tensegrity sculpture</title>
+    <meta name="description" content="Tensegrity sculpture by Gerald de Jong, swaying in a gallery you can walk through.">
+    <script>
+        // Without what the gallery needs, or if it fails to start, the
+        // visitor goes to the home page instead.
+        var HOME = '/home/';
+        function goHome() { location.replace(HOME); }
+        var canRun = typeof WebAssembly === 'object' &&
+            (!!navigator.gpu || !!document.createElement('canvas').getContext('webgl2'));
+        if (!canRun) goHome();
+        window.addEventListener('error', function (event) {
+            // winit throws this on purpose; it isn't a failure.
+            if (!String(event.message).includes('exceptions for control flow')) goHome();
+        });
+    </script>
 
     <!-- config for our rust wasm binary. go to https://trunkrs.dev/assets/#rust for more customization -->
     <link data-trunk rel="rust" data-wasm-opt="2" data-integrity="none"/>
@@ -24,8 +38,8 @@
 <body>
 <div id="loading-screen">
     <span class="loader"></span>
-    <div class="app-title">Tensegrity Lab</div>
-    <div class="loading-text">Loading application...</div>
+    <div class="app-title">Fluxe</div>
+    <div class="loading-text">Loading the gallery...</div>
 </div>
 <script>
     // Check for dark mode preference
@@ -60,6 +74,11 @@
 
         // Start checking if canvas is ready
         setTimeout(checkCanvas, 500);
+
+        // Not started in this long: it won't, here.
+        setTimeout(function () {
+            if (loadingScreen.style.display !== 'none') goHome();
+        }, 30000);
     });
 </script>
 <canvas id="canvas"></canvas>

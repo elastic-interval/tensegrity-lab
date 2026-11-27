@@ -67,9 +67,10 @@ To run the web version, [install trunk](https://trunkrs.dev/guide/getting-starte
 
 Without `--release` the WebAssembly is unoptimized and runs slowly.
 
-To prepare a distribution for in a subdirectory /lab/:
+The web version opens on the gallery, which is fluxe.art's front page. To
+deploy it there (it builds for /gallery/ and puts its page at the site's root):
 
-    trunk build --release --public-url /lab
+    scripts/deploy-gallery.sh
 
 ### Building Headless Hug
 
