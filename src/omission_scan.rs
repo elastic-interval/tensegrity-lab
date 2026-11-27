@@ -234,8 +234,8 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn greedy_quadruped_flat_omissions() {
-        greedy_flat_omissions(FabricName::Quadruped);
+    fn greedy_kay_ten_flat_omissions() {
+        greedy_flat_omissions(FabricName::KayTen);
     }
 
     fn greedy_flat_omissions(name: FabricName) {
@@ -353,8 +353,8 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn greedy_quadruped_bridles() {
-        greedy_bridles(FabricName::Quadruped, 0.3, 5.1);
+    fn greedy_kay_ten_bridles() {
+        greedy_bridles(FabricName::KayTen, 0.3, 5.1);
     }
 
     fn greedy_bridles(name: FabricName, height_tolerance: f32, peak_cable: f32) {

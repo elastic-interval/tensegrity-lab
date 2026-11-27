@@ -26,7 +26,7 @@ launch it and tell him which buttons do what.
 
    Fabric names, exactly as `--fabric` takes them (`FabricName` in
    `src/build/dsl/fabric_library.rs`): `Headless Hug`, `Open Claw`, `Halo by Crane`,
-   `Twisted Infinity`, `Propeller`, `Diamond`, `Quadruped`. With no `--fabric` it opens Open Claw;
+   `Twisted Infinity`, `Propeller`, `Diamond`, `Kay Ten`. With no `--fabric` it opens Open Claw;
    `--cycle` walks through them all. `--size medium` makes it about 1.5 m tall in the 2021
    Headless Hug's materials, on the wobble table; `--size small` is a model (see the
    `run-scale-model` skill). Gerald's own launcher is `scripts/lab.sh` (`scripts/lab.sh hh medium`).

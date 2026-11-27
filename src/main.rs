@@ -175,27 +175,8 @@ fn run_with(
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(start))]
 pub fn run() {
-    // WASM always runs in Show mode — there's no CLI, so this is the
-    // standard public experience.
-    let cycle: Option<Vec<FabricName>> = Some(FabricName::iter().collect());
-    let initial_fabric = cycle
-        .as_ref()
-        .map(|names| names[0])
-        .unwrap_or(FabricName::OpenClaw);
-
-    run_with(
-        RunStyle::Fabric {
-            fabric_name: initial_fabric,
-            record: None,
-            export_fps: 100.0,
-        },
-        1.0,
-        Size::Large,
-        None, // No model scale for WASM
-        cycle,
-        false,
-    )
-    .unwrap();
+    // The web opens on the gallery.
+    run_with(RunStyle::Gallery, 1.0, Size::Medium, None, None, false).unwrap();
 }
 
 #[cfg(not(target_arch = "wasm32"))]

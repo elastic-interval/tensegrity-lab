@@ -12,7 +12,7 @@
 
 cd "$(dirname "$0")/.." || exit 1
 
-fabrics=("Headless Hug" "Open Claw" "Quadruped")
+fabrics=("Headless Hug" "Open Claw" "Kay Ten")
 sizes=(large medium small)
 letters=(A B C D E F G H I)
 

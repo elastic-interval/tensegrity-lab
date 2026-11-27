@@ -26,6 +26,8 @@ use winit::dpi::PhysicalSize;
 const CAPTION_MARGIN: f32 = 40.0;
 const CAPTION_COLOR: [f32; 4] = [0.45, 0.45, 0.45, 1.0];
 const CAPTION_SIZE: f32 = 26.0;
+/// The tour's button, this far above the instructions.
+const TOUR_ABOVE: f32 = 50.0;
 
 // From the window's sides, and from its bottom, clear of the time.
 const BUTTON_MARGIN: f32 = 50.0;
@@ -41,6 +43,9 @@ pub struct Scene {
     text_renderer: TextRenderer,
     label_renderer: LabelRenderer,
     buttons: Buttons<LabEvent>,
+    /// The gallery's one button, the tour's, and its label's text.
+    tour: Buttons<()>,
+    tour_text: Vec<OwnedSection>,
     render_style: RenderStyle,
     show_attachment_points: bool,
     /// White, or the starry sky (B).
@@ -65,6 +70,7 @@ impl Scene {
         let text_renderer = wgpu.create_text_renderer(mobile_device, model_scale);
         let label_renderer = LabelRenderer::new(&wgpu);
         let buttons = Buttons::new(&wgpu);
+        let tour = Buttons::new(&wgpu);
         let render_style = RenderStyle::Normal;
         SHOW_ATTACHMENT_POINTS.with(|cell| {
             *cell.borrow_mut() = false;
@@ -80,6 +86,8 @@ impl Scene {
             text_renderer,
             label_renderer,
             buttons,
+            tour,
+            tour_text: Vec::new(),
             render_style,
             show_attachment_points: false,
             white: false,
@@ -334,7 +342,9 @@ impl Scene {
                 .with_screen_position([width / 2.0, height - CAPTION_MARGIN])
                 .with_bounds([width, height])
                 .add_text(OwnedText::new(gallery::INSTRUCTIONS).with_color(CAPTION_COLOR).with_scale(CAPTION_SIZE));
-            self.text_renderer.render_caption(&mut render_pass, &self.wgpu, &caption);
+            self.tour.render(&mut render_pass);
+            let captions: Vec<_> = std::iter::once(caption).chain(self.tour_text.iter().cloned()).collect();
+            self.text_renderer.render_caption(&mut render_pass, &self.wgpu, &captions);
         }
         drop(render_pass);
 
@@ -410,6 +420,9 @@ impl Scene {
         let spots = gallery.spots();
         self.wgpu.update_spots(spots.views, spots.places, spots.aims);
         let mut vertices = DeckVertex::room(gallery::WIDTH, gallery::DEPTH, gallery::WALL_HEIGHT, -DECK_HEIGHT);
+        for (from, to) in gallery::cable_run() {
+            vertices.extend(DeckVertex::cable_cover(from, to, -DECK_HEIGHT));
+        }
         for piece in &gallery.pieces {
             if let Some(deck) = piece.fabric.deck() {
                 let mut table = DeckVertex::for_radius(deck.radius, DECK_HEIGHT);
@@ -419,7 +432,25 @@ impl Scene {
             }
         }
         self.surface_renderer.set_gallery(&self.wgpu.device, &vertices);
+        let label = if gallery.touring() { "Stop the tour" } else { "Take the tour" };
+        let text_renderer = &mut self.text_renderer;
+        self.tour_text = self.tour.lay_out(
+            &self.wgpu,
+            &mut |section| text_renderer.glyph_bounds(section),
+            vec![vec![Button::new(label, ())]],
+            0.0,
+            width,
+            height - CAPTION_MARGIN - TOUR_ABOVE,
+            false,
+        );
         self.render(false, false, Some(spots.views))
+    }
+
+    /// Whether the pointer at `at` is on the tour's button.
+    pub fn on_tour_button(&mut self, (x, y): (f32, f32)) -> bool {
+        let at = PointerChange::Moved(winit::dpi::PhysicalPosition::new(x as f64, y as f64));
+        self.tour.pointer_changed(&at);
+        matches!(self.tour.pointer_changed(&PointerChange::Pressed), Press::Held)
     }
 
     pub fn resize(&mut self, PhysicalSize { width, height }: PhysicalSize<u32>) {

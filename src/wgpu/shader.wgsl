@@ -665,6 +665,8 @@ fn deck_vertex(@location(0) pos: vec4<f32>, @location(1) color: vec4<f32>) -> De
 // In the gallery each face is lit by the tables' lights, facing the eye.
 @fragment
 fn deck_fragment(in: DeckVertexOutput) -> @location(0) vec4<f32> {
+    // Derivatives only where every fragment takes the same path (WebGPU).
+    var normal = normalize(cross(dpdy(in.world), dpdx(in.world)));
     if (in.lamp > 0.5) {
         // Sunk in its tube, the lamp is seen only from within the spot's
         // cone, the more of it the more nearly straight down.
@@ -676,7 +678,6 @@ fn deck_fragment(in: DeckVertexOutput) -> @location(0) vec4<f32> {
         return vec4<f32>(gamma(mix(in.color.rgb, SPOT_COLOR * LAMP_GLARE, seen)), 1.0);
     }
     if (in_gallery()) {
-        var normal = normalize(cross(dpdy(in.world), dpdx(in.world)));
         if (dot(normal, uniforms.eye.xyz - in.world) < 0.0) {
             normal = -normal;
         }

@@ -70,8 +70,10 @@ pub enum ShapeAction {
         alpha_path: JointPath,
         omega_path: JointPath,
     },
+    /// Temporary ones are gone when shaping ends, like spacers.
     Add {
         specs: Vec<AddSpec>,
+        temporary: bool,
     },
 }
 
@@ -281,19 +283,22 @@ impl ShapePhase {
                 }
                 StartProgress(seconds)
             }
-            ShapeAction::Add { specs } => {
+            ShapeAction::Add { specs, temporary } => {
                 for AddSpec { alpha, omega, target } in specs {
                     match (fabric.joint_key_by_label(&alpha), fabric.joint_key_by_label(&omega)) {
                         (Some(alpha_key), Some(omega_key)) => {
                             let current = fabric.distance(alpha_key, omega_key);
                             let role = if target.0 > 100.0 { Role::Pushing } else { Role::Pulling };
-                            fabric.create_approaching_interval(
+                            let interval = fabric.create_approaching_interval(
                                 alpha_key,
                                 omega_key,
                                 current * target.as_factor(),
                                 role,
                                 seconds,
                             );
+                            if temporary {
+                                self.spacers.push(interval);
+                            }
                         }
                         _ => self.failures.push(format!("no joints for add pair ({alpha}, {omega})")),
                     }

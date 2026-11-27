@@ -419,7 +419,7 @@ Important integration tests:
   estimated from the lowest joints before the build, fitted to where they
   land (`Quake::fit`); unless the plan chooses its table, in its own
   `scale`s so it grows with the piece (`FabricDimensions::with_table`:
-  Headless Hug, Open Claw, Quadruped; the ignored `measure_tables` tells
+  Headless Hug, Open Claw, Kay Ten; the ignored `measure_tables` tells
   how far each piece's feet reach). The steppers play cues
   (`src/fabric/cue.rs`): loops of DMX frames, 44 a second, each three
   values, one a drum, 128 its middle, `PER_VALUE` of cable each (20 mm
@@ -472,9 +472,9 @@ Important integration tests:
   a foot over each hanger.
 - `src/fabric_smoke_test.rs` — `test_all_fabrics_build_medium`: every plan
   builds at Medium too, about 1.5 m tall, on its table.
-- `src/quadruped.rs` — `quadruped_is_buildable`: Quadruped's connectors
+- `src/kay_ten.rs` — `kay_ten_is_buildable`: Kay Ten's connectors
   have no collisions or short cables, none slack, none past 5.1 kN;
-  `quadruped_stands_on_four_feet`. Ignored tools: load path, cable forces,
+  `kay_ten_stands_on_four_feet`. Ignored tools: load path, cable forces,
   spacer sweep, connector problems, design candidates.
 - `src/physics_gpu/parity_test.rs` — CPU vs GPU numeric parity.
 - `src/connector/dimensions.rs` (inline `pivot_geometry_tests`) — derived dimension formulas.
@@ -488,11 +488,11 @@ cargo run --release -- --fabric "Halo by Crane"
 # Medium, on the wobble table (Quake starts its motor):
 cargo run --release -- --fabric "Headless Hug" --size medium
 
-# The gallery: Open Claw, Headless Hug and Quadruped at Medium, with Halo by Crane and Noodle
-# behind where the walk starts (Noodle a ten-twist column, not vulcanized, its foot frozen to the
+# The gallery: Open Claw, Headless Hug and Kay Ten at Medium, with Halo by Crane and Swagger
+# behind where the walk starts, the five tables alike, 1.4 m to the corners (Kay Ten made smaller to fit), at the corners of a pentagon, each facing its middle, a cable run on the floor joining them and off to the wall; a Tour button walks from piece to piece, a click on a piece walks there (Swagger a ten-twist column, not vulcanized, its foot frozen to the
 # deck, loose enough to arch over until its top twist lies flat), a quarter taller, each on its
 # table playing its cues in turn, evolved at its size (`cues/gallery/`, by the ignored
-# `evolve_gallery_cues`; to swing about 60 mm, slowly; Open Claw keeps a fiftieth of its pretension, Headless Hug and Quadruped a quarter, to sway, Halo by Crane all of it; `measure_gallery_motion` tells how each moves),
+# `evolve_gallery_cues`; to swing about 60 mm, slowly; Open Claw keeps a fiftieth of its pretension, Headless Hug and Kay Ten a quarter, to sway, Halo by Crane all of it; `measure_gallery_motion` tells how each moves),
 # in a dark room 18 × 22 m walked through smoothly, as on a gimbal (two-finger swipe walks and turns, pinch rises and sinks, drag looks, or the arrows), tables skirted in
 # velvet, a spot in each deck throwing the piece's shadow up on the
 # ceiling (shadow maps, `wgpu/shadow_renderer.rs`), each playing a groove from
@@ -512,7 +512,9 @@ cargo test --release --lib export_headless_hug_package -- --ignored
 # The Bouwboek from that package as a PDF, beside its Markdown (needs weasyprint):
 python3 scripts/bouwboek/pdf.py HeadlessHug-<date>/HeadlessHug-bouwboek-<date>.md
 
-# Web (--release: unoptimized WebAssembly runs the physics at half speed):
+# Web, opening on the gallery: the pieces built a slice each frame, only the two nearest moving,
+# the music starting at the first click or key (--release: unoptimized WebAssembly runs the
+# physics at half speed):
 trunk serve --release
 ```
 

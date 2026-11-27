@@ -36,7 +36,7 @@ mod open_claw_symmetry;
 mod open_claw_test;
 mod omission_scan;
 #[cfg(test)]
-mod quadruped;
+mod kay_ten;
 #[cfg(test)]
 mod crane_lift;
 #[cfg(test)]

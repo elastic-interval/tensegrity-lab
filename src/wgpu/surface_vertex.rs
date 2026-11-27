@@ -88,6 +88,12 @@ const SKIRT_CLEAR: f32 = 0.01;
 const PLEAT: f32 = 0.04;
 const PLEAT_DEPTH: f32 = 0.012;
 const CEILING_COLOR: [f32; 3] = [0.6, 0.6, 0.6];
+/// The rubber cover over the power cable on the floor: flat on top, this
+/// high and wide, its sides sloping out to this wide at the floor.
+const COVER_COLOR: [f32; 3] = [0.06, 0.06, 0.06];
+const COVER_HEIGHT: f32 = 0.025;
+const COVER_TOP: f32 = 0.04;
+const COVER_FOOT: f32 = 0.09;
 /// How thick the gallery's walls are.
 const WALL: f32 = 0.1;
 
@@ -198,6 +204,28 @@ impl DeckVertex {
         }
         slab(&mut vertices, Vec3::new(-x, floor - WALL, -z), Vec3::new(x, floor, z), FLOOR_COLOR);
         slab(&mut vertices, Vec3::new(-x, top, -z), Vec3::new(x, top + WALL, z), CEILING_COLOR);
+        vertices
+    }
+
+    /// The cover over a stretch of power cable on the floor at `floor`,
+    /// from `from` to `to`, across the floor.
+    pub fn cable_cover(from: Vec3, to: Vec3, floor: f32) -> Vec<DeckVertex> {
+        let along = (to - from).normalize();
+        let side = along.cross(Vec3::Y);
+        let at = |end: Vec3, out: f32, up: f32| (Vec3::new(end.x, floor + up, end.z) + side * out).extend(STAYS).to_array();
+        let rise = Vec3::new(0.0, COVER_FOOT - COVER_TOP, 0.0);
+        let mut vertices = Vec::new();
+        let mut face = |near: (f32, f32), far: (f32, f32), normal: Vec3| {
+            let color = shade(COVER_COLOR, light(normal.normalize()));
+            let (a, b, c, d) = (at(from, near.0, near.1), at(from, far.0, far.1), at(to, far.0, far.1), at(to, near.0, near.1));
+            for position in [a, b, c, a, c, d] {
+                vertices.push(DeckVertex { position, color });
+            }
+        };
+        let (low, high) = (0.002, COVER_HEIGHT);
+        face((-COVER_TOP, high), (COVER_TOP, high), Vec3::Y);
+        face((COVER_TOP, high), (COVER_FOOT, low), side * COVER_HEIGHT + rise);
+        face((-COVER_FOOT, low), (-COVER_TOP, high), -side * COVER_HEIGHT + rise);
         vertices
     }
 

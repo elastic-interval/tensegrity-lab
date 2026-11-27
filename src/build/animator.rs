@@ -236,7 +236,7 @@ mod tests {
     #[test]
     fn animations_run_headless() {
         use crate::fabric::physics::presets::ANIMATING;
-        for (name, count) in [(FabricName::HeadlessHug, 4), (FabricName::OpenClaw, 3), (FabricName::Quadruped, 4)] {
+        for (name, count) in [(FabricName::HeadlessHug, 4), (FabricName::OpenClaw, 3), (FabricName::KayTen, 4)] {
             let plan = fabric_library::get_fabric_plan(name);
             let animate = plan.animate_phase.clone().expect("the plan animates");
             let mut executor = FabricPlanExecutor::new(plan);

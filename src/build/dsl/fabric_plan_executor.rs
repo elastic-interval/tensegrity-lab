@@ -709,6 +709,9 @@ impl FabricPlanExecutor {
         });
 
         self.fabric.zero_velocities();
+        if self.fabric.dimensions.table_centred {
+            self.fabric.centre_on_table();
+        }
         self.mount_on_table();
         self.settler = None;
         self.stage = ExecutorStage::Complete;

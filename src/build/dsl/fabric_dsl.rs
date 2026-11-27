@@ -157,11 +157,17 @@ impl FabricBuilder {
 
     /// A shaping step adding intervals between labelled joints, each approaching
     /// the given percentage of its current distance: Pct<100 → pull, Pct>100 → push.
-    pub fn add<const N: usize>(
-        mut self,
-        seconds: Seconds,
-        specs: [(&str, &str, Percent); N],
-    ) -> Self {
+    pub fn add<const N: usize>(self, seconds: Seconds, specs: [(&str, &str, Percent); N]) -> Self {
+        self.adding(seconds, &specs, false)
+    }
+
+    /// As `add`, but only while shaping: a nudge that leaves the fabric bent
+    /// one way, to go on bending that way.
+    pub fn nudge<const N: usize>(self, seconds: Seconds, specs: [(&str, &str, Percent); N]) -> Self {
+        self.adding(seconds, &specs, true)
+    }
+
+    fn adding(mut self, seconds: Seconds, specs: &[(&str, &str, Percent)], temporary: bool) -> Self {
         let specs = specs
             .iter()
             .map(|(a, b, pct)| AddSpec {
@@ -172,7 +178,7 @@ impl FabricBuilder {
             .collect();
         self.shape.push(ShapeStep {
             seconds,
-            action: ShapeAction::Add { specs },
+            action: ShapeAction::Add { specs, temporary },
         });
         self
     }
@@ -536,6 +542,14 @@ impl SeedChain {
         specs: [(&str, &str, Percent); N],
     ) -> FabricBuilder {
         self.finalize_build().add(seconds, specs)
+    }
+
+    pub fn nudge<const N: usize>(
+        self,
+        seconds: Seconds,
+        specs: [(&str, &str, Percent); N],
+    ) -> FabricBuilder {
+        self.finalize_build().nudge(seconds, specs)
     }
 
     pub fn pretense(

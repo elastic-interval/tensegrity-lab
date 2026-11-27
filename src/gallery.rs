@@ -7,6 +7,7 @@
 //! what stands in it; Esc leaves.
 
 use crate::build::dsl::fabric_library::{self, FabricName};
+use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
 use crate::camera::OPENGL_TO_WGPU_MATRIX;
 use crate::fabric::cue::{Cue, SIDE};
@@ -17,13 +18,15 @@ use crate::fabric::quake::{self, DECK_HEIGHT};
 use crate::fabric::Fabric;
 use crate::units::Unit;
 use crate::Age;
-use crate::units::Percent;
+use crate::units::{Meters, Percent};
 use glam::{Mat4, Quat, Vec3, Vec4};
+use std::f32::consts::{PI, TAU};
 use std::sync::mpsc::{channel, Receiver};
+#[cfg(target_arch = "wasm32")]
+use std::sync::mpsc::Sender;
 
 mod sensor;
 use sensor::Sensor;
-#[cfg(not(target_arch = "wasm32"))]
 mod sound;
 
 /// A piece in the gallery: where its table stands on the floor, x across
@@ -41,46 +44,51 @@ struct Station {
     sensors: [&'static str; 3],
 }
 
+/// Every table the same, for making them: this far from the middle to a
+/// corner, metres.
+const TABLE: f32 = 1.4;
 /// How many pieces the gallery shows.
 pub const PIECES: usize = 5;
 
+/// The tables at the corners of a pentagon 6 m from the middle of the
+/// room, each piece facing the middle.
 const STATIONS: [Station; PIECES] = [
     Station {
         name: FabricName::OpenClaw,
-        at: [4.5, 4.0],
-        facing: 0.0,
+        at: [5.71, 1.85],
+        facing: 252.0,
         taller: 1.25,
         pretension: 0.02,
         sensors: ["C19", "A14", "B11"],
     },
     Station {
         name: FabricName::HeadlessHug,
-        at: [0.0, 6.0],
+        at: [0.00, 6.00],
         facing: 180.0,
         taller: 1.25,
         pretension: 0.25,
         sensors: ["R62", "L62", "R47"],
     },
     Station {
-        name: FabricName::Quadruped,
-        at: [-4.5, 4.0],
-        facing: 0.0,
-        taller: 1.25,
+        name: FabricName::KayTen,
+        at: [-5.71, 1.85],
+        facing: 108.0,
+        taller: 0.95,
         pretension: 0.25,
         sensors: ["L2", "R2", "R43"],
     },
     Station {
         name: FabricName::HaloByCrane,
-        at: [0.0, -7.0],
-        facing: 0.0,
+        at: [-3.53, -4.85],
+        facing: 36.0,
         taller: 1.25,
         pretension: 1.0,
         sensors: ["A12.2", "A08.4", "A07.6"],
     },
     Station {
-        name: FabricName::Noodle,
-        at: [5.0, -5.5],
-        facing: 0.0,
+        name: FabricName::Swagger,
+        at: [3.53, -4.85],
+        facing: 324.0,
         taller: 1.3,
         pretension: 0.25,
         sensors: ["A09.6", "A05.5", "A05.6"],
@@ -98,11 +106,23 @@ const EYE: f32 = 1.7;
 const WALK: f32 = 1.2;
 const TURN: f32 = 1.0;
 const KEEP_OFF: f32 = 0.4;
-/// How far down the visitor looks at first, how far up or down they can
-/// look, and how wide they see, radians.
+/// How far down the visitor looks at first, how far up and down they can
+/// look, up far enough to see the shadows on the ceiling, and how wide they
+/// see, radians.
 const LOOK_DOWN: f32 = 0.15;
-const LOOK_FARTHEST: f32 = 1.3;
+const LOOK_UP_MOST: f32 = 0.7;
+const LOOK_DOWN_MOST: f32 = 0.5;
 const VIEW: f32 = 1.0;
+/// Taken to a piece: how far from its table's edge they stop, toward the
+/// middle of the room, and how high on it they look.
+const VIEWING_DISTANCE: f32 = 2.0;
+const VIEWING_HEIGHT: f32 = 1.0;
+/// A press that moves the pointer less than this, pixels, is a click; a
+/// click within this of a piece, radians, takes the visitor to it.
+const CLICK: f32 = 6.0;
+const CLICK_NEAR: f32 = 0.25;
+/// On tour, how long they stay at each piece, seconds.
+const TOUR_STAY: f32 = 20.0;
 /// A two-finger swipe: metres walked and radians turned for each pixel;
 /// a line of a mouse wheel is this many pixels. Dragging: radians looked
 /// for each pixel.
@@ -117,8 +137,9 @@ const LOWEST_EYE: f32 = 0.4;
 /// How long the eyes take to follow, moving and looking, about.
 const MOVING: f32 = 0.8;
 const LOOKING: f32 = 0.35;
-/// What the trackpad does, along the bottom of the screen.
-pub const INSTRUCTIONS: &str = "Two fingers: swipe to walk and turn  ·  pinch to rise and sink  ·  click and drag to look  ·  Esc to leave";
+/// What the trackpad and mouse do, along the bottom of the screen.
+pub const INSTRUCTIONS: &str =
+    "Click a piece to go to it  ·  drag to look  ·  arrows or two-finger swipe to walk and turn  ·  pinch to rise and sink";
 /// Each table's light: how far below the deck's top, in the table, and
 /// how bright.
 const LIGHT_DEPTH: f32 = 0.1;
@@ -133,6 +154,46 @@ const SPOT: f32 = 2.5;
 const ROCKING: f32 = 1.0;
 /// How long each cue plays before the next.
 const PLAYING: f32 = 20.0;
+/// How many pieces move at once, the nearest: on the web all of them would
+/// be more than its one thread can keep up with.
+#[cfg(not(target_arch = "wasm32"))]
+const SIMULATED: usize = PIECES;
+#[cfg(target_arch = "wasm32")]
+const SIMULATED: usize = 2;
+/// On the web, how long each frame spends building the pieces still to come.
+#[cfg(target_arch = "wasm32")]
+const BUILDING: std::time::Duration = std::time::Duration::from_millis(30);
+
+/// The power cable on the floor: round the tables in a pentagon, and off
+/// to the wall from the side of it nearest one.
+pub fn cable_run() -> Vec<(Vec3, Vec3)> {
+    let corners: Vec<Vec3> = ring().iter().map(|&station| floor_at(station)).collect();
+    let mut run: Vec<(Vec3, Vec3)> = (0..PIECES).map(|index| (corners[index], corners[(index + 1) % PIECES])).collect();
+    let to_wall = |point: Vec3| {
+        let (x, z) = (WIDTH / 2.0 - point.x.abs(), DEPTH / 2.0 - point.z.abs());
+        let wall = if x < z { Vec3::new(WIDTH / 2.0 * point.x.signum(), 0.0, point.z) } else { Vec3::new(point.x, 0.0, DEPTH / 2.0 * point.z.signum()) };
+        (point, wall)
+    };
+    let branch = run.iter().map(|(a, b)| to_wall((*a + *b) / 2.0)).min_by(|(a, b), (c, d)| a.distance(*b).total_cmp(&c.distance(*d)));
+    run.extend(branch);
+    run
+}
+
+/// The stations in turn round the room.
+fn ring() -> [usize; PIECES] {
+    let mut ring: [usize; PIECES] = std::array::from_fn(|index| index);
+    ring.sort_by(|&a, &b| {
+        let angle = |station: usize| floor_at(station).x.atan2(floor_at(station).z);
+        angle(a).total_cmp(&angle(b))
+    });
+    ring
+}
+
+/// Where the table of the piece at `station` stands on the floor.
+fn floor_at(station: usize) -> Vec3 {
+    let [x, z] = STATIONS[station].at;
+    Vec3::new(x, 0.0, z)
+}
 
 /// The spots on the tables: each one's view for its shadow map, where it
 /// is and how bright, and which way it shines with its cone's cosine.
@@ -193,8 +254,13 @@ pub struct Walker {
     goal: Vec3,
     goal_look: Vec3,
     pub arrows: Arrows,
-    /// Where the pointer is while dragging.
+    /// Where the pointer is while dragging, and where it was pressed.
     dragging: Option<(f32, f32)>,
+    pressed: Option<(f32, f32)>,
+    /// Where they are being taken, and what they look at on the way.
+    going: Option<(Vec3, Vec3)>,
+    /// Whether they moved or looked by themselves since last asked.
+    steered: bool,
 }
 
 impl Walker {
@@ -209,12 +275,31 @@ impl Walker {
             goal_look: look,
             arrows: Arrows::default(),
             dragging: None,
+            pressed: None,
+            going: None,
+            steered: false,
         }
+    }
+
+    /// Taken to `to`, at eye height, looking at `sight` on the way.
+    fn go(&mut self, to: Vec3, sight: Vec3) {
+        self.going = Some((Vec3::new(to.x, EYE, to.z), sight));
+    }
+
+    fn steer(&mut self) {
+        self.going = None;
+        self.steered = true;
+    }
+
+    /// Whether they moved or looked by themselves since last asked.
+    fn take_steered(&mut self) -> bool {
+        std::mem::take(&mut self.steered)
     }
 
     /// A two-finger swipe, or a mouse wheel's lines: forward and back
     /// walks, as it zooms in elsewhere; across turns.
     pub fn swipe(&mut self, across: f32, forward: f32, lines: bool) {
+        self.steer();
         let pixels = if lines { LINE } else { 1.0 };
         self.goal += ahead(self.goal_look.x) * forward * pixels * SWIPE_WALK;
         self.goal_look.x += across * pixels * SWIPE_TURN;
@@ -222,18 +307,29 @@ impl Walker {
 
     /// A pinch: spreading the fingers rises, closing them sinks.
     pub fn pinch(&mut self, spread: f32) {
+        self.steer();
         self.goal.y += spread * PINCH_RISE;
     }
 
-    /// Pressed or let go: dragging from where the pointer is then.
-    pub fn press(&mut self, pressed: bool, pointer: Option<(f32, f32)>) {
+    /// Pressed or let go: dragging from where the pointer is then. Let go
+    /// where it was pressed, it was a click there.
+    pub fn press(&mut self, pressed: bool, pointer: Option<(f32, f32)>) -> Option<(f32, f32)> {
         self.dragging = if pressed { pointer } else { None };
+        if pressed {
+            self.pressed = pointer;
+            return None;
+        }
+        let (from, to) = (self.pressed.take()?, pointer?);
+        ((from.0 - to.0).hypot(from.1 - to.1) < CLICK).then_some(to)
     }
 
     /// The pointer moved to `x`, `y`: dragging, the room is turned with it,
     /// and tilted.
     pub fn pointer_moved(&mut self, x: f32, y: f32) {
         if let Some((from_x, from_y)) = self.dragging.as_mut().map(|at| std::mem::replace(at, (x, y))) {
+            if self.pressed.is_some_and(|(px, py)| (x - px).hypot(y - py) >= CLICK) {
+                self.steer();
+            }
             self.goal_look.x += (x - from_x) * DRAG_LOOK;
             self.goal_look.y += (y - from_y) * DRAG_LOOK;
         }
@@ -243,10 +339,28 @@ impl Walker {
     /// walls and the tables, within reach of floor and ceiling; and the
     /// eyes follow.
     fn walk(&mut self, seconds: f32, tables: impl Iterator<Item = (Vec3, f32)>) {
+        let Arrows { forward, back, left, right } = self.arrows;
+        if forward || back || left || right {
+            self.steer();
+        }
         let arrow = |held: bool| if held { 1.0 } else { 0.0 };
-        self.goal_look.x += (arrow(self.arrows.left) - arrow(self.arrows.right)) * TURN * seconds;
-        let step = (arrow(self.arrows.forward) - arrow(self.arrows.back)) * WALK * seconds;
+        self.goal_look.x += (arrow(left) - arrow(right)) * TURN * seconds;
+        let step = (arrow(forward) - arrow(back)) * WALK * seconds;
         let mut goal = self.goal + ahead(self.goal_look.x) * step;
+        if let Some((to, sight)) = self.going {
+            // Walked there at walking pace, turning to what they will see.
+            let toward = to - goal;
+            goal += toward.clamp_length_max(WALK * seconds);
+            let seen = sight - goal;
+            let heading = seen.x.atan2(seen.z);
+            let turn = (heading - self.goal_look.x + PI).rem_euclid(TAU) - PI;
+            self.goal_look.x += turn.clamp(-TURN * seconds, TURN * seconds);
+            let pitch = seen.y.atan2(seen.x.hypot(seen.z));
+            self.goal_look.y += (pitch - self.goal_look.y).clamp(-TURN * seconds, TURN * seconds) / 2.0;
+            if toward.length() < 0.01 && turn.abs() < 0.01 {
+                self.going = None;
+            }
+        }
         for (middle, radius) in tables {
             let away = Vec3::new(goal.x - middle.x, 0.0, goal.z - middle.z);
             let clear = radius + KEEP_OFF;
@@ -258,7 +372,7 @@ impl Walker {
         (goal.x, goal.z) = (goal.x.clamp(-x, x), goal.z.clamp(-z, z));
         goal.y = goal.y.clamp(LOWEST_EYE, WALL_HEIGHT - KEEP_OFF);
         self.goal = goal;
-        self.goal_look.y = self.goal_look.y.clamp(-LOOK_FARTHEST, LOOK_FARTHEST);
+        self.goal_look.y = self.goal_look.y.clamp(-LOOK_DOWN_MOST, LOOK_UP_MOST);
         self.at = follow(self.at, self.goal, &mut self.moving, MOVING, seconds);
         self.look = follow(self.look, self.goal_look, &mut self.looking, LOOKING, seconds);
     }
@@ -298,8 +412,15 @@ pub struct Gallery {
     pub pieces: Vec<Piece>,
     pub walker: Walker,
     /// The music, where there is an output to play it on.
-    #[cfg(not(target_arch = "wasm32"))]
     sound: Option<sound::Sound>,
+    /// On tour: the station visited, and how long they have stayed there.
+    touring: Option<(usize, f32)>,
+    /// On the web, with no threads, the pieces are built a little each
+    /// frame, one after another.
+    #[cfg(target_arch = "wasm32")]
+    building: Option<(usize, FabricPlanExecutor, bool)>,
+    #[cfg(target_arch = "wasm32")]
+    send: Sender<(usize, Fabric, Physics)>,
 }
 
 impl Gallery {
@@ -307,23 +428,124 @@ impl Gallery {
     /// the room once it stands.
     pub fn new() -> Gallery {
         let (send, built) = channel();
+        #[cfg(not(target_arch = "wasm32"))]
         for (index, station) in STATIONS.iter().enumerate() {
             let send = send.clone();
-            let build = move || {
+            std::thread::spawn(move || {
                 let (fabric, physics) = medium(station);
                 let _ = send.send((index, fabric, physics));
-            };
-            #[cfg(not(target_arch = "wasm32"))]
-            std::thread::spawn(build);
-            #[cfg(target_arch = "wasm32")]
-            build();
+            });
         }
         Gallery {
             built,
             pieces: Vec::new(),
             walker: Walker::new(),
+            // The web plays sound only once the visitor has done something.
             #[cfg(not(target_arch = "wasm32"))]
             sound: sound::Sound::new(),
+            #[cfg(target_arch = "wasm32")]
+            sound: None,
+            touring: None,
+            #[cfg(target_arch = "wasm32")]
+            building: Some(Gallery::start_building(0)),
+            #[cfg(target_arch = "wasm32")]
+            send,
+        }
+    }
+
+    /// Where a visitor stands to see the piece at `station`: off its table
+    /// toward the middle of the room, looking at it.
+    fn viewpoint(&self, station: usize) -> (Vec3, Vec3) {
+        let middle = floor_at(station);
+        let radius = self.pieces.iter().find(|piece| piece.station == station).map_or(1.0, |piece| piece.footprint().1);
+        let inward = (-middle).try_normalize().unwrap_or(Vec3::Z);
+        (middle + inward * (radius + VIEWING_DISTANCE), middle + Vec3::Y * (DECK_HEIGHT + VIEWING_HEIGHT))
+    }
+
+    fn visit(&mut self, station: usize) {
+        let (to, sight) = self.viewpoint(station);
+        self.walker.go(to, sight);
+    }
+
+    pub fn touring(&self) -> bool {
+        self.touring.is_some()
+    }
+
+    /// The tour begun at the nearest piece, or ended.
+    pub fn toggle_tour(&mut self) {
+        if self.touring.take().is_some() {
+            self.walker.going = None;
+            return;
+        }
+        let at = self.walker.at;
+        let nearest = (0..PIECES).min_by(|&a, &b| floor_at(a).distance(at).total_cmp(&floor_at(b).distance(at))).unwrap();
+        self.walker.take_steered();
+        self.visit(nearest);
+        self.touring = Some((nearest, 0.0));
+    }
+
+    /// A click at `x`, `y` in a window `width` by `height`: on or near a
+    /// piece, the visitor is taken to it.
+    pub fn clicked(&mut self, (x, y): (f32, f32), (width, height): (f32, f32)) {
+        let unseen = self.walker.mvp(width, height).inverse();
+        let (across, up) = (2.0 * x / width - 1.0, 1.0 - 2.0 * y / height);
+        let near = unseen.project_point3(Vec3::new(across, up, 0.0));
+        let far = unseen.project_point3(Vec3::new(across, up, 1.0));
+        let ray = (far - near).normalize();
+        let eye = self.walker.at;
+        let off = |station: usize| {
+            let sight = floor_at(station) + Vec3::Y * (DECK_HEIGHT + VIEWING_HEIGHT);
+            ray.angle_between(sight - eye)
+        };
+        let Some(station) = (0..PIECES).min_by(|&a, &b| off(a).total_cmp(&off(b))).filter(|&station| off(station) < CLICK_NEAR) else {
+            return;
+        };
+        self.touring = None;
+        self.visit(station);
+    }
+
+    /// The music starts, if it hasn't: on the web, when the visitor first
+    /// clicks or presses a key.
+    pub fn hear(&mut self) {
+        if self.sound.is_none() {
+            self.sound = sound::Sound::new();
+        }
+    }
+
+    /// The piece at `index` begun: built Large first, unseen, if it isn't
+    /// yet known how it builds.
+    #[cfg(target_arch = "wasm32")]
+    fn start_building(index: usize) -> (usize, FabricPlanExecutor, bool) {
+        let station = &STATIONS[index];
+        let plan = fabric_library::get_fabric_plan(station.name);
+        if plan.is_known() {
+            (index, FabricPlanExecutor::new(medium_plan(station, station.taller, station.pretension)), false)
+        } else {
+            (index, plan.unseen(), true)
+        }
+    }
+
+    /// Build on for a while, sending each piece once it stands.
+    #[cfg(target_arch = "wasm32")]
+    fn build_on(&mut self) {
+        let start = instant::Instant::now();
+        while start.elapsed() < BUILDING {
+            let Some((index, mut executor, large)) = self.building.take() else {
+                return;
+            };
+            let station = &STATIONS[index];
+            if large && fabric_library::get_fabric_plan(station.name).learn(&mut executor) {
+                self.building = Some(Gallery::start_building(index));
+            } else if !large && executor.is_complete() {
+                let physics = Physics { surface: executor.physics.surface, ..VIEWING };
+                let _ = self.send.send((index, executor.fabric, physics));
+                self.building = (index + 1 < PIECES).then(|| Gallery::start_building(index + 1));
+            } else {
+                for _ in 0..100 {
+                    let _ = executor.iterate();
+                }
+                self.building = Some((index, executor, large));
+            }
         }
     }
 
@@ -362,6 +584,8 @@ impl Gallery {
     /// `seconds` on: pieces built since join the room, the visitor walks,
     /// and every piece moves on `iterations`.
     pub fn advance(&mut self, seconds: f32, iterations: usize) {
+        #[cfg(target_arch = "wasm32")]
+        self.build_on();
         for (index, fabric, physics) in self.built.try_iter() {
             let Station { name, at: [x, z], facing, sensors, .. } = STATIONS[index];
             let sensors = sensors.iter().filter_map(|name| Sensor::on(&fabric, name)).collect();
@@ -376,7 +600,31 @@ impl Gallery {
             self.pieces.push(piece);
         }
         self.walker.walk(seconds, self.pieces.iter().map(Piece::footprint));
-        for piece in &mut self.pieces {
+        if self.walker.take_steered() {
+            self.touring = None;
+        }
+        if let Some((station, stayed)) = &mut self.touring {
+            if self.walker.going.is_none() {
+                *stayed += seconds;
+                if *stayed > TOUR_STAY {
+                    let ring = ring();
+                    let next = ring[(ring.iter().position(|at| at == station).unwrap() + 1) % PIECES];
+                    self.touring = Some((next, 0.0));
+                    self.visit(next);
+                }
+            }
+        }
+        let at = self.walker.at;
+        let mut nearest: Vec<usize> = (0..self.pieces.len()).collect();
+        nearest.sort_by(|&a, &b| {
+            let away = |index: usize| self.pieces[index].footprint().0.distance_squared(Vec3::new(at.x, 0.0, at.z));
+            away(a).total_cmp(&away(b))
+        });
+        nearest.truncate(SIMULATED);
+        for (index, piece) in self.pieces.iter_mut().enumerate() {
+            if !nearest.contains(&index) {
+                continue;
+            }
             piece.played += seconds;
             if piece.played >= PLAYING {
                 piece.played = 0.0;
@@ -401,13 +649,11 @@ impl Gallery {
                 }
             }
         }
-        #[cfg(not(target_arch = "wasm32"))]
         self.listen();
     }
 
     /// Tell the music what each piece's sensors felt, and where it is from
     /// the visitor.
-    #[cfg(not(target_arch = "wasm32"))]
     fn listen(&mut self) {
         let Some(sound) = &self.sound else {
             return;
@@ -426,16 +672,16 @@ impl Gallery {
 
 /// The piece at `station` built at Medium, as tall and as tight as it
 /// says, on its table.
+#[cfg(not(target_arch = "wasm32"))]
 fn medium(station: &Station) -> (Fabric, Physics) {
     medium_made(station, station.taller, station.pretension)
 }
 
 /// The piece at `station` built at Medium, `taller` than Medium, keeping
 /// `pretension` of its Medium pretension.
+#[cfg(not(target_arch = "wasm32"))]
 fn medium_made(station: &Station, taller: f32, pretension: f32) -> (Fabric, Physics) {
-    let mut plan = fabric_library::get_fabric_plan(station.name).at_medium_height(MEDIUM_HEIGHT * taller);
-    plan.pretense_phase.pretenst = Percent(plan.pretense_phase.pretenst.0 * pretension);
-    let mut executor = FabricPlanExecutor::new(plan);
+    let mut executor = FabricPlanExecutor::new(medium_plan(station, taller, pretension));
     while !executor.is_complete() {
         let _ = executor.iterate();
     }
@@ -443,14 +689,22 @@ fn medium_made(station: &Station, taller: f32, pretension: f32) -> (Fabric, Phys
     (executor.fabric, physics)
 }
 
+fn medium_plan(station: &Station, taller: f32, pretension: f32) -> FabricPlan {
+    let mut plan = fabric_library::get_fabric_plan(station.name).at_medium_height(MEDIUM_HEIGHT * taller);
+    plan.pretense_phase.pretenst = Percent(plan.pretense_phase.pretenst.0 * pretension);
+    plan.dimensions.table = Some(Meters(TABLE));
+    plan.dimensions.table_scales = Some(TABLE / plan.dimensions.scale.f32());
+    plan
+}
+
 /// The cues evolved for the piece `name` at its gallery size, built in.
 fn cues(name: FabricName) -> Vec<Cue> {
     quake::kept_cues(match name {
         FabricName::OpenClaw => include_str!("../cues/gallery/open-claw.txt"),
         FabricName::HeadlessHug => include_str!("../cues/gallery/headless-hug.txt"),
-        FabricName::Quadruped => include_str!("../cues/gallery/quadruped.txt"),
+        FabricName::KayTen => include_str!("../cues/gallery/kay-ten.txt"),
         FabricName::HaloByCrane => include_str!("../cues/gallery/halo-by-crane.txt"),
-        FabricName::Noodle => include_str!("../cues/gallery/noodle.txt"),
+        FabricName::Swagger => include_str!("../cues/gallery/swagger.txt"),
         _ => "",
     })
 }

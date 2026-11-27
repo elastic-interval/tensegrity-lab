@@ -1046,6 +1046,27 @@ impl Fabric {
         self.quake.as_ref().map(Quake::deck)
     }
 
+    /// Moved across, standing as it stands, until the middle of how far it
+    /// spreads is over the middle of its table; the table watches it again
+    /// from there.
+    pub fn centre_on_table(&mut self) {
+        let Some(deck) = self.deck() else {
+            return;
+        };
+        let (low, high) = self.joints.values().fold((Vec3::MAX, Vec3::MIN), |(low, high), joint| {
+            (low.min(joint.location), high.max(joint.location))
+        });
+        let middle = (low + high) / 2.0;
+        let shift = Vec3::new(deck.offset.x - middle.x, 0.0, deck.offset.z - middle.z);
+        for joint in self.joints.values_mut() {
+            joint.location += shift;
+        }
+        if let Some(mut quake) = self.quake.take() {
+            quake.mount(self);
+            self.quake = Some(quake);
+        }
+    }
+
     /// Move every joint standing on the deck, within `contact` of it, as
     /// the deck moves in this tick. Each is put where it stands on the deck,
     /// remembered while nothing else moves it, so no rounding builds up.

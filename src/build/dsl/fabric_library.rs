@@ -22,7 +22,8 @@ static PLANS: [OnceLock<FabricPlan>; 8] = [
 pub enum FabricName {
     #[strum(serialize = "Headless Hug")]
     HeadlessHug,
-    Quadruped,
+    #[strum(serialize = "Kay Ten")]
+    KayTen,
     #[strum(serialize = "Open Claw")]
     OpenClaw,
     #[strum(serialize = "Halo by Crane")]
@@ -32,8 +33,8 @@ pub enum FabricName {
     Propeller,
     Diamond,
     /// A column of single twists, not vulcanized, its foot fixed: slack
-    /// enough, it arches over and swings like a noodle.
-    Noodle,
+    /// enough, it arches over and swaggers.
+    Swagger,
 }
 
 impl FabricName {
@@ -112,7 +113,7 @@ impl FabricName {
 
             HeadlessHug => headless_hug_plan(HeadlessHugShape::default()),
 
-            Quadruped => quadruped_plan(QuadrupedShape::default()),
+            KayTen => kay_ten_plan(KayTenShape::default()),
 
             Diamond => self
                 .build(FabricDimensions::default())
@@ -237,11 +238,12 @@ impl FabricName {
                 .pretense(Sec(1.0), Pct(1.0))
                 .floating(),
 
-            Noodle => self
-                .build(FabricDimensions::default().with_table(15.5))
+            Swagger => self
+                .build(FabricDimensions::default().with_table(10.2).with_table_centred())
                 .seed(SingleTwistLeft, Seed(1))
                 .faces([on(SingleTop).column(9).tip_label().into(), on(SingleBot).tip_label()])
                 .down(Sec(1.0), [Tip(SingleBot)])
+                .nudge(Sec(1.0), [("A01.4", "A09.4", Pct(95.0))])
                 .pretense(Sec(1.0), Pct(1.0))
                 .surface_frozen()
                 .fall(Sec(2.0))
@@ -398,19 +400,19 @@ pub fn headless_hug_plan(shape: HeadlessHugShape) -> FabricPlan {
         ])
 }
 
-/// The Quadruped's spacers: each front foot to the hind foot on its side,
+/// Kay Ten's spacers: each front foot to the hind foot on its side,
 /// front foot to front foot and hind to hind, and the diagonals. `Default`
 /// is the design.
 #[derive(Clone, Copy, Debug)]
-pub struct QuadrupedShape {
+pub struct KayTenShape {
     pub along: Pct,
     pub across: Pct,
     pub crossed: Pct,
 }
 
-impl Default for QuadrupedShape {
+impl Default for KayTenShape {
     fn default() -> Self {
-        QuadrupedShape { along: Pct(50.0), across: Pct(165.0), crossed: Pct(95.0) }
+        KayTenShape { along: Pct(50.0), across: Pct(165.0), crossed: Pct(95.0) }
     }
 }
 
@@ -423,11 +425,11 @@ impl Default for QuadrupedShape {
 /// so their last struts still fit the short tube set. Pretensioned less than
 /// Headless Hug: standing on four feet doesn't unload its cables the way
 /// standing upright unloads Headless Hug's.
-pub fn quadruped_plan(shape: QuadrupedShape) -> FabricPlan {
+pub fn kay_ten_plan(shape: KayTenShape) -> FabricPlan {
     let leg = |face, label| on(face).column(3).shrink_by(Pct(9.0)).prism(Pct(400.0)).label(label);
     let (fore_left, fore_right) = (Foot(Side::Left), Foot(Side::Right));
     let (hind_left, hind_right) = (HindFoot(Side::Left), HindFoot(Side::Right));
-    FabricName::Quadruped
+    FabricName::KayTen
         .build(
             FabricDimensions::default()
                 .with_altitude(M(4.0))

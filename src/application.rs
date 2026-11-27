@@ -749,9 +749,12 @@ impl ApplicationHandler<LabEvent> for Application {
             // In the gallery the arrows walk and Esc leaves; nothing else.
             WindowEvent::KeyboardInput { event: key, .. } if self.gallery.is_some() => {
                 use winit::keyboard::{KeyCode, PhysicalKey};
-                let arrows = &mut self.gallery.as_mut().unwrap().walker.arrows;
+                let gallery = self.gallery.as_mut().unwrap();
+                gallery.hear();
+                let arrows = &mut gallery.walker.arrows;
                 let held = key.state.is_pressed();
                 match key.physical_key {
+                    #[cfg(not(target_arch = "wasm32"))]
                     PhysicalKey::Code(KeyCode::Escape) => event_loop.exit(),
                     PhysicalKey::Code(KeyCode::ArrowUp) => arrows.forward = held,
                     PhysicalKey::Code(KeyCode::ArrowDown) => arrows.back = held,
@@ -776,7 +779,18 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             WindowEvent::MouseInput { state, button: winit::event::MouseButton::Left, .. } if self.gallery.is_some() => {
                 let gallery = self.gallery.as_mut().unwrap();
-                gallery.walker.press(state.is_pressed(), self.gallery_pointer);
+                gallery.hear();
+                let pointer = self.gallery_pointer;
+                let scene = self.scene.as_mut();
+                if state.is_pressed() && pointer.zip(scene).is_some_and(|(at, scene)| scene.on_tour_button(at)) {
+                    gallery.toggle_tour();
+                    return;
+                }
+                if let Some(click) = gallery.walker.press(state.is_pressed(), pointer) {
+                    if let Some(scene) = &self.scene {
+                        gallery.clicked(click, scene.wgpu.size());
+                    }
+                }
                 return;
             }
             WindowEvent::CursorMoved { position, .. } if self.gallery.is_some() => {

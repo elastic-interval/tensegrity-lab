@@ -2,7 +2,7 @@
 mod tests {
     use crate::build::dsl::brick_dsl::{BrickName::*, BrickRole::*, FaceLabel::*, FaceName, FaceName::*, Side};
     use crate::build::dsl::fabric_dsl::*;
-    use crate::build::dsl::fabric_library::{quadruped_plan, FabricName, QuadrupedShape};
+    use crate::build::dsl::fabric_library::{kay_ten_plan, FabricName, KayTenShape};
     use crate::build::dsl::fabric_plan::FabricPlan;
     use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
     use crate::connector::strut::HEADLESS_HUG_TUBES;
@@ -38,7 +38,7 @@ mod tests {
     /// `torque` on any brick with Torque's faces: Torque or Tork.
     fn torque_like(brick: crate::build::dsl::brick_dsl::BrickName, legs: usize, feet: Option<Pct>) -> FabricPlan {
         let leg = |face: FaceName, label| on(face).column(legs).shrink_by(Pct(13.0)).prism(Pct(400.0)).label(label);
-        let builder = FabricName::Quadruped
+        let builder = FabricName::KayTen
             .build(dimensions())
             .seed(brick, Seed(4))
             .faces([
@@ -68,7 +68,7 @@ mod tests {
         let leg = |face: FaceName, label| on(face).column(2).shrink_by(Pct(13.0)).prism(Pct(400.0)).label(label);
         let (fore_left, fore_right) = (Foot(Side::Left), Foot(Side::Right));
         let (hind_left, hind_right) = (HindFoot(Side::Left), HindFoot(Side::Right));
-        FabricName::Quadruped
+        FabricName::KayTen
             .build(dimensions())
             .seed(Tork, Seed(4))
             .faces([
@@ -128,26 +128,26 @@ mod tests {
         (extent(|p| p.z), extent(|p| p.x), high - low, connector.culprits.len(), standing, peak)
     }
 
-    /// The Quadruped's spacers, its hinges and bridles in place: how long and
+    /// Kay Ten's spacers, its hinges and bridles in place: how long and
     /// wide the feet land, how many cable ends collide and the highest cable
     /// force, squarest first.
     ///
     /// ```
-    /// cargo test --release --lib sweep_quadruped_spacers -- --ignored --nocapture
+    /// cargo test --release --lib sweep_kay_ten_spacers -- --ignored --nocapture
     /// ```
     #[test]
     #[ignore]
-    fn sweep_quadruped_spacers() {
+    fn sweep_kay_ten_spacers() {
         let mut shapes = Vec::new();
         for along in [20.0, 35.0, 50.0] {
             for across in [145.0, 165.0, 185.0, 205.0] {
                 for crossed in [95.0] {
-                    shapes.push(QuadrupedShape { along: Pct(along), across: Pct(across), crossed: Pct(crossed) });
+                    shapes.push(KayTenShape { along: Pct(along), across: Pct(across), crossed: Pct(crossed) });
                 }
             }
         }
         let results: Vec<_> = std::thread::scope(|scope| {
-            let handles: Vec<_> = shapes.iter().map(|&shape| scope.spawn(move || stance(quadruped_plan(shape)))).collect();
+            let handles: Vec<_> = shapes.iter().map(|&shape| scope.spawn(move || stance(kay_ten_plan(shape)))).collect();
             handles.into_iter().map(|h| h.join().unwrap()).collect()
         });
         let mut rows: Vec<_> = shapes.iter().zip(results).filter(|(_, r)| r.4).collect();
@@ -232,19 +232,19 @@ mod tests {
         figure::write_figures(fabric, &folder.join(name));
     }
 
-    /// The Quadruped walking on the spot: its two actuator cables' lengths
+    /// Kay Ten walking on the spot: its two actuator cables' lengths
     /// through a cycle, how far it moves, and its highest cable force.
     ///
     /// ```
-    /// cargo test --release --lib quadruped_animation -- --ignored --nocapture
+    /// cargo test --release --lib kay_ten_animation -- --ignored --nocapture
     /// ```
     #[test]
     #[ignore]
-    fn quadruped_animation() {
+    fn kay_ten_animation() {
         use crate::build::animator::Animator;
         use crate::fabric::physics::presets::ANIMATING;
         use crate::fabric::physics::Physics;
-        let plan = quadruped_plan(QuadrupedShape::default());
+        let plan = kay_ten_plan(KayTenShape::default());
         let animate = plan.animate_phase.clone().expect("the plan animates");
         let mut executor = FabricPlanExecutor::new(plan);
         while !executor.is_complete() {
@@ -298,7 +298,7 @@ mod tests {
     }
 
     /// How far a foot lifts, how far one slides, how far the figure sways
-    /// and the peak cable, with the Quadruped's animation at this strength,
+    /// and the peak cable, with the Kay Ten's animation at this strength,
     /// over three cycles from standing.
     fn animated(standing: &Fabric, surface: Option<crate::fabric::physics::Surface>, animate: crate::build::dsl::animate_phase::AnimatePhase) -> (f32, f32, f32, f32) {
         use crate::build::animator::Animator;
@@ -338,12 +338,12 @@ mod tests {
     /// the ground.
     ///
     /// ```
-    /// cargo test --release --lib quadruped_until_it_jumps -- --ignored --nocapture
+    /// cargo test --release --lib kay_ten_until_it_jumps -- --ignored --nocapture
     /// ```
     #[test]
     #[ignore]
-    fn quadruped_until_it_jumps() {
-        let plan = quadruped_plan(QuadrupedShape::default());
+    fn kay_ten_until_it_jumps() {
+        let plan = kay_ten_plan(KayTenShape::default());
         let animate = plan.animate_phase.clone().expect("the plan animates");
         let mut executor = FabricPlanExecutor::new(plan);
         while !executor.is_complete() {
@@ -411,13 +411,13 @@ mod tests {
         assert_eq!(touching(-0.001, Vec3::ZERO).clamp_y, Some(0.0), "a foot below the floor comes up to it");
     }
 
-    /// The Quadruped must stay buildable, with standard parts but its tube
+    /// Kay Ten must stay buildable, with standard parts but its tube
     /// plates and custom discs: no colliding connectors, no cable too short
     /// for its terminals, none slack, and none past a 6 mm cable's working
     /// load.
     #[test]
-    fn quadruped_is_buildable() {
-        let mut executor = FabricPlanExecutor::new(quadruped_plan(QuadrupedShape::default()));
+    fn kay_ten_is_buildable() {
+        let mut executor = FabricPlanExecutor::new(kay_ten_plan(KayTenShape::default()));
         while !executor.is_complete() {
             let _ = executor.iterate();
         }
@@ -429,7 +429,7 @@ mod tests {
         assert_eq!(
             (connector.culprits.len(), connector.short_cables.len()),
             (0, 0),
-            "Quadruped has build problems (culprit ends, short cables): rerun quadruped_connector_problems"
+            "Kay Ten has build problems (culprit ends, short cables): rerun kay_ten_connector_problems"
         );
         let hardware = fabric.dimensions.hardware.expect("real parts");
         let forces: Vec<f32> = fabric
@@ -449,11 +449,11 @@ mod tests {
         assert!(peak <= 5.1, "a cable carries {peak:.1} kN");
     }
 
-    /// Quadruped stands on its four feet: four strut ends on the ground,
+    /// Kay Ten stands on its four feet: four strut ends on the ground,
     /// its centre of gravity inside them, and at rest.
     #[test]
-    fn quadruped_stands_on_four_feet() {
-        let mut executor = FabricPlanExecutor::new(quadruped_plan(QuadrupedShape::default()));
+    fn kay_ten_stands_on_four_feet() {
+        let mut executor = FabricPlanExecutor::new(kay_ten_plan(KayTenShape::default()));
         while !executor.is_complete() {
             let _ = executor.iterate();
         }
@@ -484,16 +484,16 @@ mod tests {
         assert!(moved < 0.01, "still moving {:.1} mm", moved * 1000.0);
     }
 
-    /// The Quadruped's connector problems: colliding cable ends by joint,
+    /// Kay Ten's connector problems: colliding cable ends by joint,
     /// short cables, and its custom discs.
     ///
     /// ```
-    /// cargo test --release --lib quadruped_connector_problems -- --ignored --nocapture
+    /// cargo test --release --lib kay_ten_connector_problems -- --ignored --nocapture
     /// ```
     #[test]
     #[ignore]
-    fn quadruped_connector_problems() {
-        let mut executor = FabricPlanExecutor::new(quadruped_plan(QuadrupedShape::default()));
+    fn kay_ten_connector_problems() {
+        let mut executor = FabricPlanExecutor::new(kay_ten_plan(KayTenShape::default()));
         while !executor.is_complete() {
             let _ = executor.iterate();
         }
@@ -540,7 +540,7 @@ mod tests {
         }
         close.sort_by(|x, y| x.0.total_cmp(&y.0));
         eprintln!("closest strut ends: {:?}", close.iter().take(8).map(|(gap, pair)| format!("{pair} {:.0} mm", gap * 1000.0)).collect::<Vec<_>>());
-        for (name, fabric) in [("Quadruped", fabric), ("Headless Hug", &headless_hug)] {
+        for (name, fabric) in [("Kay Ten", fabric), ("Headless Hug", &headless_hug)] {
             let hardware = fabric.dimensions.hardware.expect("real parts");
             let force = |i: &crate::fabric::interval::Interval| (hardware.cable_stiffness * (i.stiffness.as_factor() * i.strain)).f32() / 1000.0;
             let (mut cables, mut hangers) = (0.0f32, 0.0f32);
@@ -668,17 +668,17 @@ mod tests {
         stages
     }
 
-    /// What meets at the joints named in `QUADRUPED_JOINTS` (comma
+    /// What meets at the joints named in `KAY_TEN_JOINTS` (comma
     /// separated): each interval there, its role and force.
     ///
     /// ```
-    /// QUADRUPED_JOINTS=Z22,Z2 cargo test --release --lib quadruped_joints -- --ignored --nocapture
+    /// KAY_TEN_JOINTS=Z22,Z2 cargo test --release --lib kay_ten_joints -- --ignored --nocapture
     /// ```
     #[test]
     #[ignore]
-    fn quadruped_joints() {
-        let names = std::env::var("QUADRUPED_JOINTS").expect("QUADRUPED_JOINTS");
-        let mut executor = FabricPlanExecutor::new(quadruped_plan(QuadrupedShape::default()));
+    fn kay_ten_joints() {
+        let names = std::env::var("KAY_TEN_JOINTS").expect("KAY_TEN_JOINTS");
+        let mut executor = FabricPlanExecutor::new(kay_ten_plan(KayTenShape::default()));
         while !executor.is_complete() {
             let _ = executor.iterate();
         }
@@ -732,15 +732,15 @@ mod tests {
         }
     }
 
-    /// The Quadruped's most loaded members, with and without its bridles:
+    /// Kay Ten's most loaded members, with and without its bridles:
     /// each one's force in zero gravity as pretensing ends, and standing.
     ///
     /// ```
-    /// cargo test --release --lib quadruped_load_path -- --ignored --nocapture
+    /// cargo test --release --lib kay_ten_load_path -- --ignored --nocapture
     /// ```
     #[test]
     #[ignore]
-    fn quadruped_load_path() {
+    fn kay_ten_load_path() {
         for (pretenst, bridled) in [(0.2, false), (0.2, true)] {
             eprintln!("== pretense {pretenst}%, bridles {bridled}");
             load_path(pretenst, bridled);
@@ -749,7 +749,7 @@ mod tests {
 
     fn load_path(pretenst: f32, bridled: bool) {
         use crate::build::dsl::fabric_plan_executor::ExecutorStage;
-        let mut plan = quadruped_plan(QuadrupedShape::default());
+        let mut plan = kay_ten_plan(KayTenShape::default());
         if !bridled {
             plan.pretense_phase.bridles.clear();
         }
@@ -793,15 +793,15 @@ mod tests {
         eprintln!("{over} of {total} cables over 5.1 kN standing, {slack} slack, height {:.2} m", high - low);
     }
 
-    /// Where the Quadruped's cable forces come from: the plan step by step.
+    /// Where the Kay Ten's cable forces come from: the plan step by step.
     ///
     /// ```
-    /// cargo test --release --lib quadruped_cable_forces -- --ignored --nocapture
+    /// cargo test --release --lib kay_ten_cable_forces -- --ignored --nocapture
     /// ```
     #[test]
     #[ignore]
-    fn quadruped_cable_forces() {
-        let full = quadruped_plan(QuadrupedShape::default());
+    fn kay_ten_cable_forces() {
+        let full = kay_ten_plan(KayTenShape::default());
         let mut no_bridles = full.clone();
         no_bridles.pretense_phase.bridles.clear();
         let mut bare = no_bridles.clone();
@@ -852,12 +852,12 @@ mod tests {
     }
 
     /// ```
-    /// QUADRUPED_FIGURES=<folder> cargo test --release --lib quadruped_candidates -- --ignored --nocapture
+    /// KAY_TEN_FIGURES=<folder> cargo test --release --lib kay_ten_candidates -- --ignored --nocapture
     /// ```
     #[test]
     #[ignore]
-    fn quadruped_candidates() {
-        let folder = std::env::var("QUADRUPED_FIGURES").expect("QUADRUPED_FIGURES");
+    fn kay_ten_candidates() {
+        let folder = std::env::var("KAY_TEN_FIGURES").expect("KAY_TEN_FIGURES");
         let folder = Path::new(&folder);
         for brick in [TorqueSymmetrical, Tork] {
             let baked = crate::build::dsl::brick_library::baked_bricks::get_baked_brick(brick);
@@ -873,7 +873,7 @@ mod tests {
             eprintln!("{brick:?} scale {:.3}: {lengths:?}", baked.scale);
         }
         report("open-claw", crate::build::dsl::fabric_library::get_fabric_plan(FabricName::OpenClaw), folder);
-        report("quadruped", quadruped_plan(QuadrupedShape::default()), folder);
+        report("kay_ten", kay_ten_plan(KayTenShape::default()), folder);
         report("tork", torque_like(Tork, 2, Some(Pct(50.0))), folder);
         report("tork-legs-free", torque_like(Tork, 2, None), folder);
         report("tork-70", torque_like(Tork, 2, Some(Pct(70.0))), folder);

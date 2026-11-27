@@ -20,6 +20,8 @@ use crate::fabric::FabricDimensions;
 
 use crate::units::{Hertz, Percent, Seconds};
 
+static BUILT: OnceLock<Mutex<HashMap<FabricName, Built>>> = OnceLock::new();
+
 /// A plan's fabric as built Large, up to its pretensing: how tall, how far
 /// it reaches from its middle, and how far across the corners a wobble
 /// table it stands on would be, past its spread and its guy lines' anchors.
@@ -123,14 +125,34 @@ impl FabricPlan {
     /// The fabric as it is built, Large, up to its pretensing: unseen,
     /// once for each fabric.
     fn built(&self) -> Built {
-        static BUILT: OnceLock<Mutex<HashMap<FabricName, Built>>> = OnceLock::new();
-        let built = BUILT.get_or_init(Default::default);
-        if let Some(&found) = built.lock().unwrap().get(&self.name) {
+        if let Some(found) = self.known() {
             return found;
         }
-        let mut executor = FabricPlanExecutor::new(self.clone());
-        while matches!(executor.stage(), ExecutorStage::Building) {
+        let mut executor = self.unseen();
+        while !self.learn(&mut executor) {
             let _ = executor.iterate();
+        }
+        self.known().unwrap()
+    }
+
+    fn known(&self) -> Option<Built> {
+        BUILT.get_or_init(Default::default).lock().unwrap().get(&self.name).copied()
+    }
+
+    /// Whether it is already known how this plan builds Large; if not,
+    /// `unseen` builds it, a little at a time if need be, until `learn`
+    /// says it has learned.
+    pub fn is_known(&self) -> bool {
+        self.known().is_some()
+    }
+
+    pub fn unseen(&self) -> FabricPlanExecutor {
+        FabricPlanExecutor::new(self.clone())
+    }
+
+    pub fn learn(&self, executor: &mut FabricPlanExecutor) -> bool {
+        if matches!(executor.stage(), ExecutorStage::Building) {
+            return false;
         }
         let fabric = &mut executor.fabric;
         fabric.update_bounding_radius();
@@ -158,8 +180,8 @@ impl FabricPlan {
             reach: fabric.bounding_radius(),
             table: ROOM * feet.max(anchors / (PI / 6.0).cos()),
         };
-        built.lock().unwrap().insert(self.name, found);
-        found
+        BUILT.get_or_init(Default::default).lock().unwrap().insert(self.name, found);
+        true
     }
 
     pub fn animate(self) -> AnimateBuilder {

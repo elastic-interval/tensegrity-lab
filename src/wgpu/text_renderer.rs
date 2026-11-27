@@ -49,9 +49,9 @@ impl TextRenderer {
         self.buttons = buttons;
     }
 
-    /// Only `caption`, nothing else.
-    pub fn render_caption<'a>(&'a mut self, render_pass: &mut RenderPass<'a>, wgpu: &Wgpu, caption: &OwnedSection) {
-        self.brush.queue(&wgpu.device, &wgpu.queue, [caption]).unwrap();
+    /// Only `captions`, nothing else.
+    pub fn render_caption<'a>(&'a mut self, render_pass: &mut RenderPass<'a>, wgpu: &Wgpu, captions: &[OwnedSection]) {
+        self.brush.queue(&wgpu.device, &wgpu.queue, captions).unwrap();
         self.brush.draw(render_pass);
     }
 

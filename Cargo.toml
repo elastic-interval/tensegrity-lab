@@ -37,6 +37,7 @@ cpal = "=0.15.3"
 console_error_panic_hook = "=0.1.7"
 console_log = "=1.0.0"
 wgpu = { version = "=28.0.0", features = ["webgl"] }
+cpal = { version = "=0.15.3", features = ["wasm-bindgen"] }
 wasm-bindgen = "=0.2.106"
 wasm-bindgen-futures = "=0.4.56"
 web-sys = { version = "=0.3.83", features = [

@@ -162,6 +162,9 @@ pub struct FabricDimensions {
     /// Turned this far about the vertical from the start of a build on a
     /// table, so its symmetry stands square to the table's three hangers.
     pub table_turn: Degrees,
+    /// Once settled, moved across its table to stand over the middle of it,
+    /// for a piece that leans out from where its feet are.
+    pub table_centred: bool,
 }
 
 impl Default for FabricDimensions {
@@ -185,6 +188,7 @@ impl Default for FabricDimensions {
             table_scales: None,
             reach: None,
             table_turn: Degrees(0.0),
+            table_centred: false,
         }
     }
 }
@@ -233,6 +237,12 @@ impl FabricDimensions {
     /// On a wobble table `scales` of its `scale` across the corners.
     pub fn with_table(mut self, scales: f32) -> Self {
         self.table_scales = Some(scales);
+        self
+    }
+
+    /// Once settled, moved to stand over the middle of its table.
+    pub fn with_table_centred(mut self) -> Self {
+        self.table_centred = true;
         self
     }
 
