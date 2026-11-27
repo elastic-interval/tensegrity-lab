@@ -32,6 +32,7 @@ pub mod connector_renderer;
 pub mod sky_renderer;
 pub mod surface_renderer;
 pub mod shadow_renderer;
+pub mod sign_renderer;
 pub mod surface_vertex;
 pub mod text_renderer;
 pub mod text_state;

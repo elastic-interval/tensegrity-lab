@@ -84,6 +84,7 @@ const SKIRT_CLEAR: f32 = 0.01;
 const PLEAT: f32 = 0.04;
 const PLEAT_DEPTH: f32 = 0.012;
 const CEILING_COLOR: [f32; 3] = [0.6, 0.6, 0.6];
+const SIGN_COLOR: [f32; 3] = [0.05, 0.05, 0.055];
 /// The rubber cover over the power cable on the floor: flat on top, this
 /// high and wide, its sides sloping out to this wide at the floor.
 const COVER_COLOR: [f32; 3] = [0.06, 0.06, 0.06];
@@ -198,6 +199,29 @@ impl DeckVertex {
         }
         slab(&mut vertices, Vec3::new(-x, floor - WALL, -z), Vec3::new(x, floor, z), FLOOR_COLOR);
         slab(&mut vertices, Vec3::new(-x, top, -z), Vec3::new(x, top + WALL, z), CEILING_COLOR);
+        vertices
+    }
+
+    /// A sign's plate on the deck, going with it: `half` its half width and
+    /// half depth, `thick` thick, lying in `frame`'s x and y, its face out
+    /// along z.
+    pub fn plate(frame: Mat4, half: (f32, f32), thick: f32) -> Vec<DeckVertex> {
+        let corner = |x: f32, y: f32, z: f32| frame.transform_point3(Vec3::new(x * half.0, y * half.1, z * thick)).extend(ON_DECK).to_array();
+        let mut vertices = Vec::new();
+        let faces = [
+            ([(-1.0, -1.0, 0.0), (1.0, -1.0, 0.0), (1.0, 1.0, 0.0), (-1.0, 1.0, 0.0)], Vec3::Z),
+            ([(-1.0, 1.0, 0.0), (1.0, 1.0, 0.0), (1.0, 1.0, -1.0), (-1.0, 1.0, -1.0)], Vec3::Y),
+            ([(-1.0, -1.0, -1.0), (1.0, -1.0, -1.0), (1.0, -1.0, 0.0), (-1.0, -1.0, 0.0)], Vec3::NEG_Y),
+            ([(-1.0, -1.0, -1.0), (-1.0, -1.0, 0.0), (-1.0, 1.0, 0.0), (-1.0, 1.0, -1.0)], Vec3::NEG_X),
+            ([(1.0, -1.0, 0.0), (1.0, -1.0, -1.0), (1.0, 1.0, -1.0), (1.0, 1.0, 0.0)], Vec3::X),
+        ];
+        for (quad, normal) in faces {
+            let color = shade(SIGN_COLOR, light(frame.transform_vector3(normal).normalize()));
+            let [a, b, c, d] = quad.map(|(x, y, z)| corner(x, y, z));
+            for position in [a, b, c, a, c, d] {
+                vertices.push(DeckVertex { position, color });
+            }
+        }
         vertices
     }
 

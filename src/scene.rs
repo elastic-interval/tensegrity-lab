@@ -1,5 +1,6 @@
 use crate::camera::{Camera, Framing, Pick};
 use crate::wgpu::button::{Button, Buttons, Press};
+use crate::wgpu::sign_renderer::SignRenderer;
 use crate::fabric::quake::DECK_HEIGHT;
 use crate::fabric::Fabric;
 use crate::gallery::{self, Gallery};
@@ -62,6 +63,11 @@ pub struct Scene {
     /// The gallery's buttons, and their labels' text.
     tour: Buttons<GalleryButton>,
     tour_text: Vec<OwnedSection>,
+    /// The gallery's signs, lettered, the room's view, and each sign's
+    /// frame and name this frame.
+    signs: Option<SignRenderer>,
+    sign_view: Mat4,
+    sign_frames: Vec<(Mat4, String)>,
     render_style: RenderStyle,
     show_attachment_points: bool,
     /// White, or the starry sky (B).
@@ -104,6 +110,9 @@ impl Scene {
             buttons,
             tour,
             tour_text: Vec::new(),
+            signs: None,
+            sign_view: Mat4::IDENTITY,
+            sign_frames: Vec::new(),
             render_style,
             show_attachment_points: false,
             white: false,
@@ -345,6 +354,9 @@ impl Scene {
             self.surface_renderer.render(&mut render_pass);
         }
         self.surface_renderer.render_deck(&mut render_pass);
+        if let Some(signs) = &mut self.signs {
+            signs.render(&mut render_pass, &self.wgpu, self.sign_view, &self.sign_frames);
+        }
         if chrome {
             self.fabric_renderer
                 .render_highlight(&mut render_pass, &self.wgpu.uniform_bind_group);
@@ -429,6 +441,11 @@ impl Scene {
         let (width, height) = self.wgpu.size();
         self.wgpu.update_mvp_matrix(gallery.walker.mvp(width, height));
         self.wgpu.update_eye(gallery.walker.eye());
+        self.sign_view = gallery.walker.mvp(width, height);
+        self.sign_frames = gallery.signs();
+        if self.signs.is_none() {
+            self.signs = Some(SignRenderer::new(&self.wgpu, gallery::PIECES));
+        }
         self.sky_renderer.update_time(&self.wgpu.queue, delta_seconds);
         let placed: Vec<_> = gallery.pieces.iter().map(|piece| (&piece.fabric, piece.place)).collect();
         self.fabric_renderer.update_placed(&self.wgpu, &placed);
@@ -443,6 +460,7 @@ impl Scene {
             let mut table = DeckVertex::for_radius(deck.radius, DECK_HEIGHT);
             table.extend(DeckVertex::skirt(deck.radius, DECK_HEIGHT));
             table.extend(DeckVertex::lamp());
+            table.extend(DeckVertex::plate(gallery::sign_on_deck(deck.radius), gallery::SIGN_PLATE, gallery::SIGN_THICK));
             vertices.extend(DeckVertex::placed(&table, deck, place));
         }
         self.surface_renderer.set_gallery(&self.wgpu.device, &vertices);

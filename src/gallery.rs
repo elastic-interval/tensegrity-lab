@@ -17,6 +17,7 @@ use crate::fabric::physics::presets::VIEWING;
 use crate::fabric::physics::Physics;
 use crate::fabric::quake::{self, Deck, DECK_HEIGHT};
 use crate::fabric::Fabric;
+use crate::wgpu::sign_renderer::LETTER_UNITS;
 use crate::units::Unit;
 use crate::Age;
 use crate::units::Meters;
@@ -51,6 +52,15 @@ struct Station {
 /// Every table the same, for making them: this far from the middle to a
 /// corner, metres.
 const TABLE: f32 = 1.4;
+/// Each piece's sign, on the deck at its front corner: how far out, as part
+/// of the table's radius; tilted this far up toward the visitor, degrees;
+/// its plate's half width and half depth and how thick, and how tall its
+/// letters, metres.
+const SIGN_OUT: f32 = 0.76;
+const SIGN_TILT: f32 = 35.0;
+pub const SIGN_PLATE: (f32, f32) = (0.45, 0.105);
+pub const SIGN_THICK: f32 = 0.012;
+const SIGN_LETTERS: f32 = 0.083;
 /// How many pieces the gallery shows.
 pub const PIECES: usize = 5;
 
@@ -125,8 +135,8 @@ const LOOK_DOWN_MOST: f32 = 0.5;
 const VIEW: f32 = 1.0;
 /// Taken to a piece: how far from its table's edge they stop, toward the
 /// middle of the room, and how high on it they look.
-const VIEWING_DISTANCE: f32 = 2.0;
-const VIEWING_HEIGHT: f32 = 1.0;
+const VIEWING_DISTANCE: f32 = 2.4;
+const VIEWING_HEIGHT: f32 = 0.65;
 /// A press that moves the pointer less than this, pixels, is a click; a
 /// click within this of a piece, radians, takes the visitor to it.
 const CLICK: f32 = 6.0;
@@ -219,6 +229,17 @@ fn next_to_learn(index: usize, send: &Sender<usize>) -> Option<(usize, FabricPla
         let _ = send.send(index);
     }
     None
+}
+
+/// Where a sign lies on a deck `radius` across its corners, at rest: its
+/// face's middle, x along it to the visitor's right, y down it toward
+/// them, z out of it, up and toward them.
+pub fn sign_on_deck(radius: f32) -> Mat4 {
+    let tilt = SIGN_TILT.to_radians();
+    let (right, down) = (Vec3::X, Vec3::new(0.0, -tilt.sin(), tilt.cos()));
+    let out = Vec3::new(0.0, tilt.cos(), tilt.sin());
+    let middle = Vec3::new(0.0, SIGN_PLATE.1 * tilt.sin() + SIGN_THICK, radius * SIGN_OUT);
+    Mat4::from_cols(right.extend(0.0), down.extend(0.0), out.extend(0.0), middle.extend(1.0))
 }
 
 /// Where the table of the piece at `station` stands on the floor.
@@ -640,6 +661,20 @@ impl Gallery {
                 return;
             }
         }
+    }
+
+    /// Each piece's sign: its name, and the frame its letters are laid out
+    /// in, on its plate, going with the deck.
+    pub fn signs(&self) -> Vec<(Mat4, String)> {
+        let lettering = Mat4::from_translation(Vec3::Z * 0.001) * Mat4::from_scale(Vec3::splat(SIGN_LETTERS / LETTER_UNITS));
+        self.tables()
+            .into_iter()
+            .enumerate()
+            .map(|(station, (place, deck))| {
+                let carried = Mat4::from_translation(deck.offset) * Mat4::from_rotation_y(deck.turn);
+                (place * carried * sign_on_deck(deck.radius) * lettering, STATIONS[station].name.to_string())
+            })
+            .collect()
     }
 
     /// Each station's table: where it stands, and its deck, still until
