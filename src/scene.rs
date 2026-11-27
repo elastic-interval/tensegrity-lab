@@ -1,5 +1,5 @@
 use crate::camera::{Camera, Framing, Pick};
-use crate::wgpu::button::{Button, Buttons, Press};
+use crate::wgpu::button::{Button, Buttons, Icon, Press};
 use crate::wgpu::sign_renderer::SignRenderer;
 use crate::fabric::quake::DECK_HEIGHT;
 use crate::fabric::Fabric;
@@ -27,19 +27,22 @@ use winit::dpi::PhysicalSize;
 const CAPTION_MARGIN: f32 = 40.0;
 const CAPTION_COLOR: [f32; 4] = [0.45, 0.45, 0.45, 1.0];
 const CAPTION_SIZE: f32 = 26.0;
-/// What the gallery's buttons do: take the tour, or, on the web, go to the
-/// site's home page, about the artist and the work.
+/// What the gallery's buttons do: take the tour, turn the sound on or off,
+/// or, on the web, go to the site's home page, about the artist and the work.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum GalleryButton {
     Tour,
+    Sound,
     About,
 }
 
-fn gallery_buttons(tour: Option<String>) -> Vec<Button<GalleryButton>> {
-    let mut buttons: Vec<_> = tour.into_iter().map(|label| Button::new(label, GalleryButton::Tour)).collect();
+fn gallery_buttons(tour: Option<String>, (sound, sounding): (&str, bool)) -> Vec<Button<GalleryButton>> {
+    let mut buttons = Vec::new();
     if cfg!(target_arch = "wasm32") {
         buttons.push(Button::new("About Fluxe", GalleryButton::About));
     }
+    buttons.push(Button::new(sound, GalleryButton::Sound).with_icon(Icon::Speaker { sounding }));
+    buttons.extend(tour.map(|label| Button::new(label, GalleryButton::Tour)));
     buttons
 }
 
@@ -469,7 +472,7 @@ impl Scene {
         self.tour_text = self.tour.lay_out(
             &self.wgpu,
             &mut |section| text_renderer.glyph_bounds(section),
-            vec![gallery_buttons(label)],
+            vec![gallery_buttons(label, gallery.sound_button())],
             0.0,
             width,
             height - CAPTION_MARGIN - TOUR_ABOVE,

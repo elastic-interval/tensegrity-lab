@@ -176,6 +176,8 @@ struct Shared {
     voices: Vec<Voice>,
     seconds: f32,
     reverb: Reverb,
+    /// Silenced: playing on, but not heard.
+    muted: bool,
 }
 
 pub struct Sound {
@@ -210,7 +212,7 @@ impl Sound {
                 noise: 0x9E37_79B9 ^ (index as u32 + 1),
             })
             .collect();
-        let shared = Arc::new(Mutex::new(Shared { voices, seconds: 0.0, reverb: Reverb::new(rate) }));
+        let shared = Arc::new(Mutex::new(Shared { voices, seconds: 0.0, reverb: Reverb::new(rate), muted: false }));
         let playing = Arc::clone(&shared);
         let stream = device
             .build_output_stream(
@@ -222,6 +224,11 @@ impl Sound {
             .ok()?;
         stream.play().ok()?;
         Some(Sound { shared, _stream: stream })
+    }
+
+    /// Silenced, or heard again.
+    pub fn mute(&self, muted: bool) {
+        self.shared.lock().unwrap().muted = muted;
     }
 
     /// The piece at `station`, its own time `now`, seconds: the turns its
@@ -266,7 +273,8 @@ impl Shared {
                 wet += sound * voice.gains[2];
             }
             let (reverb_left, reverb_right) = self.reverb.process(wet);
-            let out = [(left + reverb_left) * MASTER, (right + reverb_right) * MASTER].map(f32::tanh);
+            let master = if self.muted { 0.0 } else { MASTER };
+            let out = [(left + reverb_left) * master, (right + reverb_right) * master].map(f32::tanh);
             for (channel, sample) in frame.iter_mut().enumerate() {
                 *sample = out[channel.min(1)];
             }

@@ -24,20 +24,55 @@ pub struct Button<T> {
     pub label: String,
     pub action: Option<T>,
     pub enabled: bool,
+    pub icon: Option<Icon>,
 }
+
+/// A small picture before a button's label, drawn in its text's colour.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Icon {
+    /// A loudspeaker, sounding or silent.
+    Speaker { sounding: bool },
+}
+
+/// An icon's width, and the gap between it and the label, in pixels.
+const ICON: f32 = FONT_SIZE;
+const ICON_GAP: f32 = 10.0;
 
 impl<T> Button<T> {
     pub fn new(label: impl Into<String>, action: T) -> Self {
-        Self { label: label.into(), action: Some(action), enabled: true }
+        Self { label: label.into(), action: Some(action), enabled: true, icon: None }
     }
 
     pub fn caption(label: impl Into<String>) -> Self {
-        Self { label: label.into(), action: None, enabled: true }
+        Self { label: label.into(), action: None, enabled: true, icon: None }
     }
 
     pub fn disabled(self) -> Self {
         Self { enabled: false, ..self }
     }
+
+    pub fn with_icon(self, icon: Icon) -> Self {
+        Self { icon: Some(icon), ..self }
+    }
+}
+
+/// The rounded boxes `icon` is drawn from, centred on `center`: each its
+/// centre, half size and corner radius.
+fn icon_boxes(icon: Icon, center: Vec2) -> Vec<(Vec2, Vec2, f32)> {
+    let size = ICON;
+    let at = |x: f32, y: f32| center + Vec2::new(x, y) * size;
+    let Icon::Speaker { sounding } = icon;
+    // The magnet, the cone widening from it in steps, and two waves.
+    let mut boxes = vec![(at(-0.36, 0.0), Vec2::new(0.09, 0.13) * size, 1.5)];
+    for step in 0..4 {
+        let half_height = 0.13 + 0.06 * (step as f32 + 1.0);
+        boxes.push((at(-0.235 + 0.06 * step as f32, 0.0), Vec2::new(0.035, half_height) * size, 1.0));
+    }
+    if sounding {
+        boxes.push((at(0.18, 0.0), Vec2::new(0.035, 0.17) * size, 0.035 * size));
+        boxes.push((at(0.36, 0.0), Vec2::new(0.035, 0.3) * size, 0.035 * size));
+    }
+    boxes
 }
 
 /// How much of its colour a disabled button keeps.
@@ -100,7 +135,8 @@ impl<T: Clone> Buttons<T> {
                 .into_iter()
                 .filter_map(|button| {
                     let bounds = measure(&text(&button.label, Vec2::ZERO))?;
-                    let half = Vec2::new(bounds.width(), FONT_SIZE) / 2.0 + PADDING + border;
+                    let icon = if button.icon.is_some() { ICON + ICON_GAP } else { 0.0 };
+                    let half = Vec2::new(bounds.width() + icon, FONT_SIZE) / 2.0 + PADDING + border;
                     Some((button, half))
                 })
                 .collect();
@@ -124,7 +160,8 @@ impl<T: Clone> Buttons<T> {
             for (button, half) in row {
                 let center = Vec2::new(x + half.x, middle);
                 x += 2.0 * half.x + GAP;
-                sections.push(text_in(&button.label, center, button.enabled));
+                let shift = if button.icon.is_some() { (ICON + ICON_GAP) / 2.0 } else { 0.0 };
+                sections.push(text_in(&button.label, center + Vec2::X * shift, button.enabled));
                 let Some(action) = button.action else {
                     continue;
                 };
@@ -134,6 +171,16 @@ impl<T: Clone> Buttons<T> {
                 }
                 push_box(&mut vertices, center, half, CORNER_RADIUS + BORDER_WIDTH, leader, width, height);
                 push_box(&mut vertices, center, half - border, CORNER_RADIUS, palette.background, width, height);
+                if let Some(icon) = button.icon {
+                    let mut ink = palette.text;
+                    if !button.enabled {
+                        ink[3] *= DISABLED;
+                    }
+                    let middle = Vec2::new(center.x - half.x + PADDING.x + BORDER_WIDTH + ICON / 2.0, center.y);
+                    for (at, size, radius) in icon_boxes(icon, middle) {
+                        push_box(&mut vertices, at, size, radius, ink, width, height);
+                    }
+                }
                 if button.enabled {
                     self.hits.push((center, half, action));
                 }

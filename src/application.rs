@@ -805,6 +805,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 if let Some(button) = pointer.zip(scene).and_then(|(at, scene)| scene.gallery_button(at)).filter(|_| state.is_pressed()) {
                     match button {
                         GalleryButton::Tour => gallery.toggle_tour(),
+                        GalleryButton::Sound => gallery.toggle_sound(),
                         GalleryButton::About => {
                             #[cfg(target_arch = "wasm32")]
                             let _ = web_sys::window().map(|window| window.location().set_href(ABOUT));

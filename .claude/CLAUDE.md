@@ -527,7 +527,8 @@ cargo run --release -- --fabric "Headless Hug" --size medium
 # in a dark room 18 × 26 m walked through smoothly, as on a gimbal (two-finger swipe walks and turns, pinch rises and sinks, drag looks, or the arrows), tables skirted in
 # velvet, a spot in each deck throwing the piece's shadow up on the
 # ceiling (shadow maps, `wgpu/shadow_renderer.rs`), each playing a groove from
-# movement sensors on its joints, heard near it (`gallery/sound.rs`); Esc quits:
+# movement sensors on its joints, heard near it (`gallery/sound.rs`), a Sound on / Sound off button
+# starting it (on the web only so, the browser wanting the visitor's own press) or silencing it; Esc quits:
 cargo run --release -- --gallery
 
 # Headless Hug as built, as JSON (writes HeadlessHug-<date>.json):

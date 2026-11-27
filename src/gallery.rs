@@ -571,8 +571,10 @@ pub struct Gallery {
     known: Receiver<usize>,
     pub pieces: Vec<Piece>,
     pub walker: Walker,
-    /// The music, where there is an output to play it on.
+    /// The music, where there is an output to play it on, and whether it
+    /// is silenced.
     sound: Option<sound::Sound>,
+    muted: bool,
     /// On tour: the station visited, how long they have stayed there, and
     /// how many they have visited.
     touring: Option<(usize, f32, usize)>,
@@ -631,6 +633,7 @@ impl Gallery {
             sound: sound::Sound::new(),
             #[cfg(target_arch = "wasm32")]
             sound: None,
+            muted: false,
             touring: None,
             ready: [false; PIECES],
             order,
@@ -722,15 +725,33 @@ impl Gallery {
         self.visit(station);
     }
 
-    /// The music starts, if it hasn't: on the web, when the visitor first
-    /// clicks or presses a key.
+    /// What the sound's button says, turning it on or off, and whether it
+    /// sounds now.
+    pub fn sound_button(&self) -> (&'static str, bool) {
+        let sounding = self.sound.is_some() && !self.muted;
+        (if sounding { "Sound off" } else { "Sound on" }, sounding)
+    }
+
+    /// The music started, or silenced, or heard again. On the web it starts
+    /// only so, from the visitor's own press.
+    pub fn toggle_sound(&mut self) {
+        match &self.sound {
+            None => {
+                self.sound = sound::Sound::new();
+                self.muted = false;
+            }
+            Some(sound) => {
+                self.muted = !self.muted;
+                sound.mute(self.muted);
+            }
+        }
+    }
+
+    /// The visitor did something: any key, click or drag.
     pub fn hear(&mut self) {
         self.idle = 0.0;
         if std::mem::take(&mut self.wandering) && self.touring.take().is_some() {
             self.walker.going = None;
-        }
-        if self.sound.is_none() {
-            self.sound = sound::Sound::new();
         }
     }
 
