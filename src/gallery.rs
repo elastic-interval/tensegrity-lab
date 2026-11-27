@@ -8,7 +8,7 @@
 
 use crate::build::dsl::fabric_library::{self, FabricName};
 use crate::build::dsl::fabric_plan::FabricPlan;
-use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
+use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
 use crate::camera::OPENGL_TO_WGPU_MATRIX;
 use crate::fabric::cue::{Cue, SIDE};
 use crate::fabric::dimensions::{MEDIUM_HEIGHT, MEDIUM_PRETENSION};
@@ -48,6 +48,8 @@ struct Station {
     /// across, for one that leans out from its foot to land centred.
     seed: f32,
     seed_shift: [f32; 2],
+    /// How long it grows and is shaped, seconds of its own time.
+    growing: f32,
     sensors: [&'static str; 3],
 }
 
@@ -77,6 +79,7 @@ const STATIONS: [Station; PIECES] = [
         pretension: 0.02,
         seed: 1.58,
         seed_shift: [0.0, 0.0],
+        growing: 5.0,
         sensors: ["C19", "A14", "B11"],
     },
     Station {
@@ -87,6 +90,7 @@ const STATIONS: [Station; PIECES] = [
         pretension: 0.25,
         seed: 1.85,
         seed_shift: [0.0, 0.0],
+        growing: 7.3,
         sensors: ["R62", "L62", "R47"],
     },
     Station {
@@ -97,26 +101,29 @@ const STATIONS: [Station; PIECES] = [
         pretension: 0.25,
         seed: 1.99,
         seed_shift: [0.0, 0.0],
+        growing: 6.9,
         sensors: ["L2", "R2", "R43"],
     },
     Station {
         name: FabricName::HaloByCrane,
-        at: [-3.53, -4.85],
-        facing: 335.0,
+        at: [3.53, -4.85],
+        facing: 263.0,
         taller: 1.25,
         pretension: 1.0,
         seed: 0.81,
         seed_shift: [0.0, 0.0],
+        growing: 14.1,
         sensors: ["A12.2", "A08.4", "A07.6"],
     },
     Station {
         name: FabricName::Swagger,
-        at: [3.53, -4.85],
-        facing: 324.0,
+        at: [-3.53, -4.85],
+        facing: 36.0,
         taller: 1.3,
         pretension: 0.25,
         seed: 0.65,
         seed_shift: [0.257, -0.637],
+        growing: 4.2,
         sensors: ["A09.6", "A05.5", "A05.6"],
     },
 ];
@@ -125,11 +132,14 @@ pub const WIDTH: f32 = 18.0;
 pub const DEPTH: f32 = 26.0;
 pub const WALL_HEIGHT: f32 = 3.5;
 /// Where the walk starts, in the middle of the room, each piece watched
-/// building there in turn; and where the visitor backs off to afterwards,
-/// by the far wall, every table in view, as fast as this, metres a second.
+/// building there in turn; and home, where the visitor backs off to
+/// afterwards, and where a tour ends: by the far wall, every table in view,
+/// gone back to as fast as this, metres a second.
 const START: [f32; 2] = [0.0, 0.0];
 const OVERVIEW: [f32; 2] = [0.0, -12.4];
 const BACKING_OFF: f32 = 2.5;
+/// Within this of home, metres, they are at home.
+const HOME_NEAR: f32 = 0.5;
 /// The piece built first, and the others in turn round the room from it.
 const FIRST: FabricName = FabricName::Swagger;
 /// Watching a piece build from the middle, how high over its deck to look.
@@ -140,10 +150,8 @@ const EYE: f32 = 1.7;
 const WALK: f32 = 1.2;
 const TURN: f32 = 1.0;
 const KEEP_OFF: f32 = 0.4;
-/// How far down the visitor looks at first, how far up and down they can
-/// look, up far enough to see the shadows on the ceiling, and how wide they
-/// see, radians.
-const LOOK_DOWN: f32 = 0.15;
+/// How far up and down the visitor can look, up far enough to see the
+/// shadows on the ceiling, and how wide they see, radians.
 const LOOK_UP_MOST: f32 = 0.7;
 const LOOK_DOWN_MOST: f32 = 0.5;
 const VIEW: f32 = 1.0;
@@ -156,7 +164,7 @@ const VIEWING_HEIGHT: f32 = 0.65;
 const CLICK: f32 = 6.0;
 const CLICK_NEAR: f32 = 0.25;
 /// On tour, how long they stay at each piece, seconds.
-const TOUR_STAY: f32 = 20.0;
+const TOUR_STAY: f32 = 10.0;
 /// A two-finger swipe: metres walked and radians turned for each pixel;
 /// a line of a mouse wheel is this many pixels. Dragging: radians looked
 /// for each pixel.
@@ -194,10 +202,19 @@ const PLAYING: f32 = 20.0;
 const SIMULATED: usize = PIECES;
 #[cfg(target_arch = "wasm32")]
 const SIMULATED: usize = 2;
-/// How long each frame spends at most building the pieces, all together,
-/// and how much faster than real time they build, as far as that allows.
+/// How long each frame spends at most building. Each piece grows and is
+/// shaped in `GROWING` seconds, whatever its own time (`growing`), so each
+/// can be watched alike; is pretensioned faster than real time, falls in
+/// real time, and settles faster again, while the next is begun.
 const BUILDING: std::time::Duration = std::time::Duration::from_millis(30);
-const BUILD_PACE: f32 = 10.0;
+const GROWING: f32 = 5.0;
+const PRETENSING_PACE: f32 = 3.0;
+const SETTLING_PACE: f32 = 5.0;
+/// Watching from the middle, how long to stay with a piece once it has
+/// landed, seeing it settle in real time, before turning to the next.
+const LINGER: f32 = 2.0;
+/// With nothing done for this long, seconds, the tour begins by itself.
+const IDLE: f32 = 30.0;
 /// Building goes round the pieces this many ticks at a time.
 const BUILD_STEP: usize = 100;
 
@@ -224,6 +241,11 @@ fn ring() -> [usize; PIECES] {
         angle(a).total_cmp(&angle(b))
     });
     ring
+}
+
+/// Where to look from the middle to watch the piece at `station` build.
+fn watching(station: usize) -> Vec3 {
+    floor_at(station) + Vec3::Y * (DECK_HEIGHT + WATCHING_HEIGHT)
 }
 
 /// Where the piece at `station` stands, and which way it faces.
@@ -322,6 +344,11 @@ impl Piece {
         }
     }
 
+    /// Landed on its table, settling or standing.
+    fn landed(&self) -> bool {
+        self.building.as_ref().is_none_or(|executor| matches!(executor.stage(), ExecutorStage::Settling | ExecutorStage::Complete))
+    }
+
     /// Built `ticks` further, if it is still being built; once it stands,
     /// it plays.
     fn build(&mut self, ticks: usize) {
@@ -387,8 +414,11 @@ pub struct Walker {
 }
 
 impl Walker {
-    fn new() -> Walker {
-        let (at, look) = (Vec3::new(START[0], EYE, START[1]), Vec3::new(0.0, -LOOK_DOWN, 0.0));
+    /// Standing where the walk starts, looking at `sight`.
+    fn new(sight: Vec3) -> Walker {
+        let at = Vec3::new(START[0], EYE, START[1]);
+        let seen = sight - at;
+        let look = Vec3::new(seen.x.atan2(seen.z), seen.y.atan2(seen.x.hypot(seen.z)), 0.0);
         Walker {
             at,
             look,
@@ -543,8 +573,9 @@ pub struct Gallery {
     pub walker: Walker,
     /// The music, where there is an output to play it on.
     sound: Option<sound::Sound>,
-    /// On tour: the station visited, and how long they have stayed there.
-    touring: Option<(usize, f32)>,
+    /// On tour: the station visited, how long they have stayed there, and
+    /// how many they have visited.
+    touring: Option<(usize, f32, usize)>,
     /// The stations whose pieces can be begun, the order they are built in,
     /// one after another, and how many have been begun.
     ready: [bool; PIECES],
@@ -553,6 +584,14 @@ pub struct Gallery {
     /// Shown each piece building from the middle, then backed off to see
     /// them all, until they look round by themselves.
     showing: bool,
+    /// How long since the visitor last did anything, and whether the tour
+    /// under way began by itself for that.
+    idle: f32,
+    wandering: bool,
+    /// Watching from the middle: how long the last piece has been lingered
+    /// on since it landed, and the station turned to next.
+    lingered: f32,
+    aimed: Option<usize>,
     /// On the web, with no threads, the unseen Large builds are done a
     /// little each frame, one after another.
     #[cfg(target_arch = "wasm32")]
@@ -580,10 +619,13 @@ impl Gallery {
                 let _ = send.send(index);
             });
         }
+        let ring = ring();
+        let first = ring.iter().position(|&station| STATIONS[station].name == FIRST).unwrap_or(0);
+        let order: [usize; PIECES] = std::array::from_fn(|index| ring[(first + index) % PIECES]);
         Gallery {
             known,
             pieces: Vec::new(),
-            walker: Walker::new(),
+            walker: Walker::new(watching(order[0])),
             // The web plays sound only once the visitor has done something.
             #[cfg(not(target_arch = "wasm32"))]
             sound: sound::Sound::new(),
@@ -591,13 +633,13 @@ impl Gallery {
             sound: None,
             touring: None,
             ready: [false; PIECES],
-            order: {
-                let ring = ring();
-                let first = ring.iter().position(|&station| STATIONS[station].name == FIRST).unwrap_or(0);
-                std::array::from_fn(|index| ring[(first + index) % PIECES])
-            },
+            order,
             begun: 0,
             showing: true,
+            idle: 0.0,
+            wandering: false,
+            lingered: 0.0,
+            aimed: None,
             #[cfg(target_arch = "wasm32")]
             learning: next_to_learn(0, &send),
             #[cfg(target_arch = "wasm32")]
@@ -619,22 +661,44 @@ impl Gallery {
         self.walker.go(to, sight);
     }
 
-    pub fn touring(&self) -> bool {
-        self.touring.is_some()
+    /// What the tour's button says: at home, Take the tour, counting down
+    /// the seconds until it begins by itself; Stop the tour, on a tour the
+    /// visitor began; and nothing elsewhere, or on a tour that began by
+    /// itself, which any move of theirs stops.
+    pub fn tour_button(&self) -> Option<String> {
+        match (self.touring.is_some(), self.wandering) {
+            (true, true) => None,
+            (true, false) => Some("Stop the tour".to_string()),
+            _ if self.at_home() => Some(format!("Take the tour  {:02}", (IDLE - self.idle).max(0.0).ceil() as u32)),
+            _ => None,
+        }
     }
 
-    /// The tour begun at the nearest piece, or ended.
+    /// Standing at home, by the far wall, every piece in view.
+    fn at_home(&self) -> bool {
+        let [x, z] = OVERVIEW;
+        self.walker.going.is_none() && !self.showing && self.walker.at.with_y(0.0).distance(Vec3::new(x, 0.0, z)) < HOME_NEAR
+    }
+
+    /// The tour begun, in the order they were built, or ended.
     pub fn toggle_tour(&mut self) {
         if self.touring.take().is_some() {
-            self.walker.going = None;
+            self.go_home();
             return;
         }
-        let at = self.walker.at;
-        let nearest = (0..PIECES).min_by(|&a, &b| floor_at(a).distance(at).total_cmp(&floor_at(b).distance(at))).unwrap();
+        let first = self.order[0];
         self.walker.take_steered();
         self.showing = false;
-        self.visit(nearest);
-        self.touring = Some((nearest, 0.0));
+        self.wandering = false;
+        self.visit(first);
+        self.touring = Some((first, 0.0, 1));
+    }
+
+    /// Back to where every piece is in view: by the far wall, looking into
+    /// the room.
+    fn go_home(&mut self) {
+        let [x, z] = OVERVIEW;
+        self.walker.go_at(Vec3::new(x, 0.0, z), Vec3::Y * (DECK_HEIGHT + VIEWING_HEIGHT), BACKING_OFF);
     }
 
     /// A click at `x`, `y` in a window `width` by `height`: on or near a
@@ -661,6 +725,10 @@ impl Gallery {
     /// The music starts, if it hasn't: on the web, when the visitor first
     /// clicks or presses a key.
     pub fn hear(&mut self) {
+        self.idle = 0.0;
+        if std::mem::take(&mut self.wandering) && self.touring.take().is_some() {
+            self.walker.going = None;
+        }
         if self.sound.is_none() {
             self.sound = sound::Sound::new();
         }
@@ -668,26 +736,38 @@ impl Gallery {
 
     /// The next piece begun once the one before stands, and shown; once
     /// all stand, the visitor backs off to see them all.
-    fn begin_next(&mut self) {
-        if self.pieces.iter().any(|piece| piece.building.is_some()) {
+    fn begin_next(&mut self, seconds: f32) {
+        if self.pieces.iter().any(|piece| piece.building.is_some() && !piece.landed()) {
+            return;
+        }
+        if self.showing && !self.pieces.is_empty() && self.lingered < LINGER {
+            self.lingered += seconds;
             return;
         }
         let Some(&station) = self.order.get(self.begun) else {
             if std::mem::take(&mut self.showing) {
-                let [x, z] = OVERVIEW;
-                self.walker.go_at(Vec3::new(x, 0.0, z), Vec3::Y * (DECK_HEIGHT + VIEWING_HEIGHT), BACKING_OFF);
+                self.go_home();
+                self.idle = 0.0;
             }
             return;
         };
         if !self.ready[station] {
             return;
         }
+        if self.showing {
+            // Turned to it first, and only then begun.
+            if self.aimed != Some(station) {
+                self.aimed = Some(station);
+                let [x, z] = START;
+                self.walker.go(Vec3::new(x, 0.0, z), watching(station));
+            }
+            if self.walker.going.is_some() {
+                return;
+            }
+        }
         self.pieces.push(Piece::begun(station));
         self.begun += 1;
-        if self.showing {
-            let [x, z] = START;
-            self.walker.go(Vec3::new(x, 0.0, z), floor_at(station) + Vec3::Y * (DECK_HEIGHT + WATCHING_HEIGHT));
-        }
+        self.lingered = 0.0;
     }
 
     /// The unseen Large builds done on for a while, each piece begun as
@@ -709,21 +789,31 @@ impl Gallery {
         }
     }
 
-    /// The pieces still being built, built on together, each as far as
-    /// `ticks`, until `until`.
-    fn build_on(&mut self, ticks: usize, until: instant::Instant) {
+    /// The pieces still being built, built on together, each as far as its
+    /// pace makes `iterations` of real time, until `until`.
+    fn build_on(&mut self, iterations: usize, until: instant::Instant) {
+        let watched = if self.showing { self.pieces.len().checked_sub(1) } else { None };
+        let pace = |(index, piece): (usize, &Piece)| match piece.building.as_ref().map(FabricPlanExecutor::stage) {
+            Some(ExecutorStage::Building) => STATIONS[piece.station].growing / GROWING,
+            Some(ExecutorStage::Pretensing) => PRETENSING_PACE,
+            _ if Some(index) == watched => 1.0,
+            Some(ExecutorStage::Falling) => 1.0,
+            _ => SETTLING_PACE,
+        };
+        let ticks: Vec<usize> = self.pieces.iter().enumerate().map(|each| (iterations as f32 * pace(each)) as usize).collect();
         let mut built = vec![0; self.pieces.len()];
         loop {
             let mut building = false;
-            for (piece, built) in self.pieces.iter_mut().zip(&mut built) {
+            for ((piece, built), &ticks) in self.pieces.iter_mut().zip(&mut built).zip(&ticks) {
                 if piece.building.is_none() || *built >= ticks {
                     continue;
                 }
                 if instant::Instant::now() >= until {
                     return;
                 }
-                piece.build(BUILD_STEP);
-                *built += BUILD_STEP;
+                let step = BUILD_STEP.min(ticks - *built);
+                piece.build(step);
+                *built += step;
                 building = true;
             }
             if !building {
@@ -789,22 +879,38 @@ impl Gallery {
         for station in self.known.try_iter() {
             self.ready[station] = true;
         }
-        self.begin_next();
-        self.build_on((iterations as f32 * BUILD_PACE) as usize, until);
+        self.begin_next(seconds);
+        self.build_on(iterations, until);
         let tables = self.tables().map(|(place, deck)| (place.transform_point3(Vec3::ZERO), deck.radius));
         self.walker.walk(seconds, tables.into_iter());
+        self.idle += seconds;
         if self.walker.take_steered() {
             self.touring = None;
             self.showing = false;
+            self.wandering = false;
+            self.idle = 0.0;
         }
-        if let Some((station, stayed)) = &mut self.touring {
+        if !self.at_home() {
+            self.idle = 0.0;
+        }
+        if self.idle >= IDLE && self.touring.is_none() && self.at_home() {
+            self.toggle_tour();
+            self.wandering = true;
+        }
+        if let Some((station, stayed, visited)) = &mut self.touring {
             if self.walker.going.is_none() {
                 *stayed += seconds;
                 if *stayed > TOUR_STAY {
-                    let ring = ring();
-                    let next = ring[(ring.iter().position(|at| at == station).unwrap() + 1) % PIECES];
-                    self.touring = Some((next, 0.0));
-                    self.visit(next);
+                    let next = self.order[(self.order.iter().position(|at| at == station).unwrap() + 1) % PIECES];
+                    if *visited == PIECES {
+                        self.touring = None;
+                        self.wandering = false;
+                        self.idle = 0.0;
+                        self.go_home();
+                    } else {
+                        self.touring = Some((next, 0.0, *visited + 1));
+                        self.visit(next);
+                    }
                 }
             }
         }
@@ -1024,7 +1130,7 @@ mod tests {
         };
         let slack = |fabric: &Fabric| fabric.intervals.values().filter(|interval| interval.role.is_pull_like() && interval.strain <= 0.0).count();
         let unplaced = probe.filter(|probe| STATIONS.iter().all(|station| station.name != *probe));
-        let unplaced = unplaced.map(|name| Station { name, at: [0.0, 0.0], facing: 0.0, taller: 1.25, pretension: 1.0, seed: 1.5, seed_shift: [0.0, 0.0], sensors: ["", "", ""] });
+        let unplaced = unplaced.map(|name| Station { name, at: [0.0, 0.0], facing: 0.0, taller: 1.25, pretension: 1.0, seed: 1.5, seed_shift: [0.0, 0.0], growing: 6.0, sensors: ["", "", ""] });
         let stations = STATIONS.iter().filter(|station| probe.is_none_or(|probe| probe == station.name)).chain(&unplaced);
         for station in stations {
             for &pretension in &pretensions {

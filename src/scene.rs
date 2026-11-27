@@ -35,8 +35,8 @@ pub enum GalleryButton {
     About,
 }
 
-fn gallery_buttons(tour: &str) -> Vec<Button<GalleryButton>> {
-    let mut buttons = vec![Button::new(tour, GalleryButton::Tour)];
+fn gallery_buttons(tour: Option<String>) -> Vec<Button<GalleryButton>> {
+    let mut buttons: Vec<_> = tour.into_iter().map(|label| Button::new(label, GalleryButton::Tour)).collect();
     if cfg!(target_arch = "wasm32") {
         buttons.push(Button::new("About Fluxe", GalleryButton::About));
     }
@@ -464,7 +464,7 @@ impl Scene {
             vertices.extend(DeckVertex::placed(&table, deck, place));
         }
         self.surface_renderer.set_gallery(&self.wgpu.device, &vertices);
-        let label = if gallery.touring() { "Stop the tour" } else { "Take the tour" };
+        let label = gallery.tour_button();
         let text_renderer = &mut self.text_renderer;
         self.tour_text = self.tour.lay_out(
             &self.wgpu,
