@@ -226,15 +226,21 @@ impl Application {
 
     /// The mouse button or a finger pressed or let go in the gallery, where
     /// the pointer is: a button pressed, or a look round begun or ended,
-    /// or a click on a piece.
-    fn gallery_press(&mut self, pressed: bool) {
+    /// or a click on a piece. A mouse presses a button going down; a finger
+    /// as it lifts, as a browser lets only a lifting finger start sound.
+    fn gallery_press(&mut self, pressed: bool, finger: bool) {
         let Some(gallery) = self.gallery.as_mut() else {
             return;
         };
         gallery.hear();
         let pointer = self.gallery_pointer;
         let scene = self.scene.as_mut();
-        if let Some(button) = pointer.zip(scene).and_then(|(at, scene)| scene.gallery_button(at)).filter(|_| pressed) {
+        let on_button = pointer.zip(scene).and_then(|(at, scene)| scene.gallery_button(at));
+        if on_button.is_some() && finger == pressed {
+            // A finger pressing a button, or the mouse letting go of one.
+            return;
+        }
+        if let Some(button) = on_button {
             match button {
                 GalleryButton::Tour => gallery.toggle_tour(),
                 GalleryButton::Sound => gallery.toggle_sound(),
@@ -831,7 +837,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 return;
             }
             WindowEvent::MouseInput { state, button: winit::event::MouseButton::Left, .. } if self.gallery.is_some() => {
-                self.gallery_press(state.is_pressed());
+                self.gallery_press(state.is_pressed(), false);
                 return;
             }
             // A finger: one taps and looks round as the mouse does, two
@@ -848,7 +854,7 @@ impl ApplicationHandler<LabEvent> for Application {
                         self.gallery_touches.push((touch.id, at));
                         if self.gallery_touches.len() == 1 {
                             self.gallery_pointer = Some(at);
-                            self.gallery_press(true);
+                            self.gallery_press(true, true);
                         } else {
                             self.gallery.as_mut().unwrap().walker.press(false, None);
                         }
@@ -873,7 +879,7 @@ impl ApplicationHandler<LabEvent> for Application {
                         self.gallery_touches.retain(|(id, _)| *id != touch.id);
                         if alone {
                             self.gallery_pointer = Some(at);
-                            self.gallery_press(false);
+                            self.gallery_press(false, true);
                         }
                     }
                 }
