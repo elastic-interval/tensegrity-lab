@@ -51,6 +51,10 @@ struct Station {
     /// How long it grows and is shaped, seconds of its own time.
     growing: f32,
     sensors: [&'static str; 3],
+    /// Its own swings on its table, periods (by `ring_down_gallery_pieces`):
+    /// its cues are evolved one at each.
+    #[cfg_attr(not(test), allow(dead_code))]
+    resonances: &'static [f32],
 }
 
 /// Every table the same, for making them: this far from the middle to a
@@ -81,6 +85,7 @@ const STATIONS: [Station; PIECES] = [
         seed_shift: [0.0, 0.0],
         growing: 5.0,
         sensors: ["C19", "A14", "B11"],
+        resonances: &[1.02, 0.93, 0.68],
     },
     Station {
         name: FabricName::HeadlessHug,
@@ -92,6 +97,7 @@ const STATIONS: [Station; PIECES] = [
         seed_shift: [0.0, 0.0],
         growing: 7.3,
         sensors: ["R62", "L62", "R47"],
+        resonances: &[1.72, 1.35, 0.96, 0.69, 0.62, 0.40],
     },
     Station {
         name: FabricName::KayTen,
@@ -103,6 +109,7 @@ const STATIONS: [Station; PIECES] = [
         seed_shift: [0.0, 0.0],
         growing: 6.9,
         sensors: ["L2", "R2", "R43"],
+        resonances: &[3.85, 2.50, 1.52, 0.93, 0.71],
     },
     Station {
         name: FabricName::HaloByCrane,
@@ -114,6 +121,7 @@ const STATIONS: [Station; PIECES] = [
         seed_shift: [0.0, 0.0],
         growing: 14.1,
         sensors: ["A12.2", "A08.4", "A07.6"],
+        resonances: &[1.09, 0.83, 0.67],
     },
     Station {
         name: FabricName::Swagger,
@@ -125,6 +133,7 @@ const STATIONS: [Station; PIECES] = [
         seed_shift: [0.257, -0.637],
         growing: 4.2,
         sensors: ["A09.6", "A05.5", "A05.6"],
+        resonances: &[1.61, 0.70, 0.53],
     },
 ];
 /// The room, across and deep, and its walls' height, metres.
@@ -1151,7 +1160,7 @@ mod tests {
         };
         let slack = |fabric: &Fabric| fabric.intervals.values().filter(|interval| interval.role.is_pull_like() && interval.strain <= 0.0).count();
         let unplaced = probe.filter(|probe| STATIONS.iter().all(|station| station.name != *probe));
-        let unplaced = unplaced.map(|name| Station { name, at: [0.0, 0.0], facing: 0.0, taller: 1.25, pretension: 1.0, seed: 1.5, seed_shift: [0.0, 0.0], growing: 6.0, sensors: ["", "", ""] });
+        let unplaced = unplaced.map(|name| Station { name, at: [0.0, 0.0], facing: 0.0, taller: 1.25, pretension: 1.0, seed: 1.5, seed_shift: [0.0, 0.0], growing: 6.0, sensors: ["", "", ""], resonances: &[] });
         let stations = STATIONS.iter().filter(|station| probe.is_none_or(|probe| probe == station.name)).chain(&unplaced);
         for station in stations {
             for &pretension in &pretensions {
@@ -1242,6 +1251,115 @@ mod tests {
         }
     }
 
+    /// Each gallery piece's own resonances (`PROBE` names one): standing on
+    /// its table, the deck is given one quick swing side to side, fore and
+    /// aft, and twisting, the drums then held, and the piece listened to
+    /// ringing down. For each kick it tells the speeds the joints swing at,
+    /// against the deck (strongest first, how strong against the strongest),
+    /// the joint swinging most at each and which way, and how much of it is
+    /// the deck swinging too.
+    #[test]
+    #[ignore]
+    fn ring_down_gallery_pieces() {
+        use crate::fabric::cue::{FORE, TWIST};
+        const LISTENING: f32 = 20.0;
+        const READING: usize = 100;
+        const LOWEST: f32 = 0.2;
+        const HIGHEST: f32 = 6.0;
+        const STEP: f32 = 0.02;
+        const KICK: f32 = 50.0;
+        let probe: Option<FabricName> = std::env::var("PROBE").ok().and_then(|name| name.parse().ok());
+        let stations: Vec<&Station> = STATIONS.iter().filter(|station| probe.is_none_or(|probe| probe == station.name)).collect();
+        let built: Vec<_> = std::thread::scope(|scope| {
+            let building: Vec<_> = stations.iter().map(|&station| scope.spawn(move || (station, medium(station)))).collect();
+            building.into_iter().map(|piece| piece.join().unwrap()).collect()
+        });
+        let reports: Vec<String> = std::thread::scope(|scope| {
+            let runs: Vec<_> = built
+                .iter()
+                .flat_map(|(station, piece)| [(SIDE, "side"), (FORE, "fore"), (TWIST, "twist")].map(|kick| (*station, piece, kick)))
+                .map(|(station, (fabric, physics), (way, kicked))| {
+                    scope.spawn(move || {
+                        let (mut fabric, physics) = (fabric.clone(), physics.clone());
+                        let rest: Vec<Vec3> = fabric.joints.values().map(|joint| joint.location).collect();
+                        let age = fabric.age;
+                        let kick = Cue::new(0.36, way.map(|each| each * KICK), [0.0; 3], Some((1, LISTENING + 5.0)));
+                        fabric.quake.as_mut().unwrap().play(age, kick);
+                        let per_second = Age::iterations_per_second() as usize;
+                        let mut motion: Vec<Vec<Vec3>> = vec![vec![]; rest.len()];
+                        let mut deck_motion: Vec<Vec3> = vec![];
+                        for tick in 0..(LISTENING * per_second as f32) as usize {
+                            fabric.iterate(&physics);
+                            if tick % READING != 0 {
+                                continue;
+                            }
+                            let deck = fabric.deck().unwrap();
+                            let back = Quat::from_rotation_y(-deck.turn);
+                            for ((track, joint), rest) in motion.iter_mut().zip(fabric.joints.values()).zip(&rest) {
+                                track.push(back * (joint.location - deck.offset) - *rest);
+                            }
+                            deck_motion.push(Vec3::new(deck.offset.x, deck.turn * deck.radius, deck.offset.z));
+                        }
+                        let dt = READING as f32 / per_second as f32;
+                        let bins: Vec<f32> = (0..((HIGHEST - LOWEST) / STEP) as usize).map(|bin| LOWEST + bin as f32 * STEP).collect();
+                        let samples = deck_motion.len();
+                        let window: Vec<f32> = (0..samples).map(|i| 0.5 - 0.5 * (TAU * i as f32 / samples as f32).cos()).collect();
+                        let amplitude = |track: &[Vec3], hertz: f32| -> Vec3 {
+                            let (mut re, mut im) = (Vec3::ZERO, Vec3::ZERO);
+                            for (i, value) in track.iter().enumerate() {
+                                let (sin, cos) = (TAU * hertz * i as f32 * dt).sin_cos();
+                                re += *value * window[i] * cos;
+                                im += *value * window[i] * sin;
+                            }
+                            (re * re + im * im).map(f32::sqrt) * 4.0 / samples as f32
+                        };
+                        let joints: Vec<_> = fabric.joints.values().collect();
+                        let spectra: Vec<Vec<Vec3>> = motion.iter().map(|track| bins.iter().map(|&hertz| amplitude(track, hertz)).collect()).collect();
+                        let power: Vec<f32> = (0..bins.len()).map(|bin| spectra.iter().map(|spectrum| spectrum[bin].length_squared()).sum()).collect();
+                        let deck_power: Vec<f32> = bins.iter().map(|&hertz| amplitude(&deck_motion, hertz).length_squared()).collect();
+                        let strongest = power.iter().cloned().fold(0.0, f32::max).max(1e-20);
+                        let deck_strongest = deck_power.iter().cloned().fold(0.0, f32::max).max(1e-20);
+                        let mut peaks: Vec<usize> = (1..bins.len() - 1)
+                            .filter(|&bin| power[bin] > power[bin - 1] && power[bin] >= power[bin + 1] && power[bin] > 0.02 * strongest)
+                            .collect();
+                        peaks.sort_by(|&a, &b| power[b].total_cmp(&power[a]));
+                        let names = ["side", "up", "fore"];
+                        let rows: Vec<String> = peaks
+                            .iter()
+                            .take(5)
+                            .map(|&bin| {
+                                let most = (0..joints.len()).max_by(|&a, &b| spectra[a][bin].length().total_cmp(&spectra[b][bin].length())).unwrap();
+                                let swing = spectra[most][bin];
+                                let mut order = [0, 1, 2];
+                                order.sort_by(|&a, &b| swing[b].total_cmp(&swing[a]));
+                                let energy = swing * swing;
+                                let way = if energy[order[0]] / energy.element_sum().max(1e-20) >= 0.7 {
+                                    names[order[0]].to_string()
+                                } else {
+                                    format!("{}+{}", names[order[0]], names[order[1]])
+                                };
+                                let label = joints[most].label.map_or("?".to_string(), |label| label.to_string());
+                                format!(
+                                    "{:.2} Hz ({:.2} s) {:3.0}%  {label:>6} {way:10} {:4.1} mm  deck {:3.0}%",
+                                    bins[bin],
+                                    1.0 / bins[bin],
+                                    100.0 * power[bin] / strongest,
+                                    swing.length() * 1000.0,
+                                    100.0 * deck_power[bin] / deck_strongest
+                                )
+                            })
+                            .collect();
+                        format!("{} kicked {kicked}:\n    {}", station.name, rows.join("\n    "))
+                    })
+                })
+                .collect();
+            runs.into_iter().map(|run| run.join().unwrap()).collect()
+        });
+        for report in reports {
+            eprintln!("{report}");
+        }
+    }
+
     /// Evolve cues for each gallery piece at its size (`PROBE` names one,
     /// all by default; `TRIES` how many each, 300 by default), carrying on
     /// from those in `cues/gallery/`, and keep them there. Built in, they
@@ -1261,6 +1379,7 @@ mod tests {
         for station in STATIONS.iter().filter(|station| probe.is_none_or(|probe| probe == station.name)) {
             let (name, (mut fabric, physics)) = (station.name, medium(station));
             fabric.quake.as_mut().unwrap().score_by(scoring);
+            fabric.quake.as_mut().unwrap().tune(station.resonances);
             let memory = std::path::PathBuf::from(&folder).join(quake::cues_file(&name.to_string()).file_name().unwrap());
             let (age, piece) = (fabric.age, (fabric.clone(), physics.clone()));
             fabric.quake.as_mut().unwrap().advance(age, Some(piece), Some(memory));

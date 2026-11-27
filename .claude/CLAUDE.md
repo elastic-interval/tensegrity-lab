@@ -471,7 +471,11 @@ Important integration tests:
   moves), so the slower sways win; it
   keeps the best of each kind of swing (`Quake::alike` under `DISTINCT`,
   every joint's way through the loop, wherever it starts), at most
-  `KEPT`, evolving on until Quake is pressed again. The piece itself only
+  `KEPT`, evolving on until Quake is pressed again. A gallery piece's cues are evolved
+  tuned instead (`Quake::tune`) to its own swings on its table, measured
+  by the ignored `ring_down_gallery_pieces` (a kick each way, then the
+  ring-down heard): seeded at each, the best kept at each (within `BAND`),
+  so each piece has its own slow and quick movements, not the deck's. The piece itself only
   plays: each find (a new kind, or one `NOTABLE` better) `SHOWING`, else
   the kept in turn, `SHOWING` each, every one from rest: between cues the
   piece and the deck are put back as they stood when Quake was pressed

@@ -116,6 +116,9 @@ impl Scoring {
     pub const QUAKE: Scoring = Scoring { expressive: EXPRESSIVE, effort: EFFORT, haste: HASTE };
 }
 
+/// Tuned to a piece's own swings, a cue belongs to the one nearest its
+/// period, and is tried only within this much of it.
+const BAND: f32 = 1.12;
 /// Two swings less alike than this (`Quake::alike`) are of different kinds.
 pub const DISTINCT: f32 = 0.6;
 /// A swing's shape is followed in this many steps through its cue's loop.
@@ -212,6 +215,9 @@ enum Task {
 #[derive(Clone, Debug)]
 struct Evolution {
     scoring: Scoring,
+    /// The piece's own swings, periods: each keeps its best cue. With none,
+    /// it keeps cues unlike one another.
+    bands: Vec<f32>,
     seeds: VecDeque<Cue>,
     kept: Vec<Kept>,
     /// How many times what is kept has changed.
@@ -221,10 +227,28 @@ struct Evolution {
 }
 
 impl Evolution {
-    /// Evolving from `remembered` cues, tried first, and then the seeds.
-    fn new(remembered: Vec<Cue>, scoring: Scoring) -> Evolution {
-        let seeds = remembered.into_iter().chain(Cue::seeds()).collect();
-        Evolution { scoring, seeds, kept: Vec::new(), changes: 0, tries: 0, random: ChaCha8Rng::seed_from_u64(1) }
+    /// Evolving from `remembered` cues, tried first, and then the seeds:
+    /// rocking each way and pulsing at each of `bands`, or with none, the
+    /// usual seeds.
+    fn new(remembered: Vec<Cue>, scoring: Scoring, bands: Vec<f32>) -> Evolution {
+        let seeds = remembered.into_iter().chain(Evolution::seeds(&bands)).collect();
+        Evolution { scoring, bands, seeds, kept: Vec::new(), changes: 0, tries: 0, random: ChaCha8Rng::seed_from_u64(1) }
+    }
+
+    fn seeds(bands: &[f32]) -> Vec<Cue> {
+        if bands.is_empty() {
+            return Cue::seeds();
+        }
+        let ways = [crate::fabric::cue::SIDE, crate::fabric::cue::FORE, crate::fabric::cue::TWIST];
+        let tuned = |&period: &f32| ways.map(|way| Cue::rocking(way, 1.0 / period)).into_iter().chain([Cue::pulsing(ways[0], 1.0 / period, 3, 2.0)]);
+        bands.iter().flat_map(tuned).collect()
+    }
+
+    /// Which of the bands `cue` belongs to, if it is near enough one.
+    fn band(&self, cue: &Cue) -> Option<usize> {
+        let off = |band: &f32| (cue.period / band).ln().abs();
+        let nearest = (0..self.bands.len()).min_by(|&a, &b| off(&self.bands[a]).total_cmp(&off(&self.bands[b])))?;
+        (off(&self.bands[nearest]) <= BAND.ln()).then_some(nearest)
     }
 
     /// The next cue to try: a seed, or a child of those kept.
@@ -236,7 +260,7 @@ impl Evolution {
     /// crossed with another; with none kept, of a seed.
     fn child(&mut self) -> Cue {
         if self.kept.is_empty() {
-            let seeds = Cue::seeds();
+            let seeds = Evolution::seeds(&self.bands);
             let seed = &seeds[self.random.gen_range(0..seeds.len())];
             return seed.mutated(None, &mut self.random);
         }
@@ -256,6 +280,9 @@ impl Evolution {
     /// is a find: a new kind, or `NOTABLE` better.
     fn keep(&mut self, found: Kept) -> Option<usize> {
         self.tries += 1;
+        if !self.bands.is_empty() {
+            return self.keep_in_band(found);
+        }
         if found.swing <= self.scoring.expressive / 2.0 || found.score <= 0.0 {
             return None;
         }
@@ -281,6 +308,26 @@ impl Evolution {
                     self.changes += 1;
                     worst
                 })
+            }
+        }
+    }
+
+    /// Tuned: kept as its band's best, however little it swung, if it is
+    /// near a band at all.
+    fn keep_in_band(&mut self, found: Kept) -> Option<usize> {
+        let band = self.band(&found.cue).filter(|_| found.score > 0.0)?;
+        match (0..self.kept.len()).find(|&index| self.band(&self.kept[index].cue) == Some(band)) {
+            Some(index) if found.score > self.kept[index].score => {
+                let better = found.score - self.kept[index].score;
+                self.kept[index] = found;
+                self.changes += 1;
+                (better >= NOTABLE).then_some(index)
+            }
+            Some(_) => None,
+            None => {
+                self.kept.push(found);
+                self.changes += 1;
+                Some(self.kept.len() - 1)
             }
         }
     }
@@ -538,6 +585,7 @@ pub struct Quake {
     rest: Option<Rest>,
     restoring: bool,
     scoring: Scoring,
+    bands: Vec<f32>,
 }
 
 impl Quake {
@@ -567,6 +615,7 @@ impl Quake {
             rest: None,
             restoring: false,
             scoring: Scoring::QUAKE,
+            bands: Vec::new(),
         }
     }
 
@@ -613,6 +662,12 @@ impl Quake {
     /// does, before it starts evolving.
     pub fn score_by(&mut self, scoring: Scoring) {
         self.scoring = scoring;
+    }
+
+    /// Evolve cues tuned to `periods`, the piece's own swings, keeping the
+    /// best at each, before it starts evolving.
+    pub fn tune(&mut self, periods: &[f32]) {
+        self.bands = periods.to_vec();
     }
 
     /// How far the watched joints have swung against the deck lately.
@@ -740,7 +795,7 @@ impl Quake {
         let shared = self.search.0.get_or_insert_with(|| {
             let remembered = memory.as_deref().map(remembered).unwrap_or_default();
             Arc::new(Mutex::new(Shared {
-                evolution: Evolution::new(remembered, self.scoring),
+                evolution: Evolution::new(remembered, self.scoring, self.bands.clone()),
                 finds: Vec::new(),
                 evolving: false,
                 paused: false,
@@ -1185,7 +1240,7 @@ mod tests {
         remember(&path, &kept);
         let cues = remembered(&path);
         assert_eq!(cues, kept.iter().map(|kept| kept.cue.clone()).collect::<Vec<_>>());
-        assert_eq!(Evolution::new(cues, Scoring::QUAKE).next(), kept[0].cue);
+        assert_eq!(Evolution::new(cues, Scoring::QUAKE, Vec::new()).next(), kept[0].cue);
     }
 
     /// Quake pressed on `fabric`, as the button does.
