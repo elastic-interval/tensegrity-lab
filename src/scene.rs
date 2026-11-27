@@ -39,7 +39,7 @@ pub enum GalleryButton {
 fn gallery_buttons(tour: Option<String>, (sound, sounding): (&str, bool)) -> Vec<Button<GalleryButton>> {
     let mut buttons = Vec::new();
     if cfg!(target_arch = "wasm32") {
-        buttons.push(Button::new("About Fluxe", GalleryButton::About));
+        buttons.push(Button::new("Homepage", GalleryButton::About));
     }
     buttons.push(Button::new(sound, GalleryButton::Sound).with_icon(Icon::Speaker { sounding }));
     buttons.extend(tour.map(|label| Button::new(label, GalleryButton::Tour)));

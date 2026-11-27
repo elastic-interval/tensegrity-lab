@@ -67,6 +67,8 @@ body {
 #canvas {
     opacity: 0;
     transition: opacity 0.5s ease-in;
+    /* Every touch for the gallery, none for scrolling or zooming the page. */
+    touch-action: none;
 }
 
 #canvas.loaded {

@@ -59,10 +59,12 @@ const CYCLE_DWELL: Duration = Duration::from_secs(5);
 const MOTION_INTERVAL: Duration = Duration::from_secs(1);
 /// The most time a frame spends on physics beyond its first update, so a
 /// frame comes about thirty times a second however much is asked of it.
+/// Two fingers spreading on a touch screen: how far a pinch for each pixel.
+const TOUCH_PINCH: f32 = 0.004;
 /// A pinch given as a scroll with Ctrl held, as browsers give it: how far
 /// it spreads for each pixel scrolled.
 const SCROLLED_PINCH: f32 = 0.01;
-/// The site's home page, about the artist and the work, for About Fluxe.
+/// The site's home page, about the artist and the work, for the Homepage button.
 #[cfg(target_arch = "wasm32")]
 const ABOUT: &str = "/home/";
 const PHYSICS_BUDGET: Duration = Duration::from_millis(25);
@@ -103,6 +105,8 @@ pub struct Application {
     /// Whether Ctrl is held: a browser gives a trackpad pinch as a scroll
     /// with Ctrl held.
     gallery_ctrl: bool,
+    /// The fingers on the screen in the gallery, and where.
+    gallery_touches: Vec<(u64, (f32, f32))>,
     #[cfg(not(target_arch = "wasm32"))]
     native: NativeState,
 }
@@ -163,6 +167,7 @@ impl Application {
             gallery: None,
             gallery_pointer: None,
             gallery_ctrl: false,
+            gallery_touches: Vec::new(),
             #[cfg(not(target_arch = "wasm32"))]
             native: NativeState::default(),
         }
@@ -215,6 +220,34 @@ impl Application {
         if let Some(scene) = &mut self.scene {
             if let Err(error) = scene.redraw(&self.crucible.fabric, has_surface, delta) {
                 eprintln!("Error redrawing scene: {:?}", error);
+            }
+        }
+    }
+
+    /// The mouse button or a finger pressed or let go in the gallery, where
+    /// the pointer is: a button pressed, or a look round begun or ended,
+    /// or a click on a piece.
+    fn gallery_press(&mut self, pressed: bool) {
+        let Some(gallery) = self.gallery.as_mut() else {
+            return;
+        };
+        gallery.hear();
+        let pointer = self.gallery_pointer;
+        let scene = self.scene.as_mut();
+        if let Some(button) = pointer.zip(scene).and_then(|(at, scene)| scene.gallery_button(at)).filter(|_| pressed) {
+            match button {
+                GalleryButton::Tour => gallery.toggle_tour(),
+                GalleryButton::Sound => gallery.toggle_sound(),
+                GalleryButton::About => {
+                    #[cfg(target_arch = "wasm32")]
+                    let _ = web_sys::window().map(|window| window.location().set_href(ABOUT));
+                }
+            }
+            return;
+        }
+        if let Some(click) = gallery.walker.press(pressed, pointer) {
+            if let Some(scene) = &self.scene {
+                gallery.clicked(click, scene.wgpu.size());
             }
         }
     }
@@ -798,24 +831,50 @@ impl ApplicationHandler<LabEvent> for Application {
                 return;
             }
             WindowEvent::MouseInput { state, button: winit::event::MouseButton::Left, .. } if self.gallery.is_some() => {
-                let gallery = self.gallery.as_mut().unwrap();
-                gallery.hear();
-                let pointer = self.gallery_pointer;
-                let scene = self.scene.as_mut();
-                if let Some(button) = pointer.zip(scene).and_then(|(at, scene)| scene.gallery_button(at)).filter(|_| state.is_pressed()) {
-                    match button {
-                        GalleryButton::Tour => gallery.toggle_tour(),
-                        GalleryButton::Sound => gallery.toggle_sound(),
-                        GalleryButton::About => {
-                            #[cfg(target_arch = "wasm32")]
-                            let _ = web_sys::window().map(|window| window.location().set_href(ABOUT));
+                self.gallery_press(state.is_pressed());
+                return;
+            }
+            // A finger: one taps and looks round as the mouse does, two
+            // pinch to rise and sink.
+            WindowEvent::Touch(touch) if self.gallery.is_some() => {
+                use winit::event::TouchPhase::*;
+                let at = (touch.location.x as f32, touch.location.y as f32);
+                let spread = |touches: &[(u64, (f32, f32))]| match touches {
+                    [(_, a), (_, b)] => Some((a.0 - b.0).hypot(a.1 - b.1)),
+                    _ => None,
+                };
+                match touch.phase {
+                    Started => {
+                        self.gallery_touches.push((touch.id, at));
+                        if self.gallery_touches.len() == 1 {
+                            self.gallery_pointer = Some(at);
+                            self.gallery_press(true);
+                        } else {
+                            self.gallery.as_mut().unwrap().walker.press(false, None);
                         }
                     }
-                    return;
-                }
-                if let Some(click) = gallery.walker.press(state.is_pressed(), pointer) {
-                    if let Some(scene) = &self.scene {
-                        gallery.clicked(click, scene.wgpu.size());
+                    Moved => {
+                        let before = spread(&self.gallery_touches);
+                        if let Some(finger) = self.gallery_touches.iter_mut().find(|(id, _)| *id == touch.id) {
+                            finger.1 = at;
+                        }
+                        let walker = &mut self.gallery.as_mut().unwrap().walker;
+                        match (self.gallery_touches.len(), before, spread(&self.gallery_touches)) {
+                            (1, _, _) => {
+                                self.gallery_pointer = Some(at);
+                                walker.pointer_moved(at.0, at.1);
+                            }
+                            (_, Some(before), Some(after)) => walker.pinch((after - before) * TOUCH_PINCH),
+                            _ => {}
+                        }
+                    }
+                    Ended | Cancelled => {
+                        let alone = self.gallery_touches.len() == 1;
+                        self.gallery_touches.retain(|(id, _)| *id != touch.id);
+                        if alone {
+                            self.gallery_pointer = Some(at);
+                            self.gallery_press(false);
+                        }
                     }
                 }
                 return;
